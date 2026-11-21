@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AppError, auditInTransaction, db } from '../../core';
 import type { DbExecutor } from '../../core';
 import { getConversation } from '../inbox/service';
+import { ownerAnswerPrompts, prepareCustomerAnswer } from './owner-consult-customer-answer';
 import type { AuthScope } from '@nless/shared/core/types';
 import type {
   AnswerOwnerConsultInput, OpenOwnerConsultInput, OpenOwnerConsultResult, OwnerConsultActionKey,
@@ -14,12 +15,16 @@ const actionStepId = z.string().min(1).max(80).regex(/^[A-Za-z0-9_-]+$/);
 const openInput = z.object({
   businessId: id, conversationId: id, triggerMessageId: id,
   question: z.string().trim().min(1).max(1200), language: z.enum(['th', 'en']),
+  answerPrompts: z.array(z.string().trim().min(1).max(1200)).min(1).max(8).optional(),
 }).strict();
 const keyInput = z.object({ businessId: id, caseId: id, actionStepId }).strict();
 export const OwnerConsultAnswerBody = z.object({
   actionStepId, expectedVersion: z.number().int().min(1).max(2_147_483_646),
   clientRequestId: z.string().min(1).max(100).regex(/^[A-Za-z0-9:_-]+$/),
   answer: z.string().trim().min(1).max(2000),
+  answerParts: z.array(z.string().trim().min(1).max(2000)).min(1).max(8).optional(),
+  customerReady: z.boolean().default(false),
+  privateRationale: z.string().trim().max(2000).nullish(),
   reuse: z.enum(['case_only', 'propose_draft']).default('case_only'),
 }).strict();
 
@@ -40,7 +45,9 @@ async function requireCurrentOwner(tx: DbExecutor, scope: AuthScope): Promise<st
 }
 
 export async function openOwnerConsult(input: OpenOwnerConsultInput): Promise<OpenOwnerConsultResult> {
-  const { businessId, conversationId, triggerMessageId, question, language } = openInput.parse(input);
+  const { businessId, conversationId, triggerMessageId, question, language, answerPrompts } = openInput.parse(input);
+  const prompts = ownerAnswerPrompts(question, answerPrompts);
+  if (prompts.length > 8) throw new AppError('VALIDATION_ERROR', 'Too many parts in the owner question');
   return db.tx(async (tx) => {
     // Verify only the IDs and channel against core. No customer text is copied from the message.
     const source = await tx.maybeOne(
@@ -66,8 +73,8 @@ export async function openOwnerConsult(input: OpenOwnerConsultInput): Promise<Op
       return { ...existing, created: false };
     }
     await tx.query(
-      'INSERT INTO owner_consult_steps(business_id,case_id,action_step_id,question) VALUES($1,$2,$3,$4)',
-      [businessId, created.caseId, initialStep, question],
+      'INSERT INTO owner_consult_steps(business_id,case_id,action_step_id,question,answer_prompts) VALUES($1,$2,$3,$4,$5::jsonb)',
+      [businessId, created.caseId, initialStep, question, JSON.stringify(prompts)],
     );
     await tx.query('INSERT INTO owner_consult_outbox(business_id,case_id,action_step_id) VALUES($1,$2,$3)',
       [businessId, created.caseId, initialStep]);
@@ -98,7 +105,7 @@ export async function getOwnerConsult(scope: AuthScope, caseId: string): Promise
     const businessId = await requireCurrentOwner(tx, scope);
     const row = await tx.maybeOne<OwnerConsultView & { conversationId: string }>(
       'SELECT c.id AS "caseId",c.conversation_id AS "conversationId",s.action_step_id AS "actionStepId",' +
-      's.version,s.state,c.language,s.question,s.answer,s.reuse ' +
+      's.version,s.state,c.language,s.question,s.answer_prompts AS "answerPrompts",s.answer,s.private_rationale AS "privateRationale",s.reuse ' +
       'FROM owner_consult_cases c JOIN owner_consult_steps s ON (s.business_id,s.case_id)=(c.business_id,c.id) ' +
       "WHERE c.business_id=$1 AND c.id=$2 ORDER BY (s.state='pending') DESC,s.created_at DESC,s.action_step_id LIMIT 1",
       [businessId, caseId],
@@ -107,13 +114,18 @@ export async function getOwnerConsult(scope: AuthScope, caseId: string): Promise
     return { ...row, businessId };
   });
   if (view.state === 'pending' && !await conversationIsActionable(businessId, conversationId)) notFound();
-  return view;
+  return { ...view, answerPrompts: ownerAnswerPrompts(view.question, view.answerPrompts) };
 }
 
 type LockedStep = {
   state: 'pending' | 'answered';
   version: number;
   answer: string | null;
+  question: string;
+  answer_prompts: string[];
+  language: 'th' | 'en';
+  private_rationale: string | null;
+  customer_ready_at: Date | null;
   answer_request_id: string | null;
   answer_receipt_id: string | null;
   answered_by: string | null;
@@ -123,29 +135,35 @@ type LockedStep = {
 export async function answerOwnerConsult(scope: AuthScope, input: AnswerOwnerConsultInput): Promise<OwnerConsultAnswerReceipt> {
   const { caseId, ...change } = input;
   if (!id.safeParse(caseId).success) notFound();
-  const { actionStepId, expectedVersion, clientRequestId, answer, reuse } = OwnerConsultAnswerBody.parse(change);
+  const { actionStepId, expectedVersion, clientRequestId, reuse, ...copy } = OwnerConsultAnswerBody.parse(change);
   return db.tx(async (tx) => {
     const businessId = await requireCurrentOwner(tx, scope);
     const key = [businessId, caseId, actionStepId];
     const step = await tx.maybeOne<LockedStep>(
-      'SELECT state,version,answer,answer_request_id,answer_receipt_id,answered_by,reuse FROM owner_consult_steps ' +
-      'WHERE business_id=$1 AND case_id=$2 AND action_step_id=$3 FOR UPDATE', key,
+      'SELECT s.state,s.version,s.answer,s.question,s.answer_prompts,s.private_rationale,s.customer_ready_at,' +
+      's.answer_request_id,s.answer_receipt_id,s.answered_by,s.reuse,c.language FROM owner_consult_steps s ' +
+      'JOIN owner_consult_cases c ON (c.business_id,c.id)=(s.business_id,s.case_id) ' +
+      'WHERE s.business_id=$1 AND s.case_id=$2 AND s.action_step_id=$3 FOR UPDATE OF s', key,
     );
     if (!step) notFound();
-    if (step.answer_request_id === clientRequestId && step.answered_by === scope.userId) {
-      if (step.version !== expectedVersion + 1 || step.answer !== answer || step.reuse !== reuse) {
+        const replay = step.answer_request_id === clientRequestId && step.answered_by === scope.userId;
+    if (!replay && (step.state !== 'pending' || step.version !== expectedVersion)) {
+      throw new AppError('VERSION_CONFLICT', 'Owner consultation action has changed', { details: { version: step.version } });
+    }
+    const prompts = ownerAnswerPrompts(step.question, step.answer_prompts);
+    const { answer, privateRationale } = prepareCustomerAnswer(copy, prompts.length, step.language);
+    if (replay) {
+      if (!step.customer_ready_at || step.version !== expectedVersion + 1 || step.answer !== answer ||
+          step.private_rationale !== privateRationale || step.reuse !== reuse) {
         throw new AppError('IDEMPOTENCY_CONFLICT', 'Owner consultation request already used');
       }
       return { caseId, version: step.version, state: 'answered', answerReceiptId: step.answer_receipt_id!, reuse };
     }
-    if (step.state !== 'pending' || step.version !== expectedVersion) {
-      throw new AppError('VERSION_CONFLICT', 'Owner consultation action has changed', { details: { version: step.version } });
-    }
     const receipt = await tx.one<{ answerReceiptId: string; version: number }>(
       "UPDATE owner_consult_steps SET state='answered',version=version+1,answer=$4,answer_request_id=$5," +
-      'answered_by=$6,answered_at=now(),reuse=$7,answer_receipt_id=gen_random_uuid() ' +
+      'answered_by=$6,answered_at=now(),reuse=$7,private_rationale=$8,customer_ready_at=now(),answer_receipt_id=gen_random_uuid() ' +
       'WHERE business_id=$1 AND case_id=$2 AND action_step_id=$3 RETURNING answer_receipt_id AS "answerReceiptId",version',
-      [...key, answer, clientRequestId, scope.userId, reuse],
+      [...key, answer, clientRequestId, scope.userId, reuse, privateRationale],
     );
     await tx.query(
       'INSERT INTO owner_consult_answer_outbox(business_id,case_id,action_step_id,answer_receipt_id) VALUES($1,$2,$3,$4)',

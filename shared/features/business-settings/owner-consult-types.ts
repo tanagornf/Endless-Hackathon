@@ -9,6 +9,7 @@ export interface OpenOwnerConsultInput {
   conversationId: string;
   triggerMessageId: string;
   question: string;
+  answerPrompts?: string[];
   language: 'th' | 'en';
 }
 
@@ -27,6 +28,9 @@ export interface AnswerOwnerConsultInput {
   expectedVersion: number;
   clientRequestId: string;
   answer: string;
+  answerParts?: string[];
+  customerReady?: boolean;
+  privateRationale?: string | null;
   /** Omit to restrict the answer to this case. */
   reuse?: OwnerConsultReuse;
 }
@@ -46,7 +50,9 @@ export interface OwnerConsultView {
   state: 'pending' | 'answered';
   language: 'th' | 'en';
   question: string;
+  answerPrompts: string[];
   answer: string | null;
+  privateRationale: string | null;
   reuse: OwnerConsultReuse | null;
 }
 

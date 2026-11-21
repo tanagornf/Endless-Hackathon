@@ -107,7 +107,7 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
     const url = root(input.businessId) + opened.caseId;
     const body = {
       actionStepId: opened.actionStepId, expectedVersion: opened.version,
-      clientRequestId: randomUUID(), answer: 'We replace missing pieces when a receipt is available.',
+      clientRequestId: randomUUID(), customerReady: true, answer: 'We replace missing pieces when a receipt is available.',
     };
     expect((await staff.post(url + '/answer').set(...writeHeader).set('Cookie', staffCookie).send(body)).status).toBe(403);
     expect((await foreign.post(root(foreignShop.id) + opened.caseId + '/answer').set(...writeHeader).send(body)).status).toBe(404);
@@ -171,7 +171,7 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
       // An owner with a previously opened view can still record a private, case-only answer.
       const response = await owner.post(url + '/answer').set(...writeHeader).send({
         actionStepId: opened.actionStepId, expectedVersion: opened.version,
-        clientRequestId: randomUUID(), answer: 'The holder can offer a replacement part.',
+        clientRequestId: randomUUID(), customerReady: true, answer: 'The holder can offer a replacement part.',
       });
       expect(response.status).toBe(200);
       expect(response.body.data).toMatchObject({ state: 'answered', reuse: 'case_only' });
@@ -191,7 +191,7 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
     expect((await owner.put(base + '/ai').set(...writeHeader).send({ enabled: false })).status).toBe(200);
     expect((await getBusinessSettings(input.businessId)).aiEnabled).toBe(false);
     const response = await owner.post(root(input.businessId) + opened.caseId + '/answer').set(...writeHeader).send({
-      actionStepId: opened.actionStepId, expectedVersion: opened.version, clientRequestId: randomUUID(), answer: 'Keep the answer on this case.',
+      actionStepId: opened.actionStepId, expectedVersion: opened.version, clientRequestId: randomUUID(), customerReady: true, answer: 'Keep the answer on this case.',
     });
     expect(response.status).toBe(200);
     const key = {
@@ -222,12 +222,44 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
   });
 });
 
+  it.each([
+    { language: 'en', prompts: ['Can I get a replacement part?', 'Who pays shipping?'],
+      parts: ['We can replace the missing part.', 'We cover the shipping cost.'],
+      placeholder: 'Let me check.', note: 'One-time exception for review. Keep this note private.' },
+    { language: 'th', prompts: ['เปลี่ยนอะไหล่ได้ไหม?', 'ใครออกค่าส่ง?'],
+      parts: ['ร้านเปลี่ยนอะไหล่ให้ได้ค่ะ', 'ทางร้านออกค่าส่งให้ค่ะ'],
+      placeholder: 'ขอเช็กก่อนนะคะ', note: 'ข้อยกเว้นเฉพาะกรณี เก็บเป็นข้อมูลภายใน' },
+  ] as const)('keeps private rationale and incomplete replies out of the $language resume receipt', async (copy) => {
+    const { staffCookie: _cookie, staffId: _staffId, ...input } = await fixture();
+    const opened = await openOwnerConsult({ ...input, question: copy.prompts.join(' '), language: copy.language });
+    const url = root(input.businessId) + opened.caseId;
+    expect((await owner.get(url)).body.data.answerPrompts).toEqual(copy.prompts);
+    const base = { actionStepId: opened.actionStepId, expectedVersion: opened.version, clientRequestId: randomUUID(), privateRationale: copy.note };
+    const submit = (answerParts: readonly string[], customerReady = true) => owner.post(url + '/answer').set(...writeHeader)
+      .send({ ...base, customerReady, answer: answerParts.join('\n\n'), answerParts });
+    for (const incomplete of [await submit([copy.parts[0]]), await submit([copy.placeholder, copy.parts[1]]), await submit(copy.parts, false)]) {
+      expect(incomplete.status).toBe(400);
+      expect(incomplete.body.error.details.reason).toBe('incomplete_owner_answer');
+    }
+    const lookup = { businessId: input.businessId, caseId: opened.caseId, actionStepId: opened.actionStepId };
+    expect(await isOwnerConsultActionPending(lookup)).toBe(true);
+    expect(await db.maybeOne('SELECT 1 FROM owner_consult_answer_outbox WHERE business_id=$1 AND case_id=$2', [input.businessId, opened.caseId]))
+      .toBeNull();
+    const accepted = await submit(copy.parts);
+    expect(accepted.status).toBe(200);
+    const receipt = await readOwnerConsultAnswer({ ...lookup, answerReceiptId: accepted.body.data.answerReceiptId });
+    expect(receipt).toMatchObject({ answer: copy.parts.join('\n\n'), language: copy.language, reuse: 'case_only' });
+    expect(receipt).not.toHaveProperty('privateRationale');
+    expect(JSON.stringify(receipt)).not.toContain(copy.note);
+    expect((await owner.get(url)).body.data.privateRationale).toBe(copy.note);
+  });
+
   it('hands one registered F10 job a scoped receipt without putting the answer in the job', async () => {
     const { staffCookie: _cookie, staffId: _staffId, ...input } = await fixture();
     const opened = await openOwnerConsult(input);
     const answer = 'We replace missing pieces with proof of purchase.';
     const response = await owner.post(root(input.businessId) + opened.caseId + '/answer').set(...writeHeader).send({
-      actionStepId: opened.actionStepId, expectedVersion: opened.version, clientRequestId: randomUUID(), answer,
+      actionStepId: opened.actionStepId, expectedVersion: opened.version, clientRequestId: randomUUID(), customerReady: true, answer,
     });
     expect(response.status).toBe(200);
     const key = {

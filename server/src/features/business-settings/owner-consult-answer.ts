@@ -17,7 +17,7 @@ export async function readOwnerConsultAnswer(key: OwnerConsultAnswerKey): Promis
     'JOIN owner_consult_cases c ON (c.business_id,c.id)=(s.business_id,s.case_id) ' +
     'JOIN businesses b ON b.id=s.business_id JOIN accounts a ON a.id=b.account_id ' +
     "WHERE s.business_id=$1 AND s.case_id=$2 AND s.action_step_id=$3 AND s.answer_receipt_id=$4 AND s.state='answered' " +
-    "AND b.status='active' AND a.status='active' AND NOT EXISTS (" +
+    "AND s.customer_ready_at IS NOT NULL AND b.status='active' AND a.status='active' AND NOT EXISTS (" +
     'SELECT 1 FROM owner_consult_steps newer WHERE (newer.business_id,newer.case_id)=(s.business_id,s.case_id) ' +
     'AND (newer.created_at,newer.action_step_id)>(s.created_at,s.action_step_id))',
     [key.businessId, key.caseId, key.actionStepId, key.answerReceiptId],
