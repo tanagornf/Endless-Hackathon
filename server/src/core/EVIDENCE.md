@@ -46,12 +46,6 @@
 - Review extended atomic reconciliation to ordinary dead-job settlement and claims expiring before dispatch. An ambiguous LINE retry stays unknown unless a later provider acknowledgement resolves it.
 - Recording the pending message and enqueueing its delivery now share a transaction. New tests exercise both dead-job paths and an enqueue rollback followed by an idempotent retry.
 
-### F01 public product web search
-
-- Ten focused tests passed for keyword validation, completed search detection, citation filtering and fake usage attribution. Typecheck and lane path checks passed.
-- A real `app-dev` OpenAI request through `model.searchWeb` returned one cited result for a public headphone specification query in 8.78 seconds. The usage write was captured in memory and estimated $0.031556 in model and tool charges.
-- Native C1 review and the F10 integration and production smoke are pending.
-
 ### F35 scheduler and readiness
 
 - The C1 test database verified two-session scheduler leadership, overlapping-job suppression, slot deduplication, retention and takeover after release.
@@ -63,3 +57,10 @@
 - Dead worker deliveries, lease reaping and operator cancellation reconcile a shared pending message in their job transition transaction. Message row locks serialize sibling transitions before a fresh read of active siblings.
 - Added a synthetic integration case with a reaper and an operator independently settling the last two delivery jobs. It checks one shared message reaches its final status and the sender receives no calls.
 - Demo reset and operations API tests use scoped fixtures. Local integration and production evidence are tracked separately on the pull request.
+
+### F01 public product web search
+
+- Eleven focused tests passed for keyword validation, completed search detection, HTTPS and mixed-output citation filtering, and fake usage attribution. Typecheck and lane path checks passed.
+- A real `app-dev` OpenAI request through `model.searchWeb` returned one cited result for a public headphone specification query in 8.78 seconds. The usage write was captured in memory and estimated $0.031556 in model and tool charges.
+- After citation hardening, a real `app-dev` Responses request for `Qi2` completed the native search and returned two validated HTTPS citations in 6.13 seconds through the core request and response mapping.
+- Native C1 review and the F10 integration and production smoke are pending.
