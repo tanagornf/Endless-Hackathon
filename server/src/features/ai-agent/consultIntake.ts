@@ -23,22 +23,24 @@ export function needsProductCareConsult(question: string, reply: string, evidenc
 
 export async function openConsultOnShopMiss(
   conversation: ConversationRecord, inbound: MessageRecord, draft: TurnDraft, signal: AbortSignal,
-): Promise<void> {
+): Promise<boolean> {
   const first = draft.parts[0];
   if (conversation.channel !== 'line' || conversation.handler !== 'ai' || conversation.assigneeUserId !== null ||
       inbound.channel !== 'line' || inbound.author !== 'customer' || inbound.direction !== 'inbound' ||
       !draft.intent || !consultIntents.has(draft.intent) || draft.handoffReason || draft.errorCode ||
-      draft.evidenceIds.length || first?.type !== 'text' || !first.text.startsWith(fallbacks.no_answer[draft.language])) return;
+      draft.evidenceIds.length || first?.type !== 'text' || !first.text.startsWith(fallbacks.no_answer[draft.language])) return false;
   const text = inbound.parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('\n').trim();
   const question = maskCardNumbers(text).slice(0, 1200).replace(/[\uD800-\uDBFF]$/u, '');
-  if (!/[\p{L}]/u.test(question)) return;
+  if (!/[\p{L}]/u.test(question)) return false;
   signal.throwIfAborted();
   try {
     await openOwnerConsult({
       businessId: conversation.businessId, conversationId: conversation.id, triggerMessageId: inbound.id,
       question, language: draft.language,
     });
+    return true;
   } catch (error) {
     if (!(error instanceof AppError && error.code === 'NOT_FOUND')) throw error;
+    return false;
   }
 }
