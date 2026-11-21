@@ -46,6 +46,13 @@ async function serving(base: URL, candidate: string) {
   throw new Error('Candidate SHA was not served in OpenAI mode within eight minutes');
 }
 
+export function requireSameServingBuild(value: unknown, expectedSha: string) {
+  const build = buildSchema.safeParse(value);
+  if (!build.success || build.data.sha !== expectedSha) {
+    throw new Error('Serving SHA or OpenAI mode changed during the golden-path run');
+  }
+}
+
 async function verifyReadiness(base: URL) {
   const ready = z.object({ status: z.literal('ready'), worker: z.object({ running: z.literal(true) }) });
   for (let index = 0; index < 3; index++) {
@@ -113,6 +120,7 @@ async function main() {
     const build = await serving(base, sha.toLowerCase());
     await verifyReadiness(base);
     const results = runGoldenPath(base, build.sha);
+    requireSameServingBuild(await json(base, '/build-info'), build.sha);
     append('Schema ' + (build.schema || 'unreported') + ', model ' + build.modelMode +
       ', providers ' + JSON.stringify(build.providerModes ?? {}) + '. Playwright ' +
       results.passed + ' passed, ' + results.failed + ' failed, ' + results.skipped + ' skipped.');

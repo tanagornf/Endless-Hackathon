@@ -5,10 +5,10 @@ import { FEATURES } from '@nless/shared/core/features';
 import { parseCsv, parseEvidence, resolveStatus, toCsv } from './evidence-parse';
 
 interface Flag { id: string; visible: boolean; placeholder: boolean }
-function readFlags(path?: string) {
-  if (!path) return null;
-  const body = JSON.parse(readFileSync(path, 'utf8'));
-  const list = Array.isArray(body) ? body : body.data;
+export function parseReleaseFlags(body: unknown) {
+  let list = body;
+  if (list && typeof list === 'object' && 'data' in list) list = list.data;
+  if (list && typeof list === 'object' && 'items' in list) list = list.items;
   if (!Array.isArray(list)) throw new Error('Expected a scoped feature list JSON file');
   const flags = new Map<string, Flag>();
   for (const row of list) {
@@ -21,6 +21,11 @@ function readFlags(path?: string) {
   }
   return flags;
 }
+
+function readFlags(path?: string) {
+  return path ? parseReleaseFlags(JSON.parse(readFileSync(path, 'utf8'))) : null;
+}
+
 const filenames = {
   template: 'docs/competition-plan/templates/FEATURE_STATUS.csv',
   csv: 'docs/FEATURE_STATUS.csv',

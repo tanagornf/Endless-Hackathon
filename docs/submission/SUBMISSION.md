@@ -11,7 +11,7 @@ Candidate 926e5c09d7a723abe66adb5d532028b1cadece05.
 | Demo video | MISSING |
 | Slides | MISSING |
 | README and status table | README.md |
-| Prior work | A · bf961c8d13ee26133f868d32a51d8627001e16f3 to 926e5c09d7a723abe66adb5d532028b1cadece05 |
+| Prior work | MISSING |
 | Feature status | docs/FEATURE_STATUS.csv · 31 rows |
 | Final production golden path | MISSING |
 

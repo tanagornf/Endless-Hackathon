@@ -25,7 +25,7 @@ function png(path: string) {
 
 function main() {
   const args = process.argv.slice(2);
-  const known = new Set(['--repo-public', '--url', '--final', '--build-info', '--line-oa-name', '--judge-login', '--video-url', '--deck-url', '--prior-work']);
+  const known = new Set(['--repo-public', '--url', '--final', '--build-info', '--line-oa-name', '--judge-login', '--video-url', '--deck-url', '--prior-work', '--prior-work-evidence']);
   const options = new Map<string, string>();
   for (let index = 0; index < args.length; index += 2) {
     const [key, value] = args.slice(index, index + 2);
@@ -52,6 +52,7 @@ function main() {
   const qr = 'docs/assets/line-qr.png';
   const judge = options.get('--judge-login') ?? '';
   const variant = options.get('--prior-work');
+  const priorEvidence = validHttps(options.get('--prior-work-evidence'));
   const media = (path: string, url?: string) => existsSync(path) ? path : validHttps(url);
   const rows: [string, string][] = [
     ['Repository', ['yes', 'no'].includes(visible ?? '') ? requiredRepo + ' · ' + (visible === 'yes' ? 'public' : 'judge invitation required') : ''],
@@ -61,7 +62,7 @@ function main() {
     ['Demo video', media('docs/submission/demo.mp4', options.get('--video-url'))],
     ['Slides', media('docs/submission/deck.pdf', options.get('--deck-url'))],
     ['README and status table', snapshot && sameStatusTable(readme, snapshot) && !/<<|\{\{|\[VERIFY|REPLACE_|\b(?:TODO|TBD|lorem)\b/i.test(readme) ? 'README.md' : ''],
-    ['Prior work', (variant === 'A' || variant === 'B') && snapshot?.baselineSha ? variant + ' · ' + snapshot.baselineSha + ' to ' + final : ''],
+    ['Prior work', (variant === 'A' || variant === 'B') && snapshot?.baselineSha && priorEvidence ? variant + ' · ' + snapshot.baselineSha + ' to ' + final + ' · ' + priorEvidence : ''],
     ['Feature status', matching ? 'docs/FEATURE_STATUS.csv · 31 rows' : ''],
     ['Final production golden path', lastGreen.success && lastGreen.data.sha === final ? lastGreen.data.verifiedAt : ''],
   ];
