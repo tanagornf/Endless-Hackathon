@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import OpenAI from 'openai';
@@ -262,7 +263,18 @@ function fakeEmbedding(text: string): number[] {
   for (const token of fakeTokens(text)) vector[fnv(token) % vector.length] += fnv('#' + token) & 1 ? 1 : -1;
   return normalized(vector);
 }
+const modelCallsDisabled = new AsyncLocalStorage<boolean>();
+
+export function withModelCallsDisabled<T>(work: () => Promise<T>): Promise<T> {
+  return modelCallsDisabled.run(true, work);
+}
+
 async function tracked<T extends object>(kind: Kind, usage: UsageAttribution, model: string, fn: () => Promise<{ value: T; record?: ModelRecord }>) {
+  if (modelCallsDisabled.getStore()) {
+    throw new AppError('POLICY_BLOCKED', 'Model calls are disabled during demo reset', {
+      details: { reason: 'demo_reset_model_disabled' },
+    });
+  }
   const start = performance.now();
   let response: { value: T; record?: ModelRecord };
   try { response = await fn(); }

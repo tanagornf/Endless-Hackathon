@@ -28,7 +28,7 @@ export async function loadFeatures({ api, app }: ReturnType<typeof createHttpApp
     await route.register(api(feature.id));
     if (!registered.has(route)) {
       for (const [type, handler] of Object.entries(route.jobs ?? {})) registerJob(type, handler);
-      for (const schedule of route.schedules ?? []) registerSchedule(schedule);
+      for (const schedule of route.schedules ?? []) registerSchedule(schedule, feature.id);
       registered.add(route);
     }
     if (route.mountExpress) mounts.push(route.mountExpress);
@@ -74,11 +74,15 @@ export async function featureFlags(routes: ReturnType<typeof createHttpApp>['rou
   });
 }
 
-export async function setFeatureFlag(actorUserId: string, featureId: string, hidden: boolean, reason?: string) {
-  if (!selectable.some((feature) => feature.id === featureId)) throw new AppError('NOT_FOUND', 'Feature not found');
+export function assertFeatureVisibilityAllowed(featureId: string, hidden: boolean): void {
   if (!hidden && isReleaseDeferred(featureId)) throw new AppError('POLICY_BLOCKED', 'Feature is deferred for the LINE-only release', {
     details: { reason: 'release_scope' },
   });
+}
+
+export async function setFeatureFlag(actorUserId: string, featureId: string, hidden: boolean, reason?: string) {
+  if (!selectable.some((feature) => feature.id === featureId)) throw new AppError('NOT_FOUND', 'Feature not found');
+  assertFeatureVisibilityAllowed(featureId, hidden);
   await db.query(`INSERT INTO feature_flags (feature_id,hidden,reason,updated_by) VALUES ($1,$2,$3,$4)
     ON CONFLICT (feature_id) DO UPDATE SET hidden=excluded.hidden,reason=excluded.reason,
       updated_by=excluded.updated_by,updated_at=now()`, [featureId, hidden, reason ?? null, actorUserId]);

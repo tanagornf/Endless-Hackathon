@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from 'vitest';
-import { buildResponsesRequest, classifyOpenAIError, model, withDeadlineRetry } from './model';
+import { buildResponsesRequest, classifyOpenAIError, model, withDeadlineRetry, withModelCallsDisabled } from './model';
 import { closeDb, db } from './db';
 import type { UsageAttribution } from './types';
 
@@ -38,3 +38,17 @@ test('never retries a provider budget exhaustion', async () => {
   await expect(withDeadlineRetry(async () => { calls++; throw error; }, 1000)).rejects.toMatchObject({ code: 'PROVIDER_BUDGET_EXHAUSTED' });
   expect(calls).toBe(1);
 });
+
+test('reset scope blocks model use and leaves a concurrent ordinary call available', async () => {
+  const blockedUsage = { ...usage, purpose: 'model-test-blocked-reset' };
+  const ordinaryUsage = { ...usage, purpose: 'model-test-normal-concurrent' };
+  const rejected = expect(withModelCallsDisabled(async () => {
+    await Promise.resolve();
+    return model.embed({ usage: blockedUsage, purpose: 'query', texts: ['Synthetic reset embedding'] });
+  })).rejects.toMatchObject({ code: 'POLICY_BLOCKED', details: { reason: 'demo_reset_model_disabled' } });
+  const ordinary = model.embed({ usage: ordinaryUsage, purpose: 'query', texts: ['Synthetic ordinary embedding'] });
+  const [, allowed] = await Promise.all([rejected, ordinary]);
+  expect(allowed.vectors[0]).toHaveLength(1536);
+  expect(await db.maybeOne('SELECT id FROM model_usage WHERE purpose=$1', [blockedUsage.purpose])).toBeNull();
+  expect(await db.maybeOne('SELECT id FROM model_usage WHERE id=$1', [allowed.usageId])).toBeTruthy();
+}, 12000);

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { FEATURES } from '@nless/shared/core/features';
-import type { MigrationOwner } from '@nless/shared/core/features';
+import type { FeatureId, MigrationOwner } from '@nless/shared/core/features';
 import { SEED } from '@nless/shared/core/fixtures';
 import { rootDir } from './config';
 import { db } from './db';
@@ -35,7 +35,7 @@ export async function featureSeeds(): Promise<SeedModule[]> {
 }
 
 export const seedContext: SeedContext = { db, fixtures: SEED, id: seedId, log: (message) => log.info(message) };
-export async function seed(): Promise<void> {
+export async function seed(onFeatureError?: (featureId: FeatureId, error: unknown) => void): Promise<void> {
   await db.tx(async (tx) => {
     for (const row of SEED.users) {
       await tx.query('INSERT INTO users (id,email,display_name,is_platform_admin) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING', [row.id, row.email, row.displayName, row.isPlatformAdmin]);
@@ -78,5 +78,11 @@ export async function seed(): Promise<void> {
       }
     }
   });
-  for (const feature of await featureSeeds()) await feature.default.run(seedContext);
+  for (const feature of await featureSeeds()) {
+    try { await feature.default.run(seedContext); }
+    catch (error) {
+      if (!onFeatureError) throw error;
+      onFeatureError(feature.default.featureId, error);
+    }
+  }
 }
