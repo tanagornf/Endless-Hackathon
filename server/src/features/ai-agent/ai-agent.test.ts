@@ -384,12 +384,15 @@ describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
     await execute(inbound);
     const saved = await replies(inbound.conversation.id);
     expect(saved.map(({ id }) => id)).toEqual([first.reply_message_id]);
-    expect(saved[0].parts).toEqual([
+    const expectedParts = [
       { type: 'text', text: expect.stringContaining('1,490 baht') },
       { type: 'image', fileId: file.id, alt: details.nameEn ?? details.name },
-    ]);
+    ];
+    // F09 adds its authorized display URL when reading the message. Delivery
+    // uses the canonical message ID and file reference on both attempts.
+    expect(saved[0].parts).toMatchObject(expectedParts);
     expect(media).toHaveBeenCalledExactlyOnceWith(businessId, [product.id]);
-    expect(sends.mock.calls.map(([, parts]) => parts)).toEqual([saved[0].parts, saved[0].parts]);
+    expect(sends.mock.calls.map(([, parts]) => parts)).toMatchObject([expectedParts, expectedParts]);
     expect(chat).toHaveBeenCalledTimes(1);
     expect(writes.mock.calls.filter(([input]) => input.author === 'ai')).toHaveLength(1);
     expect(sends.mock.calls.map(([, , options]) => options?.messageId)).toEqual([first.reply_message_id, first.reply_message_id]);
