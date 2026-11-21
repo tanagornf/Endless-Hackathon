@@ -39,3 +39,5 @@
 - A C1 database test first observed a reclaimed in-flight delivery call the sender again. It also found that an exhausted final attempt left the message pending.
 - The worker now checkpoints before dispatch, retries only explicit definite failures, and records uncertain sends as unknown with a delivery audit. Exhausted expired jobs and their in-flight message are updated in one database statement.
 - Local typecheck and 22 focused tests passed across six files. Production verification and operator review and resend controls are pending.
+- Review extended atomic reconciliation to ordinary dead-job settlement and claims expiring before dispatch. An ambiguous LINE retry stays unknown unless a later provider acknowledgement resolves it.
+- Recording the pending message and enqueueing its delivery now share a transaction. New tests exercise both dead-job paths and an enqueue rollback followed by an idempotent retry.

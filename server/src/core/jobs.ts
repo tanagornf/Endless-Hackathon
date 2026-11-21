@@ -8,7 +8,7 @@ import { JOBS_PAYLOAD_MAX_BYTES } from './jobs-config';
 import { log } from './log';
 import { redactText } from './redact';
 import { publish } from './realtime';
-import type { EnqueueOptions, JobHandler, JobsApi, ScheduleDefinition } from './types';
+import type { DbExecutor, EnqueueOptions, JobHandler, JobsApi, ScheduleDefinition } from './types';
 
 const handlers = new Map<string, JobHandler>();
 const schedules = new Map<string, ScheduleDefinition>();
@@ -76,22 +76,29 @@ function validate(type: string, payload: object, options?: EnqueueOptions) {
   return { encoded, maxAttempts, runAt };
 }
 
+export async function enqueueJob(executor: DbExecutor, type: string, payload: Record<string, unknown>, opts?: EnqueueOptions) {
+  const { encoded, maxAttempts, runAt } = validate(type, payload, opts);
+  const row = await executor.maybeOne<{ id: string }>(
+    'INSERT INTO jobs (type,payload,business_id,dedup_key,lock_key,run_at,max_attempts) ' +
+    'VALUES ($1,$2::jsonb,$3,$4,$5,COALESCE($6::timestamptz,now()),$7) ON CONFLICT (dedup_key) DO NOTHING RETURNING id',
+    [type, encoded, opts?.businessId ?? null, opts?.dedupKey ?? null, opts?.lockKey ?? null, runAt, maxAttempts],
+  );
+  if (row) return { jobId: row.id, deduped: false };
+  const existing = await executor.one<{ id: string }>('SELECT id FROM jobs WHERE dedup_key=$1', [opts?.dedupKey]);
+  return { jobId: existing.id, deduped: true };
+}
+
+export function notifyJobEnqueued(type: string, job: { jobId: string; deduped: boolean }, opts?: EnqueueOptions): void {
+  if (job.deduped) return;
+  if (!opts?.runAt || Date.parse(opts.runAt) <= Date.now()) for (const listener of wakeListeners) listener();
+  publishJob({ id: job.jobId, type, business_id: opts?.businessId ?? null }, 'queued');
+}
+
 export const jobs: JobsApi = {
   async enqueue(type, payload, opts) {
-    const { encoded, maxAttempts, runAt } = validate(type, payload, opts);
-    const business_id = opts?.businessId ?? null;
-    const row = await db.maybeOne<{ id: string }>(
-      'INSERT INTO jobs (type,payload,business_id,dedup_key,lock_key,run_at,max_attempts) ' +
-      'VALUES ($1,$2::jsonb,$3,$4,$5,COALESCE($6::timestamptz,now()),$7) ON CONFLICT (dedup_key) DO NOTHING RETURNING id',
-      [type, encoded, business_id, opts?.dedupKey ?? null, opts?.lockKey ?? null, runAt, maxAttempts],
-    );
-    if (!row) {
-      const existing = await db.one<{ id: string }>('SELECT id FROM jobs WHERE dedup_key=$1', [opts?.dedupKey]);
-      return { jobId: existing.id, deduped: true };
-    }
-    if (!runAt || runAt.getTime() <= Date.now()) for (const listener of wakeListeners) listener();
-    publishJob({ id: row.id, type, business_id }, 'queued');
-    return { jobId: row.id, deduped: false };
+    const job = await enqueueJob(db, type, payload, opts);
+    notifyJobEnqueued(type, job, opts);
+    return job;
   },
   async get(id) {
     return db.maybeOne<NonNullable<Awaited<ReturnType<JobsApi['get']>>>>(

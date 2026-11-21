@@ -5,7 +5,9 @@ import { afterAll, expect, test, vi } from 'vitest';
 import { saveMessage } from '../features/inbox/service';
 import { ChannelSendError, registerChannelSender, sendToCustomer } from './channels';
 import { closeDb, db } from './db';
+import { AppError } from './errors';
 import { jobs } from './jobs';
+import * as jobHandlers from './jobs';
 import type { DeliveryResult, OutboundDelivery } from './types';
 import { drainJobs } from './worker';
 
@@ -89,4 +91,56 @@ test.each([
   expect(send).toHaveBeenCalledTimes(1);
   expect(await deliveryState(messageId)).toEqual({ state, error, ref: null });
   expect(await jobs.get(jobId)).toMatchObject({ state: 'succeeded', attempts: 1 });
+}, 20_000);
+
+test.each([
+  { path: 'expired', marker: null, final: 'failed' },
+  { path: 'expired', marker: 'retry:line_503', final: 'unknown' },
+  { path: 'ordinary', marker: null, final: 'failed' },
+  { path: 'ordinary', marker: 'retry:UNCERTAIN_LINE_503', final: 'unknown' },
+])('a $path final failure settles a pending delivery as $final', async ({ path, marker, final }) => {
+  const send = vi.fn(async () => ({ state: 'sent', mode: 'real' } as const));
+  registerChannelSender('web', { channel: 'web', mode: 'real', send });
+  const { jobId, messageId } = await queueDelivery();
+  await db.query('UPDATE messages SET delivery_error=$2 WHERE id=$1', [messageId, marker]);
+  if (path === 'expired') {
+    await db.query("UPDATE jobs SET state='running',attempts=1,max_attempts=1,locked_until=now()-interval '1 second',claim_token=gen_random_uuid() WHERE id=$1",
+      [jobId]);
+    await drain();
+  } else {
+    const handler = vi.spyOn(jobHandlers, 'getJobHandler').mockReturnValue(async () => {
+      throw new AppError('POLICY_BLOCKED', 'Synthetic terminal handler failure');
+    });
+    try { await drain(); } finally { handler.mockRestore(); }
+  }
+  expect(send).not.toHaveBeenCalled();
+  expect(await jobs.get(jobId)).toMatchObject({ state: 'dead' });
+  expect(await deliveryState(messageId)).toMatchObject({ state: final, ref: null });
+}, 20_000);
+
+test('a failed enqueue rolls back the pending transition, and the same stored message retries idempotently', async () => {
+  const inbound = await saveMessage({
+    businessId, customer: { channel: 'web', externalId: randomUUID() }, direction: 'inbound',
+    author: 'customer', parts, triggerAi: false,
+  });
+  const conversationId = inbound.conversation.id;
+  const stored = await saveMessage({
+    businessId, conversationId, direction: 'outbound', author: 'system', parts, triggerAi: false,
+  });
+  const messageId = stored.message.id;
+  const send = vi.fn(async () => ({ state: 'sent', mode: 'real' } as const));
+  registerChannelSender('web', { channel: 'web', mode: 'real', send });
+  const enqueue = vi.spyOn(jobHandlers, 'enqueueJob').mockRejectedValueOnce(new Error('Synthetic enqueue failure'));
+  try {
+    await expect(sendToCustomer(conversationId, parts, { businessId, messageId })).rejects.toThrow('Synthetic enqueue failure');
+  } finally { enqueue.mockRestore(); }
+  expect(await deliveryState(messageId)).toMatchObject({ state: 'not_required' });
+  expect(await db.maybeOne('SELECT id FROM jobs WHERE dedup_key=$1', ['deliver:' + messageId])).toBeNull();
+
+  const retried = await sendToCustomer(conversationId, parts, { businessId, messageId });
+  const duplicate = await sendToCustomer(conversationId, parts, { businessId, messageId });
+  expect(duplicate.jobId).toBe(retried.jobId);
+  await drain();
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(await deliveryState(messageId)).toMatchObject({ state: 'sent' });
 }, 20_000);

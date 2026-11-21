@@ -7,6 +7,16 @@ import type { ChannelSender, DeliveryResult, OutboundDelivery } from './types';
 
 const DELIVERY_TIMEOUT_MS = 15_000;
 export const INTERRUPTED_DELIVERY = 'interrupted: previous attempt may have been sent';
+const AMBIGUOUS_RETRY_CODE = /^(?:UNCERTAIN_|line_5[0-9][0-9]|line_delivery_unavailable)/i;
+
+export function isAmbiguousRetry(marker?: string | null): boolean {
+  return Boolean(marker?.startsWith('retry:') && AMBIGUOUS_RETRY_CODE.test(marker.slice(6)));
+}
+
+export function isAmbiguousLineFailure(channel: Channel, result: DeliveryResult): boolean {
+  if (channel !== 'line' || result.state !== 'failed' || !result.error) return false;
+  return AMBIGUOUS_RETRY_CODE.test(result.error) || / partial: [0-9]+\/[0-9]+$/.test(result.error);
+}
 
 interface DeliveryKey { messageId: string; businessId: string }
 export interface DeliveryChange extends DeliveryKey {
@@ -22,7 +32,7 @@ export class ChannelSendError extends Error {
 }
 
 export function deliveryErrorCode(error?: string): string {
-  return error && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error) ? error : 'CHANNEL_DELIVERY_ERROR';
+  return error?.match(/^[A-Za-z][A-Za-z0-9_]{0,63}(?=$|[ :])/)?.[0] ?? 'CHANNEL_DELIVERY_ERROR';
 }
 
 export async function markInflight({ messageId, businessId }: DeliveryKey, attempt: number): Promise<string | null> {
@@ -33,6 +43,30 @@ export async function markInflight({ messageId, businessId }: DeliveryKey, attem
       AND (delivery_error IS NULL OR delivery_error LIKE 'retry:%')`, [messageId, businessId, checkpoint]);
   return changed.rowCount ? checkpoint : null;
 }
+
+type DeliveryJob = { id: string; type: string; business_id: string | null; attempts: number };
+export type SettledDeliveryJob = DeliveryJob & { delivery: DeliveryChange | null };
+
+// The caller defines settled_jobs with the job transition. Both updates commit together.
+export const SETTLE_DEAD_DELIVERIES_SQL = `
+  , dead_delivery AS (
+    UPDATE messages m
+    SET delivery_state=CASE WHEN m.delivery_error IS NULL OR (
+      m.delivery_error LIKE 'retry:%' AND m.delivery_error !~* '^retry:(UNCERTAIN_|LINE_5[0-9][0-9]|LINE_DELIVERY_UNAVAILABLE)'
+    ) THEN 'failed' ELSE 'unknown' END,
+    delivery_error=CASE WHEN m.delivery_error IS NULL THEN 'DELIVERY_JOB_ENDED_BEFORE_DISPATCH'
+      WHEN m.delivery_error LIKE 'retry:%' AND m.delivery_error !~* '^retry:(UNCERTAIN_|LINE_5[0-9][0-9]|LINE_DELIVERY_UNAVAILABLE)'
+        THEN substring(m.delivery_error FROM 7)
+      ELSE '${INTERRUPTED_DELIVERY}' END
+    FROM settled_jobs j
+    WHERE j.state='dead' AND j.type='core.deliver' AND m.business_id=j.business_id
+      AND m.id::text=(j.payload->>'messageId') AND m.direction='outbound' AND m.delivery_state='pending'
+    RETURNING j.id AS "jobId", m.id AS "messageId", m.business_id AS "businessId",
+      m.conversation_id AS "conversationId", m.channel, m.delivery_state AS state, m.delivery_mode AS mode, m.delivery_error AS error
+  )
+  SELECT j.id,j.type,j.business_id,j.attempts,to_jsonb(d) AS delivery FROM settled_jobs j
+    LEFT JOIN dead_delivery d ON d."jobId"=j.id
+`;
 
 export async function publishDeliveryChange(change: DeliveryChange): Promise<void> {
   const { businessId, conversationId, messageId, state, mode, channel, error } = change;

@@ -2,9 +2,9 @@ import type { Channel, MessageAuthor, MessagePart } from '@nless/shared/core/typ
 import { getConversation, saveMessage } from '../features/inbox/service';
 import { db } from './db';
 import { AppError } from './errors';
-import { jobs, registerJob } from './jobs';
+import { enqueueJob, notifyJobEnqueued, registerJob } from './jobs';
 import { log } from './log';
-import { attemptDelivery, deliveryErrorCode, markInflight, resolveAmbiguous, settleDelivery } from './outbox';
+import { attemptDelivery, deliveryErrorCode, isAmbiguousLineFailure, isAmbiguousRetry, markInflight, resolveAmbiguous, settleDelivery } from './outbox';
 import type { ChannelSender, OutboundDelivery, SendReceipt, SendToCustomerOptions } from './types';
 
 const senders = new Map<Channel, ChannelSender>();
@@ -36,13 +36,15 @@ export async function sendToCustomer(conversationId: string, parts: MessagePart[
     businessId, conversationId, parts, direction: 'outbound', author: opts?.author ?? 'ai',
     authorUserId: opts?.authorUserId, origin: opts?.origin, clientRequestId: opts?.clientRequestId,
   })).message.id;
-  const stored = await db.query(`UPDATE messages SET delivery_mode=COALESCE(delivery_mode,$4),
-    delivery_state=CASE WHEN delivery_state='not_required' THEN 'pending' ELSE delivery_state END
-    WHERE id=$1 AND conversation_id=$2 AND business_id=$3 AND direction='outbound'`, [messageId, conversationId, businessId, sender.mode]);
-  if (!stored.rowCount) throw new AppError('NOT_FOUND', 'Outbound message not found');
-  const job = await jobs.enqueue('core.deliver', { messageId }, {
-    businessId, dedupKey: 'deliver:' + messageId, lockKey: 'conversation:' + conversationId, maxAttempts: 5,
+  const enqueueOptions = { businessId, dedupKey: 'deliver:' + messageId, lockKey: 'conversation:' + conversationId, maxAttempts: 5 };
+  const job = await db.tx(async (transaction) => {
+    const stored = await transaction.query(`UPDATE messages SET delivery_mode=COALESCE(delivery_mode,$4),
+      delivery_state=CASE WHEN delivery_state='not_required' THEN 'pending' ELSE delivery_state END
+      WHERE id=$1 AND conversation_id=$2 AND business_id=$3 AND direction='outbound'`, [messageId, conversationId, businessId, sender.mode]);
+    if (!stored.rowCount) throw new AppError('NOT_FOUND', 'Outbound message not found');
+    return enqueueJob(transaction, 'core.deliver', { messageId }, enqueueOptions);
   });
+  notifyJobEnqueued('core.deliver', job, enqueueOptions);
   return { messageId, conversationId, channel, jobId: job.jobId, delivery: { mode: sender.mode, state: 'pending' } };
 }
 
@@ -60,8 +62,9 @@ registerJob('core.deliver', async ({ payload, businessId, attempt, maxAttempts, 
   const row = await db.maybeOne<Omit<OutboundDelivery, 'messageId' | 'attempt'> & {
     author: MessageAuthor;
     handoffAckVersion: unknown;
+    previousError: string | null;
   }>(`
-    SELECT m.conversation_id AS "conversationId",m.business_id AS "businessId",m.channel,m.parts,m.author,
+    SELECT m.conversation_id AS "conversationId",m.business_id AS "businessId",m.channel,m.parts,m.author,m.delivery_error AS "previousError",
       m.provider_meta->'nlessHandoffAckVersion' AS "handoffAckVersion",
       u.external_id AS "customerExternalId",u.channel_account_id AS "channelAccountId",
       COALESCE((SELECT inbound.provider_meta FROM messages inbound WHERE inbound.conversation_id=m.conversation_id
@@ -69,7 +72,8 @@ registerJob('core.deliver', async ({ payload, businessId, attempt, maxAttempts, 
     FROM messages m JOIN conversations c ON c.id=m.conversation_id JOIN customers u ON u.id=c.customer_id
     WHERE m.id=$1 AND m.business_id=$2 AND m.delivery_state='pending' AND m.direction='outbound'`, [messageId, businessId]);
   if (!row) return;
-  const { author, handoffAckVersion, ...delivery } = row;
+  const { author, handoffAckVersion, previousError, ...delivery } = row;
+  const previousAmbiguity = isAmbiguousRetry(previousError);
   const sender = senders.get(delivery.channel);
   if (!sender) throw new AppError('CHANNEL_NOT_CONNECTED', 'Channel is unavailable');
   const key = { messageId, businessId: delivery.businessId };
@@ -82,22 +86,30 @@ registerJob('core.deliver', async ({ payload, businessId, attempt, maxAttempts, 
     allowed = author !== 'ai' || await aiDeliveryAllowed(delivery, handoffAckVersion);
   } catch (error) {
     const retryable = attempt < maxAttempts && (!(error instanceof AppError) || error.retryable);
-    await settleDelivery(key, checkpoint, retryable
-      ? { state: 'pending', error: 'retry:PREFLIGHT_UNAVAILABLE' }
-      : { state: 'failed', error: 'PREFLIGHT_UNAVAILABLE' });
+    if (retryable) {
+      await settleDelivery(key, checkpoint, { state: 'pending', error: previousAmbiguity ? previousError : 'retry:PREFLIGHT_UNAVAILABLE' });
+    } else if (previousAmbiguity) {
+      await resolveAmbiguous(key);
+    } else {
+      await settleDelivery(key, checkpoint, { state: 'failed', error: 'PREFLIGHT_UNAVAILABLE' });
+    }
     throw error;
   }
   signal.throwIfAborted();
-  if (!allowed) return settleDelivery(key, checkpoint, { state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' });
+  if (!allowed) {
+    if (previousAmbiguity) return resolveAmbiguous(key);
+    return settleDelivery(key, checkpoint, { state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' });
+  }
 
   const result = await attemptDelivery(sender, { ...delivery, messageId, attempt });
   signal.throwIfAborted();
   const error = result.state === 'sent' ? null : deliveryErrorCode(result.error);
+  const ambiguous = previousAmbiguity || isAmbiguousLineFailure(delivery.channel, result);
   if (result.state === 'failed' && result.retryable && attempt < maxAttempts) {
-    await settleDelivery(key, checkpoint, { state: 'pending', mode: result.mode, error: 'retry:' + error });
+    await settleDelivery(key, checkpoint, { state: 'pending', mode: result.mode, error: 'retry:' + (ambiguous ? 'UNCERTAIN_' : '') + error });
     throw new AppError('PROVIDER_UNAVAILABLE', 'Channel requested a retry', { retryable: true });
   }
   await settleDelivery(key, checkpoint, {
-    state: result.state, mode: result.mode, error, externalRef: result.externalRef ?? result.simulatedRef ?? null,
+    state: result.state === 'failed' && ambiguous ? 'unknown' : result.state, mode: result.mode, error, externalRef: result.externalRef ?? result.simulatedRef ?? null,
   });
 });
