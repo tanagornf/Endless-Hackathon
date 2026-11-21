@@ -15,3 +15,10 @@
 - Setup scaffolds include 29 feature placeholders. Their owners implement feature behavior on their assigned branches. Nonessential setup fakes can return `SERVICE_NOT_READY`. Realtime client secret minting in OpenAI mode and full jobs operations are pending. Production and independent C0 acceptance remain pending.
 - Final C1 typecheck passed. The full test suite passed with 79 tests across 16 files, including the ownership checks and the English/Thai registry and UI checks.
 - Browser flag check passed. The admin API hid F13. Orders disappeared from owner navigation after reload, and the direct route rendered Page not found. The C1 development flag was restored afterward.
+
+### F35 S1 worker
+
+- Migration 002 applied on the C1 Neon development database. A second run applied zero migrations.
+- Local typecheck and 115 tests passed across 22 files. The 31 F35 tests covered queue validation, deduplication, concurrent claim, lock contention, distinct claim tokens, stale writes, heartbeats, retry and rescheduling, dead lettering, shutdown release, and redaction.
+- The actual local API worker passed all six core-loop checks. Tenant 404, 31 loaded features, the 1,490 delivered reply, and silent takeover were verified.
+- Overall F35 remains A while scheduler and outbox improvements, the ops page, and production smoke are pending.
