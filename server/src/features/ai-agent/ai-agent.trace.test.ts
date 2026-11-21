@@ -24,22 +24,38 @@ beforeAll(async () => {
   await loginAs(owner, 'owner.a@example.test');
   const published = vi.spyOn(realtime, 'publish');
   try {
+    const competing = await simulateInbound(owner, shopA, 'How much is A-CARD-01?', 'f10-trace-competitor-' + randomUUID());
+    expect((await drainJobs({ type: 'ai.reply' })).dead).toBe(0);
+
     const input = await simulateInbound(owner, shopA, 'How much is A-GAME-01?', 'f10-trace-' + randomUUID());
     inboundMessageId = input.message.id;
     conversationId = input.conversation.id;
     expect((await drainJobs({ type: 'ai.reply' })).dead).toBe(0);
     shopEvents = published.mock.calls.filter(([businessId]) => businessId === shopA).map(([, event]) => event);
-    const final = shopEvents.find((event) => event.type === 'custom' && event.name === 'ai.turn' && event.data.state === 'completed');
     const reply = shopEvents.find((event) => event.type === 'message.created' &&
       event.conversationId === conversationId && event.message.author === 'ai');
-    if (final?.type !== 'custom' || reply?.type !== 'message.created') throw new Error('The job did not publish both reply and trace events');
-    turnId = String(final.data.turnId);
+    if (reply?.type !== 'message.created') throw new Error('The job did not publish the fixture reply');
     replyMessageId = reply.message.id;
-    expect(shopEvents.indexOf(final)).toBeGreaterThan(shopEvents.indexOf(reply));
+
+    const completed = shopEvents.flatMap((event) => event.type === 'custom' && event.name === 'ai.turn' &&
+      event.data.state === 'completed' && typeof event.data.turnId === 'string' ? [{ event, id: event.data.turnId }] : []);
+    const observed = await Promise.all(completed.map(async ({ event, id }) => {
+      const response = await owner.get(tracePath(shopA, id));
+      expect(response.status).toBe(200);
+      return { event, trace: (response.body as ApiResult<AiTurnTrace>).data };
+    }));
+    const rival = observed.find(({ trace }) => trace.inboundMessageId === competing.message.id &&
+      trace.conversationId === competing.conversation.id && trace.replyMessageId);
+    const final = observed.find(({ trace }) => trace.inboundMessageId === inboundMessageId &&
+      trace.conversationId === conversationId && trace.replyMessageId === replyMessageId);
+    if (!rival || !final) throw new Error('The owner could not correlate both published turns');
+    turnId = final.trace.turnId;
+    expect(shopEvents.indexOf(rival.event)).toBeLessThan(shopEvents.indexOf(final.event));
+    expect(shopEvents.indexOf(final.event)).toBeGreaterThan(shopEvents.indexOf(reply));
   } finally {
     published.mockRestore();
   }
-}, 20_000);
+}, 35_000);
 
 afterAll(closeDb);
 
