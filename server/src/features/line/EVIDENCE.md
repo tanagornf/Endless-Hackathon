@@ -21,7 +21,7 @@
 
 ## Production verification
 
-Native read receipts use the webhook's durable enqueue deduplication and a single bounded LINE request. The focused, database-free suite passed 45/45 mocked read-receipt, webhook, event, and sender tests. On-device verification remains pending a coordinated synthetic operator test with the OA Chat setting enabled.
+Native read receipts use the webhook's durable enqueue deduplication, the shop's existing credential resolver, and a single bounded receipt request. The focused, database-free suite passed 47/47 mocked read-receipt, webhook, event, and sender tests, including a stateless credential and a changed bot identity. On-device verification remains pending a coordinated synthetic operator test with the OA Chat setting enabled.
 
 | Check | Result |
 |---|---|

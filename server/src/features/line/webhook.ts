@@ -81,7 +81,7 @@ export const handleLineWebhook: WebhookHandler = async (ctx) => {
         businessId: connection.business_id, lockKey, maxAttempts: 5,
       });
       if (!queued.deduped && inbound.markAsReadToken) {
-        void markLineMessageAsRead(connection.access_token_enc, inbound.markAsReadToken);
+        void markLineMessageAsRead(connection, inbound.markAsReadToken);
       }
     }
     return acknowledged;

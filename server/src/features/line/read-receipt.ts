@@ -1,7 +1,9 @@
-import { config, decryptSecret, log } from '../../core';
+import { config, log } from '../../core';
 import { EVENT_MAX_AGE_MS } from './config';
+import { getAccessToken } from './connection';
 import { lineRequest } from './lineApi';
 import { LineEvent } from './normalize';
+import type { LineConnection } from './repo';
 
 const READ_RECEIPT_TIMEOUT_MS = 1_500;
 
@@ -24,11 +26,11 @@ export function detachLineReadToken(event: Record<string, unknown>, receivedAtMs
   return { event: inboundEvent, markAsReadToken };
 }
 
-export async function markLineMessageAsRead(accessTokenEncrypted: string | null, markAsReadToken: string): Promise<void> {
-  if (config.LINE_MODE !== 'real' || config.MODEL_MODE === 'fake' || !accessTokenEncrypted) return;
+export async function markLineMessageAsRead(connection: LineConnection, markAsReadToken: string): Promise<void> {
+  if (config.LINE_MODE !== 'real' || config.MODEL_MODE === 'fake' || connection.status_reason === 'bot_changed') return;
 
   try {
-    const token = decryptSecret(accessTokenEncrypted);
+    const token = await getAccessToken(connection);
     if (!token) return;
     const response = await lineRequest('/v2/bot/chat/markAsRead', {
       method: 'POST',

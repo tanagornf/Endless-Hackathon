@@ -18,6 +18,8 @@ vi.mock('./repo', () => ({
   recordWebhookEvent: mocks.record,
 }));
 vi.mock('./lineApi', () => ({ lineRequest: mocks.request }));
+vi.mock('./usage', () => ({ getLineQuota: vi.fn(), getPushUsage: vi.fn() }));
+vi.mock('../notifications/service', () => ({ notify: vi.fn() }));
 vi.mock('../../core', () => ({
   config: mocks.config,
   decryptSecret: (value: string) => {
@@ -37,7 +39,9 @@ const replyToken = 'synthetic-reply-token';
 const connection = {
   id: 'fixture-connection',
   business_id: 'fixture-business',
+  channel_id: '1234567890',
   bot_user_id: 'Ufixturebot',
+  generation: 1,
   channel_secret_enc: 'encrypted:' + webhookSecret,
   access_token_enc: 'encrypted:' + accessToken,
 };
@@ -103,6 +107,35 @@ describe('LINE inbound read receipts', () => {
     const encryptedInput = JSON.parse(mocks.encrypt.mock.calls[0][0]);
     expect(encryptedInput).toMatchObject({ replyToken, message: { text: 'Fixture customer message' } });
     expect(encryptedInput.message).not.toHaveProperty('markAsReadToken');
+  });
+
+  it('uses the same shop credential resolver for a stateless LINE connection', async () => {
+    const pending = { ...connection, id: 'fixture-stateless-connection', access_token_enc: null };
+    const issued = 'synthetic-stateless-access-token';
+    mocks.connection.mockResolvedValueOnce(pending);
+    mocks.request
+      .mockResolvedValueOnce({ status: 200, body: { access_token: issued, expires_in: 900 } })
+      .mockResolvedValueOnce({ status: 200, body: {} });
+
+    expect((await handleLineWebhook(webhookContext())).status).toBe(200);
+    await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(2));
+    expect(mocks.request).toHaveBeenNthCalledWith(1, '/oauth2/v3/token', {
+      method: 'POST',
+      form: new URLSearchParams({
+        grant_type: 'client_credentials', client_id: pending.channel_id, client_secret: webhookSecret,
+      }),
+    });
+    expect(mocks.request).toHaveBeenNthCalledWith(2, '/v2/bot/chat/markAsRead', {
+      method: 'POST', token: issued, json: { markAsReadToken: readToken }, timeoutMs: 1_500,
+    });
+    expect(mocks.enqueue).toHaveBeenCalledOnce();
+  });
+
+  it('does not send a receipt when verification detected a changed bot identity', async () => {
+    mocks.connection.mockResolvedValueOnce({ ...connection, status_reason: 'bot_changed' });
+    expect((await handleLineWebhook(webhookContext())).status).toBe(200);
+    expect(mocks.enqueue).toHaveBeenCalledOnce();
+    expect(mocks.request).not.toHaveBeenCalled();
   });
 
   it.each([null, '', '   ', { unexpected: true }])('queues inbound without a usable read token (%j)', async (token) => {
