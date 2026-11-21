@@ -86,7 +86,8 @@ export async function stageShopInstructionCandidate(
         (business_id,case_id,action_step_id,answer_receipt_id,analysis_usage_id,base_version_id,instruction,reason)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
       ON CONFLICT (business_id,answer_receipt_id) DO NOTHING
-      RETURNING id,base_version_id AS "baseVersionId",instruction,reason,to_jsonb(created_at)#>>'{}' AS "createdAt"`,
+      RETURNING id,base_version_id AS "baseVersionId",instruction,reason,to_jsonb(created_at)#>>'{}' AS "createdAt",
+        encode(sha256(convert_to(instruction,'UTF8')),'hex') AS "candidateDigest",false AS "replayPassed"`,
     [businessId, caseId, actionStepId, answerReceiptId, result.usageId, proposal.targetId,
       proposal.textTh + '\n\n' + proposal.textEn, proposal.reason]);
   });
