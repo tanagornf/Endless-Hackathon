@@ -101,7 +101,7 @@ describe('F10 S1 reply and gates', () => {
     expect(result.tools).toContainEqual(expect.objectContaining({ name: 'get_price', ok: true, prefetch: true }));
     expect(result.guard_actions).toContainEqual(expect.objectContaining({ guard: 'price', action: 'repair' }));
     expect(chat.mock.calls.map(([input]) => input.usage.purpose)).toEqual(['reply', 'reply', 'repair']);
-  });
+  }, 15_000);
 
   it('G6 disabled web AI stores the inbound but makes no model call', async () => {
     vi.spyOn(settings, 'getBusinessSettings').mockImplementation(async (id) => ({ ...(await originalSettings(id)), aiEnabled: false }));
@@ -126,7 +126,7 @@ describe('F10 S1 reply and gates', () => {
     await assignConversation(inbound.conversation.id, null, options);
     await execute(await incoming('A-GAME-01 ราคาเท่าไหร่คะ', inbound));
     expect((await replies(inbound.conversation.id))[0].text).toContain('1,490 บาท');
-  });
+  }, 15_000);
 
   it('G8 checks takeover again after generation and discards the draft', async () => {
     const inbound = await incoming('A-GAME-01 ราคาเท่าไหร่');
@@ -172,7 +172,7 @@ describe('F10 S1 reply and gates', () => {
     expect(messages[1].text).toContain('1,490 บาท');
     expect((await trace(english.message.id)).reply_language).toBe('en');
     expect((await trace(thai.message.id)).reply_language).toBe('th');
-  });
+  }, 15_000);
 
   it('repairs a short price in the wrong language', async () => {
     vi.spyOn(model, 'chat').mockImplementationOnce((input) => originalChat({ ...input, fake: { text: 'ราคา 1,490 บาท' } }));

@@ -5,6 +5,8 @@ import type { ChatTurnResult, MetricsRange } from '@nless/shared/core/types';
 import type { JobHandler } from '../../core';
 import type { AiReplyJobPayload } from '@nless/shared/features/inbox/types';
 
+export { readTurnTrace as getTurnTrace } from './trace';
+
 /**
  * @owner F10 ai-agent · B2 · consumers: B2 ai.reply handler, A1 (suggest), B2 voice
  * Reads getHistory, getBusinessSettings, searchKnowledge, getProduct/getPrice; calls model.chat model 'chat' with
