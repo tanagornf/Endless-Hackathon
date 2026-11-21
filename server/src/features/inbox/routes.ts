@@ -1,9 +1,11 @@
 import type { ConversationDetail } from '@nless/shared/features/inbox/types';
-import { AppError, db, defineFeatureRoutes, publish } from '../../core';
+import { AppError, db, defineFeatureRoutes, publish, requirePermission } from '../../core';
 import type { RouteContext } from '../../core';
 import { getBusinessSettings } from '../business-settings/service';
-import { historyQuery } from './schemas';
-import { getConversation, getHistory } from './service';
+import { countConversations, listConversations } from './list';
+import { historyQuery, listConversationsQuery, staffSendBody } from './schemas';
+import { activeHolder } from './staff';
+import { getConversation, getHistory, sendStaffMessage } from './service';
 
 async function authorizeConversation(ctx: RouteContext<unknown, unknown>) {
   const conversation = await getConversation(ctx.params.conversationId);
@@ -16,6 +18,14 @@ export default defineFeatureRoutes({
   featureId: 'F09',
   slug: 'inbox',
   register(api) {
+    api.get('/businesses/:businessId/conversations', {
+      auth: 'business', permission: 'chat.read', query: listConversationsQuery, summary: 'List conversations',
+    }, async (ctx) => listConversations(ctx.business!.id, ctx.user!.id, ctx.query));
+
+    api.get('/businesses/:businessId/conversations/counts', {
+      auth: 'business', permission: 'chat.read', summary: 'Count conversations',
+    }, async (ctx) => countConversations(ctx.business!.id));
+
     api.get('/conversations/:conversationId', { auth: 'user', summary: 'Read conversation detail' }, async (ctx): Promise<ConversationDetail> => {
       const conversation = await authorizeConversation(ctx);
       const { id, businessId, assigneeUserId } = conversation;
@@ -57,5 +67,19 @@ export default defineFeatureRoutes({
       publish(businessId, { type: 'custom', featureId: 'F09', name: 'inbox.read', data: { conversationId: id } });
       return { unreadCount: 0 };
     });
+    api.post('/conversations/:conversationId/staff-messages', {
+      auth: 'user', body: staffSendBody, summary: 'Send a staff message',
+    }, async (ctx) => {
+      const conversation = await getConversation(ctx.params.conversationId);
+      if (!conversation) throw new AppError('NOT_FOUND', 'Conversation not found');
+      const { scope } = await ctx.requireBusiness(conversation.businessId, 'chat.reply');
+      const mayTakeover = scope.permissions.includes('chat.takeover');
+      if (!mayTakeover && (await activeHolder(conversation))?.userId !== scope.userId) requirePermission(scope, 'chat.takeover');
+      return sendStaffMessage({
+        ...ctx.body, businessId: conversation.businessId, conversationId: conversation.id,
+        actorUserId: scope.userId, autoTakeover: mayTakeover,
+      });
+    });
+
   },
 });

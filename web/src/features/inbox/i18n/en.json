@@ -17,5 +17,91 @@
     "retry": "Try again",
     "unavailable": "This conversation could not be opened.",
     "empty": "This conversation has no messages."
+  },
+  "retry": "Retry",
+  "loading": "Loading…",
+  "list": {
+    "search": "Search conversations",
+    "all": "All",
+    "waiting": "Waiting",
+    "waitingCount": "Waiting ({{count}})",
+    "active": "Active",
+    "closed": "Closed",
+    "assignee": "Assignee",
+    "mine": "Assigned to me",
+    "unassigned": "Unassigned",
+    "customer": "Customer",
+    "waitingTime": "Waiting · {{minutes}} min",
+    "unreadCount": "{{count}} unread messages",
+    "loadError": "Couldn't load conversations",
+    "empty": "No conversations yet",
+    "noMatches": "No conversations match your search",
+    "more": "Load more conversations"
+  },
+  "channel": {
+    "line": "LINE",
+    "facebook": "Messenger",
+    "instagram": "Instagram",
+    "web": "Web"
+  },
+  "author": {
+    "customer": "Customer",
+    "ai": "AI",
+    "staff": "Staff",
+    "system": "System"
+  },
+  "origin": {
+    "system": "Automated message",
+    "broadcast": "Broadcast",
+    "comment": "From a comment"
+  },
+  "delivery": {
+    "pending": "Sending",
+    "sent": "Sent",
+    "failed": "Failed",
+    "unknown": "Delivery unknown",
+    "sandbox": "Sandbox · not delivered to the customer",
+    "error": "The channel couldn't deliver this message"
+  },
+  "thread": {
+    "back": "Back to conversations",
+    "loadError": "Couldn't load this conversation",
+    "owner": "Assigned to {{name}}",
+    "details": "Conversation details",
+    "messages": "Conversation messages",
+    "empty": "No messages yet",
+    "older": "Load older messages",
+    "newMessages": "New messages ↓",
+    "closed": "This conversation is closed",
+    "select": "Select a conversation to view messages"
+  },
+  "composer": {
+    "taken": "This chat is assigned. Take over before replying.",
+    "noPermission": "You don't have permission to send in this conversation.",
+    "failed": "Couldn't send the message. Try again.",
+    "takeoverHint": "Sending takes over this chat from the AI (the AI stops replying here)",
+    "label": "Message the customer",
+    "send": "Send",
+    "viewOnly": "You can only view this conversation",
+    "takeoverTitle": "Take over",
+    "takeoverConfirm": "{{name}} is handling this chat. Take over and send your message?",
+    "takeoverFailed": "Couldn't take over this chat. Try again."
+  },
+  "parts": {
+    "order": "Order summary",
+    "booking": "Booking summary",
+    "subtotal": "Subtotal",
+    "delivery": "Delivery",
+    "total": "Total",
+    "expires": "Expires {{date}}",
+    "expired": "Expired",
+    "confirmed": "Confirmed",
+    "cancelled": "Cancelled",
+    "awaitingCustomer": "Waiting for customer confirmation",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "image": "Image in message",
+    "file": "{{name}} ({{size}} KB)",
+    "soldOut": "Sold out"
   }
 }

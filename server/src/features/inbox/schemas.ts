@@ -71,3 +71,17 @@ export const historyQuery = z.object({
   before: z.string().min(1).max(100).optional(),
   after: z.string().min(1).max(100).optional(),
 }).refine(({ before, after }) => !(before && after));
+
+export const listConversationsQuery = z.object({
+  filter: z.enum(['all', 'waiting', 'active', 'closed']).catch('all').default('all'),
+  assignee: z.string().trim().max(40).optional(),
+  search: z.string().trim().max(120).optional(),
+  cursor: z.string().min(1).max(300).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const staffSendBody = z.object({
+  clientRequestId: z.string().trim().min(8).max(80),
+  text: z.string().max(2000).optional(),
+  attachments: z.array(z.object({ fileId: uuid, kind: z.enum(['image', 'file']) })).max(4).default([]),
+}).refine(({ text, attachments }) => Boolean(text?.trim()) || attachments.length > 0);
