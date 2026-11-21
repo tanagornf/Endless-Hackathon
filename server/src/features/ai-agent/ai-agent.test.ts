@@ -16,8 +16,9 @@ import * as team from '../team/service';
 import { getHistory, saveMessage } from '../inbox/service';
 import { assignConversation } from '../team/service';
 import { fallbacks } from './fallbacks';
-import { aiReplyJobHandler, generateReply } from './service';
+import { aiReplyJobHandler, generateReply, getTurnTrace } from './service';
 import { runTool } from './tools';
+import { runAiTurn } from './turn';
 
 const allow: EffectiveAnswerRules = {
   price: 'always', stock: 'always', contact: 'always', generalKnowledge: false, booking: false, orders: false, handoff: true,
@@ -355,6 +356,72 @@ describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
     expect(writes.mock.calls.filter(([input]) => input.author === 'ai')).toHaveLength(1);
     expect(sends.mock.calls.map(([, , options]) => options?.messageId)).toEqual([first.reply_message_id, first.reply_message_id]);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'completed', reply_message_id: first.reply_message_id, attempts: 2 });
+  });
+
+  it('keeps a completed turn and its one saved reply when the delivery enqueue is definitively exhausted', async () => {
+    const inbound = await incoming('How much is A-GAME-01?');
+    const chat = vi.spyOn(model, 'chat');
+    const writes = vi.spyOn(inbox, 'saveMessage');
+    const sends = vi.spyOn(channels, 'sendToCustomer').mockImplementation(async (...args) => {
+      // Reject only the enqueue transaction. Core still runs its real reconciliation transaction.
+      const transaction = vi.spyOn(db, 'tx').mockRejectedValueOnce(
+        new AppError('SERVICE_NOT_READY', 'Synthetic delivery enqueue error', { retryable: true }),
+      );
+      try {
+        return await originalSend(...args);
+      } finally {
+        transaction.mockRestore();
+      }
+    });
+    const run = () => runAiTurn(inbound.conversation.id, { businessId, triggerMessageId: inbound.message.id, deliver: true });
+
+    const first = await run();
+    expect(first).toHaveProperty('retryAt');
+    const retry = () => db.query(
+      "UPDATE ai_turns SET retry_after = now() - interval '1 second' WHERE business_id = $1 AND id = $2",
+      [businessId, first.response.turnId],
+    );
+    await retry();
+    expect(await run()).toHaveProperty('retryAt');
+    await retry();
+    const final = await run();
+    expect(final.retryAt).toBeUndefined();
+    expect(final.response).toMatchObject({ state: 'completed', delivery: { mode: 'real', state: 'failed' } });
+    const saved = await replies(inbound.conversation.id);
+    expect(saved).toHaveLength(1);
+    const [reply] = saved;
+    expect(reply.delivery).toMatchObject({ state: 'failed', error: 'DELIVERY_ENQUEUE_FAILED' });
+    expect(await getTurnTrace(businessId, final.response.turnId)).toMatchObject({
+      state: 'completed', replyMessageId: reply.id, errorCode: 'DELIVERY_ENQUEUE_FAILED', attempts: 3,
+    });
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(writes.mock.calls.filter(([input]) => input.author === 'ai')).toHaveLength(1);
+    expect(sends.mock.calls.map(([, , options]) => options?.messageId)).toEqual([reply.id, reply.id, reply.id]);
+  });
+
+  it('preserves a committed enqueue when its receipt is lost and reports the eventual sent delivery', async () => {
+    const inbound = await incoming('How much is A-GAME-01?');
+    const chat = vi.spyOn(model, 'chat');
+    const sends = vi.spyOn(channels, 'sendToCustomer').mockImplementation(async (...args) => {
+      await originalSend(...args);
+      throw new AppError('SERVICE_NOT_READY', 'Synthetic lost delivery receipt', { retryable: true });
+    });
+    const run = () => runAiTurn(inbound.conversation.id, { businessId, triggerMessageId: inbound.message.id, deliver: true });
+    const initial = await run();
+    expect(initial.retryAt).toBeUndefined();
+    expect(initial.response).toMatchObject({ state: 'completed', delivery: { mode: 'real', state: 'pending' } });
+    const [reply] = await replies(inbound.conversation.id);
+    await drainJobs({ type: 'core.deliver' });
+    const repeat = await run();
+    expect(repeat.response).toMatchObject({
+      turnId: initial.response.turnId, state: 'completed', delivery: { mode: 'real', state: 'sent' },
+    });
+    expect(await getTurnTrace(businessId, repeat.response.turnId)).toMatchObject({
+      state: 'completed', replyMessageId: reply.id, errorCode: null, attempts: 1,
+    });
+    expect(await replies(inbound.conversation.id)).toEqual([expect.objectContaining({ id: reply.id })]);
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(sends).toHaveBeenCalledTimes(1);
   });
 });
 

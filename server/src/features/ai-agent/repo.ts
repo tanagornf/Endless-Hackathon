@@ -179,15 +179,16 @@ export async function finishTurn(turn: TurnLease, outcome: {
   replyMessageId?: string;
   retryAt?: string;
   timings?: TurnDraft['timings'];
+  deliveryErrorCode?: string;
 }): Promise<boolean> {
   const result = await db.query(String.raw`
     UPDATE ai_turns SET state = $5, skip_reason = $6, reply_message_id = COALESCE($7, reply_message_id),
       reply_parts = CASE WHEN $5 IN ('skipped', 'superseded') THEN NULL ELSE reply_parts END,
-      retry_after = $8, timings = COALESCE($9::jsonb, timings), finished_at = now(),
+      retry_after = $8, timings = COALESCE($9::jsonb, timings), error_code = COALESCE(error_code, $10), finished_at = now(),
       latency_ms = CASE WHEN mode = 'reply' THEN GREATEST(0, EXTRACT(epoch FROM now() - started_at) * 1000)::int END
     WHERE ` + owned, [
     ...leaseParams(turn), outcome.state, outcome.reason ?? null, outcome.replyMessageId ?? null,
-    outcome.retryAt ?? null, outcome.timings ? JSON.stringify(outcome.timings) : null,
+    outcome.retryAt ?? null, outcome.timings ? JSON.stringify(outcome.timings) : null, outcome.deliveryErrorCode ?? null,
   ]);
   return result.rowCount === 1;
 }
