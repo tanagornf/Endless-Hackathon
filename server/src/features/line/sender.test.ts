@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OutboundDelivery } from '../../core';
+import { config, db, type OutboundDelivery } from '../../core';
 import { makeLineSender } from './sender';
 
 const mocks = vi.hoisted(() => ({
@@ -133,6 +133,35 @@ describe('LINE channel sender', () => {
     expect(mocks.reserve).not.toHaveBeenCalled();
     expect(mocks.request.mock.calls.map(([path]) => path)).toEqual(['/v2/bot/message/push', '/v2/bot/message/push']);
     expect(mocks.request.mock.calls[1][1].retryKey).toBe(mocks.request.mock.calls[0][1].retryKey);
+  });
+
+  it('serializes the real LINE image payload with stable URLs and sends no new batch after acceptance', async () => {
+    const originalBaseUrl = config.PUBLIC_BASE_URL;
+    const fileId = '10000000-0000-4000-8000-000000000001';
+    const load = vi.spyOn(db, 'maybeOne').mockResolvedValue({ original_name: 'case.png', created_at: new Date(now) });
+    const text = { type: 'text', text: 'The case costs 490 baht and is sold out.' } as const;
+    const input: OutboundDelivery = { ...delivery(51_000), parts: [text, { type: 'image', fileId }] };
+    mocks.request.mockResolvedValueOnce(response(503))
+      .mockResolvedValueOnce(response(409, {}, { 'x-line-accepted-request-id': 'accepted-push' }));
+    try {
+      config.PUBLIC_BASE_URL = 'https://shop.example.test';
+      expect(await sender.send(input)).toMatchObject({ state: 'failed', retryable: true });
+      expect(await sender.send({ ...input, attempt: 2 })).toMatchObject({ state: 'sent', externalRef: 'accepted-push' });
+      mocks.batch.mockResolvedValue({ state: 'accepted', sent_ids: [], request_id: 'accepted-push' });
+      expect(await sender.send({ ...input, attempt: 3 })).toMatchObject({ state: 'sent', externalRef: 'accepted-push' });
+      expect(mocks.request).toHaveBeenCalledTimes(2);
+      const [[path, first], [, retry]] = mocks.request.mock.calls;
+      expect(path).toBe('/v2/bot/message/push');
+      expect(retry).toMatchObject({ json: first.json, retryKey: first.retryKey });
+      expect(first.json).toEqual({ to: input.customerExternalId, messages: [text, {
+        type: 'image',
+        originalContentUrl: expect.stringMatching(new RegExp('^https://shop\\.example\\.test/api/v1/channel-media/' + fileId + '\\?exp=\\d+&v=original&sig=[A-Za-z0-9_-]+$')),
+        previewImageUrl: expect.stringMatching(new RegExp('^https://shop\\.example\\.test/api/v1/channel-media/' + fileId + '\\?exp=\\d+&v=preview&sig=[A-Za-z0-9_-]+$')),
+      }] });
+    } finally {
+      config.PUBLIC_BASE_URL = originalBaseUrl;
+      load.mockRestore();
+    }
   });
 
   it('never sends a stored Push again when the formatted batch or recipient has changed', async () => {
