@@ -23,16 +23,18 @@ export const unsubscribeBody = z.strictObject({ endpoint: endpointInput });
 export const acknowledgementBody = z.strictObject({ ref: z.uuid() });
 export const pushStatusQuery = z.strictObject({ device: z.uuid().optional() });
 
-export const pushCredentials = readPushCredentials({
-  publicKey: config.VAPID_PUBLIC_KEY,
-  privateKey: config.VAPID_PRIVATE_KEY,
-  subject: config.VAPID_SUBJECT,
-});
+export function getPushCredentials() {
+  return readPushCredentials({
+    publicKey: config.VAPID_PUBLIC_KEY,
+    privateKey: config.VAPID_PRIVATE_KEY,
+    subject: config.VAPID_SUBJECT,
+  });
+}
 
 type SubscriptionInput = z.infer<typeof subscribeBody>;
 
 export async function enrollPushDevice(userId: string, input: SubscriptionInput) {
-  if (!pushCredentials) throw new AppError('POLICY_BLOCKED', 'Phone push is not configured');
+  if (!getPushCredentials()) throw new AppError('POLICY_BLOCKED', 'Phone push is not configured');
   assertRateLimit({ key: 'notifications.push.subscribe:' + userId, limit: 10, windowSeconds: 3600 });
   const endpoint = normalizePushEndpoint(input.endpoint);
   if (!endpoint) throw new AppError('POLICY_BLOCKED', 'Push endpoint is not permitted', { details: { reason: 'endpoint_not_allowed' } });
@@ -72,6 +74,7 @@ export async function removePushDevice(userId: string, rawEndpoint: string) {
 }
 
 export async function readPhonePushStatus(userId: string, device?: string) {
+  const pushCredentials = getPushCredentials();
   const subscriptions = await db.one<{ count: number; lastAcceptedAt: Date | null; hasDevice: boolean }>(
     'SELECT count(*)::int AS count, max(last_accepted_at) FILTER (WHERE $2::uuid IS NULL OR id = $2) AS "lastAcceptedAt", ' +
     'coalesce(bool_or(id = $2), false) AS "hasDevice" FROM push_subscriptions WHERE user_id = $1',

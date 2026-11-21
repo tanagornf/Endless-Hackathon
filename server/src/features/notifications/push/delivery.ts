@@ -3,7 +3,7 @@ import { AppError, assertRateLimit, db, decryptSecret, jobs } from '../../../cor
 import type { JobContext } from '../../../core';
 import { getNotificationPreference } from '../preferences';
 import { pendingNoticeDestination, readPhoneNotice } from './destination';
-import { pushCredentials } from './subscriptions';
+import { getPushCredentials } from './subscriptions';
 import { isOpaqueId, sendPrivatePush } from './transport';
 import type { PrivatePush, PushOutcome } from './transport';
 
@@ -22,7 +22,7 @@ function devicesFor(userId: string, device?: string) {
 }
 
 export async function enqueueNotificationPush(notificationId: string, businessId: string): Promise<boolean> {
-  if (!pushCredentials) return false;
+  if (!getPushCredentials()) return false;
   await jobs.enqueue(notificationPushJob, { notificationId }, {
     businessId, dedupKey: notificationPushJob + ':' + notificationId, maxAttempts,
   });
@@ -68,6 +68,7 @@ async function deliverToDevice(
   userId: string, device: Device, payload: Omit<PrivatePush, 'ref'> & { urgency: 'normal' | 'high' },
   maySend?: () => Promise<boolean>,
 ): Promise<PushOutcome | null> {
+  const pushCredentials = getPushCredentials();
   if (!pushCredentials) return null;
   const delivery = await reserveDelivery(payload.noticeId, device, userId);
   if (!delivery) return null;
@@ -98,7 +99,7 @@ async function deliverToDevice(
 }
 
 export async function handleNotificationPush(job: JobContext<PushJobPayload>): Promise<void> {
-  if (!pushCredentials || !job.businessId || !isOpaqueId(job.payload?.notificationId) || job.signal.aborted) return;
+  if (!getPushCredentials() || !job.businessId || !isOpaqueId(job.payload?.notificationId) || job.signal.aborted) return;
   const notice = await readPhoneNotice(job.payload.notificationId, { businessId: job.businessId });
   if (!notice || !await pendingNoticeDestination(notice)) return;
   const preference = await getNotificationPreference(notice.userId, notice.type);
@@ -124,7 +125,7 @@ export async function handleNotificationPush(job: JobContext<PushJobPayload>): P
 
 export async function testPhonePush(userId: string, language: 'th' | 'en', device?: string) {
   assertRateLimit({ key: 'notifications.push.test:' + userId, limit: 5, windowSeconds: 60 });
-  if (!pushCredentials) throw new AppError('POLICY_BLOCKED', 'Phone push is not configured');
+  if (!getPushCredentials()) throw new AppError('POLICY_BLOCKED', 'Phone push is not configured');
   const { rows } = await devicesFor(userId, device);
   if (!rows.length) throw new AppError('POLICY_BLOCKED', 'No enrolled push device', { details: { reason: 'no_subscription' } });
   const results = await Promise.all(rows.map((subscription) => deliverToDevice(userId, subscription, {

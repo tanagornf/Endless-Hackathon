@@ -2,20 +2,13 @@ import { createECDH, randomBytes, randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import webPush from 'web-push';
-import { createSession, db } from '../../../core';
+import { config, createSession, db } from '../../../core';
 import type { JobContext } from '../../../core';
 import { createHttpApp, httpError } from '../../../core/http';
 import { handleNotificationPush } from './delivery';
 import { registerOwnerConsultLookup } from './destination';
 import { registerPushRoutes } from './routes';
-
-vi.mock('../../../core', async (load) => {
-  const core = await load<typeof import('../../../core')>();
-  const { default: library } = await import('web-push');
-  const pair = library.generateVAPIDKeys();
-  return { ...core, config: { ...core.config, VAPID_PUBLIC_KEY: pair.publicKey, VAPID_PRIVATE_KEY: pair.privateKey,
-    VAPID_SUBJECT: 'mailto:push-fixture@example.test' } };
-});
+import { getPushCredentials } from './subscriptions';
 
 const ownerId = randomUUID();
 const strangerId = randomUUID();
@@ -29,6 +22,11 @@ const originApi = '/api/v1/notifications';
 const pushApi = originApi + '/push';
 const header = ['X-Requested-With', 'nless'] as const;
 const sent = { statusCode: 201, headers: {}, body: '' };
+const originalPushConfig = {
+  VAPID_PUBLIC_KEY: config.VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY: config.VAPID_PRIVATE_KEY,
+  VAPID_SUBJECT: config.VAPID_SUBJECT,
+};
 const pending = vi.fn();
 registerOwnerConsultLookup(pending);
 
@@ -68,6 +66,13 @@ async function status(agent: typeof owner) {
 
 describe('durable phone notification delivery', () => {
   beforeAll(async () => {
+    const keys = webPush.generateVAPIDKeys();
+    Object.assign(config, {
+      VAPID_PUBLIC_KEY: keys.publicKey,
+      VAPID_PRIVATE_KEY: keys.privateKey,
+      VAPID_SUBJECT: 'mailto:push-fixture@example.test',
+    });
+    expect(Boolean(getPushCredentials())).toBe(true);
     await db.tx(async (tx) => {
       await tx.query("INSERT INTO users (id,email,locale) VALUES ($1,$2,'en'),($3,$4,'th')",
         [ownerId, ownerId + '@example.test', strangerId, strangerId + '@example.test']);
@@ -84,7 +89,12 @@ describe('durable phone notification delivery', () => {
         p256dh: createECDH('prime256v1').generateKeys().toString('base64url'),
         auth: randomBytes(16).toString('base64url'),
       },
-    }).expect(200);
+    });
+    if (setup.status !== 200) {
+      const failure = setup.body.error;
+      throw new Error('Enrollment fixture returned ' + setup.status + ' ' + failure?.code + ' ' +
+        (failure?.details?.reason ?? failure?.message ?? ''));
+    }
     device = setup.body.data.deviceId;
   }, 35000);
 
@@ -97,6 +107,7 @@ describe('durable phone notification delivery', () => {
 
   afterEach(() => { vi.restoreAllMocks(); });
   afterAll(async () => {
+    Object.assign(config, originalPushConfig);
     await db.tx(async (tx) => {
       await tx.query('DELETE FROM accounts WHERE id=$1', [accountId]);
       await tx.query('DELETE FROM users WHERE id=ANY($1::uuid[])', [[ownerId, strangerId]]);
