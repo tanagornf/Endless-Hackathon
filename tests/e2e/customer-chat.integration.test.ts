@@ -99,16 +99,24 @@ test('an unknown SKU stays on the local catalog path', async () => {
   expect(reply.parts.some(part => part.type === 'image')).toBe(false);
 }, 20000);
 
-test('known SKUs use catalog prices and stock without a web search', async () => {
+test('a known SKU uses the catalog price without a web search', async () => {
   const search = vi.spyOn(model, 'searchWeb');
   const { reply } = await ask('How much is A-GAME-01?');
   expect(textOf(reply)).toMatch(/1,490\b/);
+  expect(search).not.toHaveBeenCalled();
+}, 20000);
+
+test('a sold-out SKU uses the catalog stock status without a web search', async () => {
+  const search = vi.spyOn(model, 'searchWeb');
   const soldOut = await ask('Is A-SOLD-01 in stock?');
   expect(textOf(soldOut.reply)).toMatch(/sold out|out of stock/i);
   expect(search).not.toHaveBeenCalled();
 }, 20000);
 
-test('the visitor sees the merchant-uploaded product photo and can fetch the attachment from their chat', async () => {
+test.each([
+  ['direct photo request', 'Show me a picture of A-GAME-01.'],
+  ['catalog price reply', 'How much is A-GAME-01?'],
+])('the visitor can fetch the merchant-uploaded product photo from a %s', async (_scenario, question) => {
   const owner = await ownerSession();
   const search = vi.spyOn(model, 'searchWeb');
   const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: '#236155' } }).png().toBuffer();
@@ -119,7 +127,7 @@ test('the visitor sees the merchant-uploaded product photo and can fetch the att
   const photo = item.body.data.images.find((image: { alt: string }) => image.alt === 'Synthetic Demo Quest box');
   expect(photo).toBeDefined();
   try {
-    const { visitor, reply } = await ask('Show me a picture of A-GAME-01.');
+    const { visitor, reply } = await ask(question);
     expect(reply.parts).toContainEqual(expect.objectContaining({ type: 'image', fileId: photo.fileId }));
     const attachment = await visitor.get(publicChat + '/files/' + photo.fileId).expect(200);
     expect(attachment.headers['content-type']).toMatch(/^image\//);
