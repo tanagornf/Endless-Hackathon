@@ -4,9 +4,11 @@ import type { EffectiveAnswerRules } from '@nless/shared/features/business-setti
 import type { AiReplyJobPayload, MessageRecord, SaveMessageResult } from '@nless/shared/features/inbox/types';
 import { AppError, db, model } from '../../core';
 import type { JobContext } from '../../core';
+import * as channels from '../../core/channels';
 import { closeDb } from '../../core/db';
 import { seedId } from '../../core/seed';
 import * as settings from '../business-settings/service';
+import * as inbox from '../inbox/service';
 import { getHistory, saveMessage } from '../inbox/service';
 import { assignConversation } from '../team/service';
 import { fallbacks } from './fallbacks';
@@ -260,6 +262,8 @@ describe('F10 shared conversation claim', () => {
 
   it('allows takeover of an expired turn lease and fences the original holder', async () => {
     const inbound = await incoming('How much is A-GAME-01?');
+    const writes = vi.spyOn(inbox, 'saveMessage');
+    const sends = vi.spyOn(channels, 'sendToCustomer');
     const paused = waitableChat();
     const stale = execute(inbound);
     try {
@@ -272,5 +276,7 @@ describe('F10 shared conversation claim', () => {
     await stale;
     expect(await replies(inbound.conversation.id)).toHaveLength(1);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'completed', attempts: 2 });
-  });
+    expect(writes.mock.calls.filter(([input]) => input.author === 'ai')).toHaveLength(1);
+    expect(sends).toHaveBeenCalledTimes(1);
+  }, 15_000);
 });
