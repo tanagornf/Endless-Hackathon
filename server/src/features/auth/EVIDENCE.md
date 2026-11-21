@@ -44,3 +44,4 @@
 - Signup, password reset, and password change use an eight-character minimum without password strength rules. Scrypt and the existing password length cap still apply.
 - Signup immediately creates a password session without issuing email confirmation. Account settings no longer display confirmation controls, and the sandbox mailbox hides retired confirmation links.
 - Regression coverage checks the eight-character boundary, signup without confirmation mail, and continued password recovery and session rotation.
+- Normalized Unicode code points govern the 8–128-character rule. The focused fake model signup and recovery run passed 14 tests, including signup and login with a decomposed supplementary-character password at the upper bound and rejection at 129 characters.

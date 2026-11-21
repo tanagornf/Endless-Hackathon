@@ -90,9 +90,9 @@ function PasswordCard() {
       {errorKey && <Alert severity="error">{t(errorKey)}</Alert>}
       {changed && <Alert severity="success" role="status">{t('account.passwordChanged')}</Alert>}
       <TextField name="currentPassword" label={t('account.currentPassword')} type="password" autoComplete="current-password"
-        required slotProps={{ htmlInput: { maxLength: 128 } }} />
+        required />
       <TextField name="newPassword" label={t('account.newPassword')} type="password" autoComplete="new-password"
-        required slotProps={{ htmlInput: { maxLength: 128 } }} />
+        required />
       <Button type="submit" variant="contained" loading={busy} sx={{ alignSelf: 'flex-start', minHeight: 44 }}>
         {t('account.changePassword')}
       </Button>

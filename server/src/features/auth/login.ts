@@ -5,11 +5,11 @@ import { AppError, assertRateLimit, audit, config, createSession, db, destroySes
 import type { DbExecutor } from '../../core';
 import type { AuthResult } from '@nless/shared/features/auth/types';
 import { assertSameOriginRequest } from './csrf';
-import { hashPassword, needsRehash, PASSWORD_MAX, verifyPassword } from './password';
+import { hashPassword, needsRehash, PASSWORD_MAX, passwordCharacterCount, verifyPassword } from './password';
 
 const LoginBody = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
-  password: z.string().min(1).max(PASSWORD_MAX),
+  password: z.string().min(1).refine((value) => passwordCharacterCount(value) <= PASSWORD_MAX),
 }).strict();
 const LOGIN_MAX_FAILS = 5;
 const LOGIN_WINDOW_MIN = 15;

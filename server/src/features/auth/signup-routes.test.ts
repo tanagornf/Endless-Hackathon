@@ -79,6 +79,22 @@ describe('auth signup routes', () => {
     expect((await post('/api/v1/auth/email/resend').set('Cookie', cookie)).status).toBe(404);
   }, 35000);
 
+  it('accepts a 128-character password with supplementary characters and rejects 129', async () => {
+    const email = newEmail();
+    const character = String.fromCodePoint(0x1f600);
+    const longPassword = (character + 'A\u030a').repeat(64);
+    const registered = await signup(email, { password: longPassword });
+    expect(registered.status).toBe(201);
+
+    const loggedIn = await post('/api/v1/auth/login').send({ email, password: longPassword });
+    expect(loggedIn.status).toBe(200);
+    expect(loggedIn.body.data.userId).toBe(registered.body.data.userId);
+
+    const rejected = await signup(newEmail(), { password: longPassword + character });
+    expect(rejected.status).toBe(400);
+    expect(rejected.body.error.details.issues).toContainEqual({ path: 'password', code: 'too_long' });
+  }, 35000);
+
   it('serializes concurrent requests for the same normalized address', async () => {
     const email = newEmail();
     const responses = await Promise.all([signup(email), signup(email.toUpperCase())]);

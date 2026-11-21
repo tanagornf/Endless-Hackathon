@@ -103,7 +103,7 @@ export default function Signup() {
           <TextField id="auth-signup-email" name="email" label={t('signup.email')} type="email"
             autoComplete="username" required slotProps={{ htmlInput: { maxLength: 200 } }} />
           <TextField id="auth-signup-password" name="password" label={t('signup.password')} type="password"
-            autoComplete="new-password" required slotProps={{ htmlInput: { minLength: 8, maxLength: 128 } }} />
+            autoComplete="new-password" required />
           <Button type="submit" variant="contained" loading={busy} sx={{ minHeight: 44 }}>{t('signup.submit')}</Button>
         </>}
         <Link component={RouterLink} to={loginPath} sx={{ alignSelf: 'flex-start', py: 1 }}>{t('signup.haveAccount')}</Link>

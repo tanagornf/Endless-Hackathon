@@ -53,8 +53,12 @@ export function needsRehash(stored: string): boolean {
   return parsed === null || parsed.params.N !== SCRYPT.N || parsed.params.r !== SCRYPT.r || parsed.params.p !== SCRYPT.p;
 }
 
+export function passwordCharacterCount(plain: string): number {
+  return [...plain.normalize('NFKC')].length;
+}
+
 export function validatePassword(plain: string) {
-  const length = [...plain.normalize('NFKC')].length;
+  const length = passwordCharacterCount(plain);
   if (length < PASSWORD_MIN) return 'too_short';
   if (length > PASSWORD_MAX) return 'too_long';
   return null;

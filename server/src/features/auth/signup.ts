@@ -5,7 +5,7 @@ import type { DbExecutor } from '../../core';
 import type { AuthResult } from '@nless/shared/features/auth/types';
 import { ensureBusinessSettings } from '../business-settings/service';
 import { assertSameOriginRequest } from './csrf';
-import { hashPassword, PASSWORD_MAX, validatePassword } from './password';
+import { hashPassword, validatePassword } from './password';
 import { authTokenSchema } from './tokens';
 
 export interface SignupTenancy {
@@ -20,7 +20,7 @@ export interface SignupTenancy {
 
 const SignupBody = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
-  password: z.string().max(PASSWORD_MAX),
+  password: z.string(),
   displayName: z.string().trim().min(1).max(80),
   businessName: z.string().trim().min(2).max(80).optional(),
   locale: z.enum(['th', 'en']).default('th'),

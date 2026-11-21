@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { AppError, assertRateLimit, auditInTransaction, config, createSession, db, log, revokeUserSessionsInTransaction } from '../../core';
 import type { DbExecutor } from '../../core';
 import { assertSameOriginRequest } from './csrf';
-import { hashPassword, PASSWORD_MAX, validatePassword, verifyPassword } from './password';
+import { hashPassword, PASSWORD_MAX, passwordCharacterCount, validatePassword, verifyPassword } from './password';
 import { authTokenSchema } from './tokens';
 
 export interface RecoveryPorts {
@@ -18,10 +18,11 @@ export interface RecoveryPorts {
 
 const ForgotBody = z.object({ email: z.string().trim().toLowerCase().email().max(200) }).strict();
 const ResetBody = z.object({
-  token: authTokenSchema, newPassword: z.string().max(PASSWORD_MAX),
+  token: authTokenSchema, newPassword: z.string(),
 }).strict();
 const ChangeBody = z.object({
-  currentPassword: z.string().min(1).max(PASSWORD_MAX), newPassword: z.string().max(PASSWORD_MAX),
+  currentPassword: z.string().min(1).refine((value) => passwordCharacterCount(value) <= PASSWORD_MAX),
+  newPassword: z.string(),
 }).strict();
 
 type PasswordAccount = {
