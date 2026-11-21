@@ -1,8 +1,8 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
-const env = { NODE_ENV: 'test', MODEL_MODE: 'fake', OPENAI_API_KEY: '', LOG_LEVEL: 'warn' };
-const coreIntegration = ['server/src/core/{auth,features,loop,model,meta,demo,channels,jobs,worker,worker-crash,shutdown}.test.ts', 'server/src/features/**/*.test.ts'];
+const env = { NODE_ENV: 'test', MODEL_MODE: 'fake', OPENAI_API_KEY: '', RUN_WORKER: '0', RUN_SCHEDULER: '0', LOG_LEVEL: 'warn' };
+const coreIntegration = ['server/src/core/{auth,features,loop,model,meta,demo,scheduler,channels,jobs,worker,worker-crash,shutdown}.test.ts', 'server/src/features/**/*.test.ts'];
 export default defineConfig({
   test: {
     projects: [

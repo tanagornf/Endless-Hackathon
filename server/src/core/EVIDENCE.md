@@ -28,3 +28,9 @@
 - The integration test first reproduced a queued AI reply reaching the sender after the business switched AI off.
 - The C1 test database verified live toggle and takeover checks in the worker. Staff and system messages still reached the sender. A code-generated F10 handoff acknowledgement carried the assignment version and could be sent for that version while AI stayed on.
 - Local typecheck and 12 focused tests passed across delivery, core loop, worker and LINE events. This check covers provider calls before dispatch. Production smoke is pending.
+
+### F35 scheduler and readiness
+
+- The C1 test database verified two-session scheduler leadership, overlapping-job suppression, slot deduplication, retention and takeover after release.
+- Readiness checks cover loaded features, pending migrations, upload write access, freshness of an enabled worker, and scheduler leadership. The scheduler, readiness and shutdown files passed 9 checks locally.
+- The first broad local run found a synthetic queued test row leaking between files. The scheduler test now removes its own rows. Integrated and production verification are tracked on the pull request.
