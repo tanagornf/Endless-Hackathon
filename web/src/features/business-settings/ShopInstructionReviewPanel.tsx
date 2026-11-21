@@ -31,7 +31,8 @@ const actionText = {
   },
 } as const;
 
-type ReviewNotice = typeof actionText[keyof typeof actionText]['success'] | 'shopInstructions.conflict';
+type ReviewIssue = 'shopInstructions.conflict' | 'shopInstructions.replayPending';
+type ReviewNotice = typeof actionText[keyof typeof actionText]['success'] | ReviewIssue;
 
 export default function ShopInstructionReviewPanel() {
   const { currentBusiness, businesses } = useSession();
@@ -57,6 +58,7 @@ function InstructionReview() {
   const active = view?.versions.find(({ id }) => id === view.activeVersionId);
   const candidate = view?.candidates.find(({ id }) => id === selectedId) ?? view?.candidates[0];
   const stale = Boolean(view && candidate && candidate.baseVersionId !== view.activeVersionId);
+  const replayPending = Boolean(candidate && !candidate.replayPassed);
   const confirmation = action && actionText[action.kind];
 
   function choose(target: ReviewTarget) {
@@ -66,8 +68,8 @@ function InstructionReview() {
     setAction({ ...target, expectedActiveVersionId: view.activeVersionId });
   }
 
-  function refreshConflict() {
-    setNotice('shopInstructions.conflict');
+  function refreshBlocked(issue: ReviewIssue) {
+    setNotice(issue);
     setAction(null);
     query.reload();
   }
@@ -75,7 +77,11 @@ function InstructionReview() {
   async function confirm() {
     if (!action || submitting.current) return;
     if (!view || view.activeVersionId !== action.expectedActiveVersionId) {
-      refreshConflict();
+      refreshBlocked('shopInstructions.conflict');
+      return;
+    }
+    if (action.kind === 'publish' && !view.candidates.find(({ id }) => id === action.id)?.replayPassed) {
+      refreshBlocked('shopInstructions.replayPending');
       return;
     }
 
@@ -87,8 +93,11 @@ function InstructionReview() {
       setAction(null);
       query.reload();
     } catch (error) {
-      if (apiFailure(error)?.error.code === 'VERSION_CONFLICT') {
-        refreshConflict();
+      const code = apiFailure(error)?.error.code;
+      if (code === 'VERSION_CONFLICT') {
+        refreshBlocked('shopInstructions.conflict');
+      } else if (code === 'POLICY_BLOCKED' && action.kind === 'publish') {
+        refreshBlocked('shopInstructions.replayPending');
       } else {
         setSaveError(true);
         throw error;
@@ -101,7 +110,8 @@ function InstructionReview() {
   return (
     <SectionCard title={t('shopInstructions.title')}>
       <Stack spacing={2}>
-        {notice && <Alert severity={notice === 'shopInstructions.conflict' ? 'warning' : 'success'}>
+        {notice && !(notice === 'shopInstructions.replayPending' && replayPending) && <Alert
+          severity={notice === 'shopInstructions.conflict' || notice === 'shopInstructions.replayPending' ? 'warning' : 'success'}>
           {t(notice)}
         </Alert>}
         {query.error && <EmptyState title={t('shopInstructions.loadError')}
@@ -125,10 +135,16 @@ function InstructionReview() {
               {t('shopInstructions.reason', { reason: candidate.reason })}
             </Typography>}
             {stale && <Alert severity="warning">{t('shopInstructions.staleCandidate')}</Alert>}
-            <Button variant="contained" disabled={stale || mutation.running} onClick={() => choose({ kind: 'publish', id: candidate.id })}
+            {replayPending && <Alert severity="warning">{t('shopInstructions.replayPending')}</Alert>}
+            <Button variant="contained" disabled={stale || replayPending || mutation.running}
+              onClick={() => choose({ kind: 'publish', id: candidate.id })}
               sx={{ minHeight: 44, alignSelf: { xs: 'stretch', sm: 'flex-start' } }}>
               {t('shopInstructions.publish')}
             </Button>
+            {replayPending && <Button onClick={() => { setNotice(null); query.reload(); }}
+              sx={{ minHeight: 44, alignSelf: { xs: 'stretch', sm: 'flex-start' } }}>
+              {t('shopInstructions.refreshReplay')}
+            </Button>}
           </Stack> : <EmptyState title={t('shopInstructions.noCandidates')} />}
           <Stack spacing={1}>
             <Typography component="h3" variant="h6">{t('shopInstructions.history')}</Typography>

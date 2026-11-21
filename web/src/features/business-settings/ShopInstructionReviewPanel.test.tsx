@@ -44,7 +44,10 @@ const previous = {
 const active = {
   ...previous, id: 'revision-two', parentVersionId: previous.id, candidateId: 'second-candidate', instruction: 'Use the order number.',
 } satisfies ShopInstructionVersion;
-const candidate = { id: 'candidate-one', baseVersionId: active.id, instruction: 'Check the order number first.', reason: 'Owner correction', createdAt };
+const candidate = {
+  id: 'candidate-one', baseVersionId: active.id, instruction: 'Check the order number first.', reason: 'Owner correction',
+  createdAt, replayPassed: true, candidateDigest: 'c'.repeat(64),
+};
 const view: ShopInstructionReview = { activeVersionId: active.id, candidates: [candidate], versions: [active, previous] };
 
 function query(data: ShopInstructionReview = view) {
@@ -104,6 +107,22 @@ it('requires explicit confirmation and publishes only the candidate and base sho
   ));
   expect(api.reload).toHaveBeenCalledOnce();
   expect(screen.getByText('shopInstructions.published')).toBeTruthy();
+});
+
+it('keeps a pending-replay candidate visible and disables publishing until replay passes', () => {
+  query({ ...view, candidates: [{ ...candidate, replayPassed: false }] });
+  const { rerender } = render(<ShopInstructionReviewPanel />);
+  expect(screen.getByText(candidate.instruction)).toBeTruthy();
+  expect(screen.getByText('shopInstructions.replayPending')).toBeTruthy();
+  expect((screen.getByRole('button', { name: 'shopInstructions.publish' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(api.publish).not.toHaveBeenCalled();
+
+  click('shopInstructions.refreshReplay');
+  expect(api.reload).toHaveBeenCalledOnce();
+  query();
+  rerender(<ShopInstructionReviewPanel />);
+  expect(screen.queryByText('shopInstructions.replayPending')).toBeNull();
+  expect((screen.getByRole('button', { name: 'shopInstructions.publish' }) as HTMLButtonElement).disabled).toBe(false);
 });
 
 it('disables an outdated candidate and refreshes a conflict without resubmitting it', async () => {
