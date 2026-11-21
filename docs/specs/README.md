@@ -32,7 +32,7 @@
 | F24 | [crm](F24-crm.md) | A3 | P1 | R | 45–90 |
 | F26 | [insights](F26-insights.md) | B3 | P2 | R | 30–90 |
 | F27 | [analytics (+ seller impact metrics)](F27-analytics.md) | B3 | P2 | R | 60–165 |
-| F30 | [voice](F30-voice.md) | B2 | P3 | R (browser) | 90–210 |
+| F30 | [voice](F30-voice.md) | C2 | P3 | R (browser) | 90–210 |
 | F31 | [notifications](F31-notifications.md) | C3 | P1 | R (in-app) | 30–75 |
 | F35 | [core/jobs](F35-core-jobs.md) | C1 | P0 | R | 60–150 |
 | F36 | [release](F36-release.md) | C1 | P1 | R | 60–120 |

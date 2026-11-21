@@ -23,7 +23,7 @@
 "F24","CRM และ tags automation","A3","crm","A","UNIMPLEMENTED","R","U","","","","","","",""
 "F26","Insights และ summaries","B3","insights","B","UNIMPLEMENTED","R","U","","","","","","",""
 "F27","Dashboard usage/cost และ traces","B3","analytics","B","UNIMPLEMENTED","R","U","","","","","","",""
-"F30","Browser voice","B2","voice","B","UNIMPLEMENTED","S","U","S only after end-to-end simulator/provider test run; R only after external verification; otherwise A/U","","","","","",""
+"F30","Browser voice","C2","voice","C","UNIMPLEMENTED","S","U","S only after end-to-end simulator/provider test run; R only after external verification; otherwise A/U","","","","","",""
 "F31","Notifications และ push","C3","notifications","C","UNIMPLEMENTED","S","U","S only after end-to-end simulator/provider test run; R only after external verification; otherwise A/U","","","","","",""
 "F35","Reliability และเครื่องมือปฏิบัติการ","C1","core/jobs","C","UNIMPLEMENTED","R","U","","","","","","",""
 "F36","ตรวจรวม เผยแพร่ และหลักฐาน","C1","release","C","UNIMPLEMENTED","R","U","","","","","","",""

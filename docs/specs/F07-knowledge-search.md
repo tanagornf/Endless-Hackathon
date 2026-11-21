@@ -7,7 +7,7 @@
 | Timebox | 60–120 นาที (slice แรก ≤ 45 นาที ทำหลัง F08 S1 ต้อง merge ก่อน 12:40) |
 | เริ่มเมื่อ | `SETUP READY` (ต่อจาก F05 slice 1; ไม่ต้องรอ F06) |
 | พึ่ง | F05 `getKnowledgeRevision`, `listKnowledgeItems`, service วงจรชีวิต · core (`model.embed`, `model.chat`, `db`, `jobs`, `publish`, `audit`, `assertRateLimit`) · F35 jobs · pgvector (migration แรกของ core สร้าง extension แล้ว) |
-| ให้ | contract `searchKnowledge` (B2: F10 tool `search_knowledge`, F30 voice) · export ในคน B: `indexKnowledgeRevision`, `setSearchable`, `setItemFolder`, `getIndexStates`, `evidenceIdOf`, `parseEvidenceId` (F05) |
+| ให้ | contract `searchKnowledge` (B2: F10 tool `search_knowledge` · C2: F30 voice) · export ในคน B: `indexKnowledgeRevision`, `setSearchable`, `setItemFolder`, `getIndexStates`, `evidenceIdOf`, `parseEvidenceId` (F05) |
 | ใช้ | `getKnowledgeRevision` (F05) |
 | โฟลเดอร์ | `server/src/features/knowledge-search/` · `shared/features/knowledge-search/types.ts` · `web/src/features/knowledge-search/` |
 | Web path | `/knowledge-search` (เมนูกลุ่ม `knowledge`) |
