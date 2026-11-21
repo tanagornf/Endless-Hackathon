@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { setTimeout as wait } from 'node:timers/promises';
 import sharp from 'sharp';
 import { afterAll, afterEach, expect, test, vi } from 'vitest';
 import type { DemoChatPoll, DemoChatMessage } from '@nless/shared/features/inbox/types';
@@ -47,7 +48,11 @@ test('a buyer sees a sourced product fact and the next buyer sees the merchant c
   const url = 'https://publisher.example/manuals/demo-cards';
   const provisional = 'The cards are made of glossy cardstock.';
   const corrected = 'The cards are made of linen-finished paper.';
-  search.mockResolvedValue({ answer: provisional, citations: [{ title: 'Demo Cards material guide', url }] });
+  search.mockImplementation(async ({ signal }) => {
+    // Match the observed 8.78 s provider latency and honor the actual turn's cancellation signal.
+    await wait(8780, undefined, { signal });
+    return { answer: provisional, citations: [{ title: 'Demo Cards material guide', url }], usageId: randomUUID() };
+  });
 
   async function drafts() {
     const list = await owner.get(knowledge).query({ status: 'draft', limit: 200 }).expect(200);
