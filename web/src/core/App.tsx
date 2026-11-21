@@ -10,6 +10,7 @@ import { useFeatures } from './featureFlags';
 import { AppShell } from './layout/AppShell';
 import { PageHeader } from './layout/PageHeader';
 import DevLogin from './pages/DevLogin';
+import WorkspaceHome from './pages/WorkspaceHome';
 import { useRealtimeConnection } from './realtime';
 import { featurePages, registryErrors } from './registry';
 import { useSession } from './session';
@@ -67,6 +68,13 @@ function Ops() {
     ]} />
   </>;
 }
+function Home() {
+  const { search } = useLocation();
+  const { t } = useTranslation('common');
+  if (new URLSearchParams(search).get('view') === 'workspace') return <WorkspaceHome />;
+  return <><PageHeader title={t('pages.home')} /><Typography>{t('pages.welcome')}</Typography></>;
+}
+
 function SessionHome({ children }: { children: ReactNode }) {
   return <Guard auth="user"><AppShell>{children}</AppShell></Guard>;
 }
@@ -78,7 +86,7 @@ export default function App() {
     {import.meta.env.DEV && registryErrors.length > 0 && <Alert severity="error">{registryErrors.join(' · ')}</Alert>}
     <Suspense fallback={<LinearProgress />}>
       <Routes>
-        <Route path="/" element={<SessionHome><PageHeader title={t('pages.home')} /><Typography>{t('pages.welcome')}</Typography></SessionHome>} />
+        <Route path="/" element={<SessionHome><Home /></SessionHome>} />
         <Route path="/account" element={<SessionHome><Account /></SessionHome>} />
         <Route path="/ops" element={<SessionHome><Guard auth="platform_admin"><Ops /></Guard></SessionHome>} />
         <Route path="/oauth/callback" element={<SessionHome><OAuthCallback /></SessionHome>} />

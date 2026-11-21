@@ -113,5 +113,13 @@
     "title": "DEV LOGIN",
     "token": "Development sign-in token",
     "choose": "Choose a test user"
+  },
+  "workspace": {
+    "title": "Shop workspace",
+    "search": "Find a page",
+    "clear": "Clear search",
+    "skip": "Skip to content",
+    "noPages": "No pages found",
+    "shortcuts": "Quick navigation"
   }
 }
