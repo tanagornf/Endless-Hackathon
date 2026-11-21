@@ -12,3 +12,10 @@ test.each(['APP_BASE_URL', 'WEB_ORIGIN', 'PUBLIC_BASE_URL'])('%s uses this servi
   const entry = blueprint.split('\n').find((line) => line.includes('key: ' + key + ','));
   expect(entry).toMatch(/fromService:\s*\{\s*name:\s*nless-hack,\s*type:\s*web,\s*envVarKey:\s*RENDER_EXTERNAL_URL/);
 });
+
+test('the release Blueprint preserves LINE setup and leaves Meta in sandbox mode', () => {
+  const meta = Array.from(blueprint.matchAll(/\bkey:\s*(META_[A-Z_]+),/g), ([, key]) => key);
+  expect(meta).toEqual(['META_MODE']);
+  expect(blueprint).toMatch(/key:\s*META_MODE,\s*value:\s*sandbox/);
+  expect(blueprint).toMatch(/key:\s*LINE_MODE,\s*sync:\s*false/);
+});
