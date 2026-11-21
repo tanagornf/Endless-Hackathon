@@ -1,0 +1,11 @@
+# Project config for the competition repo (.codex/config.toml). Loaded only when the project/worktree is trusted.
+# Team decision (D3): every Codex session uses gpt-6.2-sol. Never gpt-6.2-astra (about 4x the cost), never effort "ultra".
+# The app's model/effort pickers and CLI flags (--model, -c) still override this per chat: set effort per chat (README).
+model = "gpt-6.2-sol"
+model_reasoning_effort = "medium"
+
+# Sub-agents: low effort, Sol, at most 4 at once (D3/D14). Keys verified in the config reference (20 Nov 2026).
+[agents]
+max_concurrent_threads_per_session = 4
+default_subagent_model = "gpt-6.2-sol"
+default_subagent_reasoning_effort = "low"

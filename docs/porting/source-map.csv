@@ -1,0 +1,1395 @@
+feature_id,slug,kind,papi_path,note
+F01,core,doc,Backend/README.md,backend overview (AWS deploy parts ไม่ต้อง port)
+F01,core,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F01,core,doc,Frontend/README.md,"frontend overview, env, routes"
+F01,core,doc,Frontend/src/App.tsx,route table + session gating (AccountDisabled/NoBusinessAccess/FirstStep)
+F01,core,doc,Landing/,"marketing landing แยก deploy (static HTML, P01); ทำเป็นหน้า signed-out หน้าเดียวพอ"
+F01,core,function,Backend/functions/WebsocketPush,server->dashboard push fan-out (message/summary/status/insight/knowledge_status) -> core realtime | entry src/index.mjs
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/bedrock-utils.mjs,Bedrock embed/chat -> core model.embed()/chat() (OpenAI)
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/concurrency.mjs,bounded concurrency util
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/db.mjs,pg pool; release ใน finally -> core db
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/enums.mjs,"แหล่งค่า enum เดียว (CHANNEL, MESSAGE_SENDER, CONVERSATION_STATUS...) -> เก็บค่าเดิม"
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/http-utils.mjs,HTTP helpers
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/json-response.mjs,JSON response helper
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/model-content.mjs,model content blocks
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/model-routing.mjs,workload -> provider routing -> core model wrapper
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/model-usage.mjs,บันทึก usage ทุก model call
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/openrouter-gateway.mjs,provider gateway (deadline/retry) -> core model wrapper
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/openrouter-response.mjs,provider response parse
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/public-url.mjs,public URL util
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/request-body.mjs,request body parse
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/secrets.mjs,Secrets Manager -> env/encrypted token refs
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/utils.mjs,utils
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/websocket-authorization.mjs,WS auth + ใครได้รับ event ไหน
+F01,core,layer,Backend/layers/nodejs-utils/nodejs/workload-invoker.mjs,model invoker shapes -> core model wrapper
+F01,core,sql,Database/aitokenusage.sql,tables: ai_token_usage; usage ledger ที่ model.chat()/embed() เขียน
+F01,core,sql,Database/enum.sql,35 shared enum types
+F01,core,page,Frontend/src/pages/Account.tsx,account menu page (mobile); host ของ account tabs
+F01,core,page,Frontend/src/pages/ErrorPage.tsx,404/error
+F01,core,page,Frontend/src/pages/Layout.tsx,app layout
+F01,core,page,Frontend/src/pages/LoadingPage.tsx,Suspense fallback
+F01,core,page,Frontend/src/pages/More.tsx,/more mobile menu
+F01,core,page,Frontend/src/pages/Profile.tsx,/profile (+theme/scale prefs)
+F01,core,component,Frontend/src/components/account/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/components/alert/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/components/AppErrorBoundary.tsx,
+F01,core,component,Frontend/src/components/breadcrumb/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/components/button/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/components/file/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/components/image/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/components/modal/AccountSettingsModal.tsx,host ของ account settings tabs
+F01,core,component,Frontend/src/components/modal/AccountSettingsPanels.tsx,
+F01,core,component,Frontend/src/components/modal/AccountSettingsSkeletons.tsx,
+F01,core,component,Frontend/src/components/nav/BusinessSwitcher.tsx,
+F01,core,component,Frontend/src/components/nav/Flags.tsx,
+F01,core,component,Frontend/src/components/nav/LanguageToggle.tsx,
+F01,core,component,Frontend/src/components/nav/Navbar.tsx,
+F01,core,component,Frontend/src/components/nav/navIcons.tsx,
+F01,core,component,Frontend/src/components/nav/PageTitleIcon.tsx,
+F01,core,component,Frontend/src/components/nav/PermissionRedirect.tsx,
+F01,core,component,Frontend/src/components/nav/Sidebar.tsx,
+F01,core,component,Frontend/src/components/nav/sidebarPalette.ts,
+F01,core,component,Frontend/src/components/radio/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/components/stepper/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/components/table/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/components/tag/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/components/themeColors.ts,
+F01,core,component,Frontend/src/components/tour/,ทั้งโฟลเดอร์
+F01,core,component,Frontend/src/contexts/DisplayScaleContext.tsx,FE context
+F01,core,component,Frontend/src/contexts/LoginContext.tsx,FE context
+F01,core,component,Frontend/src/contexts/navigationGuard.ts,FE context
+F01,core,component,Frontend/src/contexts/NavigationGuardContext.tsx,FE context
+F01,core,component,Frontend/src/contexts/SnackbarContext.tsx,FE context
+F01,core,component,Frontend/src/contexts/ThemeModeContext.tsx,FE context
+F01,core,component,Frontend/src/contexts/TourContext.tsx,FE context
+F01,core,component,Frontend/src/contexts/tourState.ts,FE context
+F01,core,component,Frontend/src/design/,design tokens
+F01,core,component,Frontend/src/fonts.ts,web core
+F01,core,component,Frontend/src/functions/appErrorRecovery.ts,FE helper
+F01,core,component,Frontend/src/functions/appNavigation.ts,"FE helper: PATH_PERMISSIONS, ADMIN_ONLY_PATHS, NAV_GROUPS"
+F01,core,component,Frontend/src/functions/authSocket.ts,FE helper
+F01,core,component,Frontend/src/functions/filterFileType.ts,FE helper
+F01,core,component,Frontend/src/functions/formatDateTime.ts,FE helper
+F01,core,component,Frontend/src/functions/imageConvert.ts,FE helper
+F01,core,component,Frontend/src/functions/inputFilters.ts,FE helper
+F01,core,component,Frontend/src/functions/menuSearch.ts,FE helper
+F01,core,component,Frontend/src/functions/networkActivity.ts,FE helper
+F01,core,component,Frontend/src/functions/pagePrefetch.ts,FE helper
+F01,core,component,Frontend/src/functions/radioNavigation.ts,FE helper
+F01,core,component,Frontend/src/functions/requestAPI.tsx,FE helper
+F01,core,component,Frontend/src/functions/sidebarPreference.ts,FE helper
+F01,core,component,Frontend/src/functions/StringFormat.tsx,FE helper
+F01,core,component,Frontend/src/functions/textDiff.ts,FE helper
+F01,core,component,Frontend/src/functions/tourPosition.ts,FE helper: onboarding tour
+F01,core,component,Frontend/src/functions/tourSteps.ts,FE helper: onboarding tour
+F01,core,component,Frontend/src/functions/tourStorage.ts,FE helper: onboarding tour
+F01,core,component,Frontend/src/hooks/useAccordionHeightMotion.ts,FE hook
+F01,core,component,Frontend/src/hooks/useChatSocket.ts,FE hook
+F01,core,component,Frontend/src/hooks/useFileDrop.ts,FE hook
+F01,core,component,Frontend/src/hooks/useFileUploader.ts,FE hook
+F01,core,component,Frontend/src/hooks/usePageSessionMute.ts,FE hook
+F01,core,component,Frontend/src/hooks/useRejectedInput.ts,FE hook
+F01,core,component,Frontend/src/hooks/useUnsavedChangesWarning.ts,FE hook
+F01,core,component,Frontend/src/i18n.js,web core
+F01,core,component,Frontend/src/interfaces/,shared FE types (แยกตามฟีเจอร์ตอน port)
+F01,core,component,Frontend/src/layout/,"shell: AppShell, Sidebar, PageHeader, BusinessSwitcher, UserMenu, MobileTabBar, PersonalSettings"
+F01,core,component,Frontend/src/locales/th/common.json,i18n namespace 'common' (en คู่กันที่ locales/en/common.json)
+F01,core,component,Frontend/src/locales/th/nav.json,i18n namespace 'nav' (en คู่กันที่ locales/en/nav.json)
+F01,core,component,Frontend/src/locales/th/tour.json,i18n namespace 'tour' (en คู่กันที่ locales/en/tour.json)
+F01,core,component,Frontend/src/main.tsx,web core
+F01,core,component,Frontend/src/theme.ts,web core
+F01,core,component,Frontend/src/ui/,"ui kit (Button, Modal, ...) ที่ 74/108 pages import"
+F01,core,component,Frontend/src/functions/accessToken.ts,FE helper (แทน socketAccessToken.ts: REST กับ WebSocket ใช้ token ชุดเดียว)
+F02,auth,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F02,auth,function,Backend/functions/AuthorizeToken,APIGW TOKEN authorizer (Cognito JWT) -> แทนด้วย session middleware ของ core getUser() | entry src/index.mjs
+F02,auth,function,Backend/functions/ExchangeAuthToken,Cognito code->token exchange -> แทนด้วย login/session ของเราเอง | entry src/index.mjs
+F02,auth,function,Backend/functions/GetInvitationByToken,invite token lookup | entry src/index.mjs
+F02,auth,function,Backend/functions/GetUserInfo,current user | entry src/index.mjs
+F02,auth,function,Backend/functions/GetUserProfile,profile read | entry src/index.mjs
+F02,auth,function,Backend/functions/InviteUser,invite member + permissions | entry src/index.mjs
+F02,auth,function,Backend/functions/Registration,registration start/complete + invitation response | entry src/index.mjs
+F02,auth,function,Backend/functions/RevokeAuthToken,logout/revoke -> session revoke ของเราเอง | entry src/index.mjs
+F02,auth,function,Backend/functions/SendInviteEmail,invite email (sandbox) | entry src/index.mjs
+F02,auth,function,Backend/functions/TriggerPostUserSignup,Cognito post-confirm trigger -> port เป็น provisioning ตอน signup (user/account/business rows) | entry src/index.mjs
+F02,auth,function,Backend/functions/UpdateUserInfo,profile write | entry src/index.mjs
+F02,auth,layer,Backend/layers/nodejs-utils/nodejs/provisioning.mjs,provision user/account/business
+F02,auth,layer,Backend/layers/nodejs-utils/nodejs/registration-intents.mjs,signed registration intent
+F02,auth,sql,Database/invitations.sql,tables: invitations
+F02,auth,sql,Database/registrationintents.sql,tables: registration_intents
+F02,auth,sql,Database/users.sql,tables: users
+F02,auth,page,Frontend/src/pages/Confirm.tsx,/confirm
+F02,auth,page,Frontend/src/pages/ForgotPassword.tsx,/forgot-password
+F02,auth,page,Frontend/src/pages/Invite.tsx,/invite
+F02,auth,page,Frontend/src/pages/Login.tsx,/login
+F02,auth,page,Frontend/src/pages/Profile.tsx,/profile (+theme/scale prefs)
+F02,auth,page,Frontend/src/pages/ResetPassword.tsx,/reset-password
+F02,auth,page,Frontend/src/pages/Signup.tsx,/signup
+F02,auth,page,Frontend/src/pages/Welcome.tsx,/home signed-out
+F02,auth,component,Frontend/src/components/auth/,ทั้งโฟลเดอร์
+F02,auth,component,Frontend/src/functions/authMessages.ts,FE helper
+F02,auth,component,Frontend/src/functions/authSession.tsx,FE helper
+F02,auth,component,Frontend/src/functions/authValidation.ts,FE helper
+F02,auth,component,Frontend/src/functions/cognitoAuth.ts,FE helper
+F02,auth,component,Frontend/src/functions/pkce.js,FE helper
+F02,auth,component,Frontend/src/functions/profileName.ts,FE helper
+F02,auth,component,Frontend/src/functions/registrationContract.ts,FE helper
+F02,auth,component,Frontend/src/layout/SocialAuthButtons.tsx,Google PKCE buttons (Google sign-in = OUT)
+F02,auth,component,Frontend/src/locales/th/auth.json,i18n namespace 'auth' (en คู่กันที่ locales/en/auth.json)
+F03,tenancy,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F03,tenancy,function,Backend/functions/CreateBusiness,create business + capacity check | entry src/index.mjs
+F03,tenancy,function,Backend/functions/GetAccountInfo,business detail (profile/contacts/hours) | entry src/index.mjs
+F03,tenancy,function,Backend/functions/GetAccountList,business list (admin: ทั้งหมด) | entry src/index.mjs
+F03,tenancy,function,Backend/functions/GetAccountUsers,members ของ business
+F03,tenancy,function,Backend/functions/GetInvitationByToken,invite token lookup | entry src/index.mjs
+F03,tenancy,function,Backend/functions/GetMyBusinesses,businesses ของ user + permissions + entitlements | entry src/index.mjs
+F03,tenancy,function,Backend/functions/GetUserList,users list | entry src/index.mjs
+F03,tenancy,function,Backend/functions/InviteUser,invite member + permissions | entry src/index.mjs
+F03,tenancy,function,Backend/functions/Registration,registration start/complete + invitation response | entry src/index.mjs
+F03,tenancy,function,Backend/functions/SendInviteEmail,invite email (sandbox) | entry src/index.mjs
+F03,tenancy,function,Backend/functions/TriggerPostUserSignup,Cognito post-confirm trigger -> port เป็น provisioning ตอน signup (user/account/business rows) | entry src/index.mjs
+F03,tenancy,function,Backend/functions/UpdateAccountInfo,business profile/contacts/hours + geocode address pin | entry src/index.mjs
+F03,tenancy,function,Backend/functions/UpdateBusinessStatus,pause/block/delete business + channel teardown | entry src/index.mjs
+F03,tenancy,function,Backend/functions/UpdateUserRole,role change | entry src/index.mjs
+F03,tenancy,function,Backend/functions/UpdateUserStatus,disable/enable user | entry src/index.mjs
+F03,tenancy,layer,Backend/layers/nodejs-utils/nodejs/account-cascade.mjs,account status -> businesses cascade
+F03,tenancy,layer,Backend/layers/nodejs-utils/nodejs/business-scope.mjs,resolveBusinessScope: business access + permission + status gate -> core getBusiness()/requirePermission()
+F03,tenancy,layer,Backend/layers/nodejs-utils/nodejs/channel-teardown.mjs,disconnect ทุก channel ของ business
+F03,tenancy,layer,Backend/layers/nodejs-utils/nodejs/permissions.mjs,permission catalog 26 keys + secondary buckets
+F03,tenancy,layer,Backend/layers/nodejs-utils/nodejs/provisioning.mjs,provision user/account/business
+F03,tenancy,sql,Database/accountmembers.sql,tables: account_members
+F03,tenancy,sql,Database/accounts.sql,tables: accounts; accounts.id UUID แต่ *.account_id INT
+F03,tenancy,sql,Database/businesses.sql,"tables: businesses; ai_enable, ai_new_friends_only, status"
+F03,tenancy,sql,Database/invitations.sql,tables: invitations
+F03,tenancy,sql,Database/userbusinessaccess.sql,tables: user_business_access
+F03,tenancy,sql,Database/users.sql,tables: users
+F03,tenancy,page,Frontend/src/pages/AccountDisabled.tsx,session gating: account disabled
+F03,tenancy,page,Frontend/src/pages/Business.tsx,"/business, /business/:id"
+F03,tenancy,page,Frontend/src/pages/businessdetail_pages/BusinessSetting.tsx,business status actions (pause/block/delete)
+F03,tenancy,page,Frontend/src/pages/BusinessList.tsx,business list
+F03,tenancy,page,Frontend/src/pages/BusinessSuspended.tsx,session gating: business suspended
+F03,tenancy,page,Frontend/src/pages/FirstStep.tsx,first-run wizard เมื่อยังไม่มี business
+F03,tenancy,page,Frontend/src/pages/Invite.tsx,/invite
+F03,tenancy,page,Frontend/src/pages/Member.tsx,/member (+team ops panel)
+F03,tenancy,page,Frontend/src/pages/MemberList.tsx,member list
+F03,tenancy,page,Frontend/src/pages/NoBusinessAccess.tsx,session gating: no business access
+F03,tenancy,page,Frontend/src/pages/Unauthorized.tsx,permission gating
+F03,tenancy,component,Frontend/src/components/business/AddMemberButton.tsx,
+F03,tenancy,component,Frontend/src/components/business/LeaveBusinessButton.tsx,
+F03,tenancy,component,Frontend/src/components/member/InvitedByInfo.tsx,
+F03,tenancy,component,Frontend/src/components/member/InviteLinkBox.tsx,
+F03,tenancy,component,Frontend/src/components/member/MemberActionsMenu.tsx,
+F03,tenancy,component,Frontend/src/components/member/MemberDialog.tsx,
+F03,tenancy,component,Frontend/src/components/member/memberDialogStyles.ts,
+F03,tenancy,component,Frontend/src/components/member/MemberPermissionsDialog.tsx,
+F03,tenancy,component,Frontend/src/components/member/useInvitationActions.tsx,
+F03,tenancy,component,Frontend/src/functions/accountContract.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/accountStatus.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/accountStatusPresentation.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/appNavigation.ts,"FE helper: PATH_PERMISSIONS, ADMIN_ONLY_PATHS, NAV_GROUPS"
+F03,tenancy,component,Frontend/src/functions/businessAccess.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/businessContract.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/businessSelection.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/businessStatus.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/businessStatusActions.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/checkPermission.tsx,FE helper
+F03,tenancy,component,Frontend/src/functions/invitationLink.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/inviteContract.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/memberActions.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/memberPermissionsApi.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/memberPickerOptions.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/permission.json,FE helper
+F03,tenancy,component,Frontend/src/functions/permissionLevels.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/permissions.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/usePermissions.ts,FE helper
+F03,tenancy,component,Frontend/src/locales/th/business.json,i18n namespace 'business' (en คู่กันที่ locales/en/business.json)
+F03,tenancy,component,Frontend/src/locales/th/member.json,i18n namespace 'member' (en คู่กันที่ locales/en/member.json)
+F03,tenancy,component,Frontend/src/components/member/PermissionSearch.tsx,ค้นหาในหน้าต่างสิทธิ์ว่าหน้าไหนให้สิทธิ์อะไร
+F03,tenancy,component,Frontend/src/functions/permissionSearch.ts,FE helper
+F03,tenancy,component,Frontend/src/functions/memberListView.ts,กรองรายชื่อสมาชิกตาม role/สถานะ และเรียง
+F04,business-settings,doc,Backend/tests/phase0/MERCHANT-CAPABILITY-INVENTORY.md,merchant capability inventory
+F04,business-settings,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F04,business-settings,function,Backend/functions/ChangeBusinessAiStatus,business AI on/off; on->off ล้าง per-chat ai_force_on | entry src/index.mjs
+F04,business-settings,function,Backend/functions/GetAccountInfo,business detail (profile/contacts/hours) | entry src/index.mjs
+F04,business-settings,function,Backend/functions/GetBookingSettings,services/resources/hours/closures | entry src/index.mjs
+F04,business-settings,function,Backend/functions/GetCustomConfiguration,bot settings/persona/answer_policy read | entry src/index.mjs
+F04,business-settings,function,Backend/functions/Orchestrator/src/business-hours.mjs,hours/closures ที่ AI ใช้ตอบ
+F04,business-settings,function,Backend/functions/Orchestrator/src/merchant-capabilities/,capability schema/store (copy ของ layer)
+F04,business-settings,function,Backend/functions/Orchestrator/src/merchant-policy-bridge.mjs,policy bridge
+F04,business-settings,function,Backend/functions/Orchestrator/src/merchant-policy-context.mjs,merchant policy -> turn context
+F04,business-settings,function,Backend/functions/Orchestrator/src/policy.mjs,"answer_policy ∩ capabilities, deny-wins, null = permissive"
+F04,business-settings,function,Backend/functions/UpdateAccountInfo,business profile/contacts/hours + geocode address pin | entry src/index.mjs
+F04,business-settings,function,Backend/functions/UpdateBookingSettings,booking settings write | entry src/index.mjs
+F04,business-settings,function,Backend/functions/UpdateCustomConfiguration,"bot settings write + validation (persona, answer_policy, stickers) | entry src/index.mjs; README.md"
+F04,business-settings,layer,Backend/layers/nodejs-utils/nodejs/business-contacts.mjs,business contacts
+F04,business-settings,layer,Backend/layers/nodejs-utils/nodejs/business-hours.mjs,hours/closures
+F04,business-settings,layer,Backend/layers/nodejs-utils/nodejs/geocoding.mjs,address -> lat/lng (map pin)
+F04,business-settings,layer,Backend/layers/nodejs-utils/nodejs/line-sticker-pack.mjs,merchant sticker packs (ตั้งใน bot settings)
+F04,business-settings,layer,Backend/layers/nodejs-utils/nodejs/merchant-capabilities/evidence.mjs,capability evidence
+F04,business-settings,layer,Backend/layers/nodejs-utils/nodejs/merchant-capabilities/schema.mjs,"capability/policy schema (closed, versioned)"
+F04,business-settings,layer,Backend/layers/nodejs-utils/nodejs/merchant-capabilities/store.mjs,capability versions/activation
+F04,business-settings,sql,Database/businesscapabilityactivations.sql,tables: business_capability_activations
+F04,business-settings,sql,Database/businesscapabilityaudit.sql,tables: business_capability_audit
+F04,business-settings,sql,Database/businesscapabilityversions.sql,tables: business_capability_versions
+F04,business-settings,sql,Database/businesses.sql,"tables: businesses; ai_enable, ai_new_friends_only, status"
+F04,business-settings,sql,Database/customconfiguration.sql,tables: custom_configuration; persona/answer_policy jsonb
+F04,business-settings,page,Frontend/src/pages/Business.tsx,"/business, /business/:id"
+F04,business-settings,page,Frontend/src/pages/businessdetail_pages/BusinessAbout.tsx,profile/contacts/hours/address pin
+F04,business-settings,page,Frontend/src/pages/businessdetail_pages/BusinessAiChat.tsx,AI settings summary -> /chat/setting
+F04,business-settings,page,Frontend/src/pages/businessdetail_pages/BusinessSetting.tsx,business status actions (pause/block/delete)
+F04,business-settings,page,Frontend/src/pages/BusinessDetail.tsx,host ของ business tabs (slot: F03/F13/F14/F17/F18)
+F04,business-settings,page,Frontend/src/pages/Demo.tsx,/chat/setting AI settings
+F04,business-settings,page,Frontend/src/pages/DemoChatSettings.tsx,AI settings editor
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/configuration.ts,settings keys ที่ AI ใช้
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/icons.tsx,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/PreviewColumn.tsx,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/rows/ChoiceRow.tsx,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/rows/DialRow.tsx,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/rows/SectionIntro.tsx,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/rows/SettingsSection.tsx,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/rows/SwitchRow.tsx,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/settingLink.ts,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/SettingsSkeletons.tsx,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/SetupColumn.tsx,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/demoChatSettings/summary.ts,AI settings page parts
+F04,business-settings,page,Frontend/src/pages/messager/chatList/BusinessAiCard.tsx,business-wide AI bar ใน inbox
+F04,business-settings,component,Frontend/src/components/business/AddressPinField.tsx,
+F04,business-settings,component,Frontend/src/components/business/BusinessHoursEditor.tsx,
+F04,business-settings,component,Frontend/src/components/business/businessJump.ts,
+F04,business-settings,component,Frontend/src/components/business/businessJumpIcons.ts,
+F04,business-settings,component,Frontend/src/components/business/BusinessSection.tsx,
+F04,business-settings,component,Frontend/src/components/business/BusinessShortcuts.tsx,
+F04,business-settings,component,Frontend/src/components/messenger/escalationRules.ts,
+F04,business-settings,component,Frontend/src/components/messenger/EscalationRulesPanel.tsx,escalation settings
+F04,business-settings,component,Frontend/src/components/messenger/previewLink.ts,
+F04,business-settings,component,Frontend/src/components/messenger/ReplyFormatPreview.tsx,
+F04,business-settings,component,Frontend/src/components/messenger/SettingsPreview.tsx,settings <-> preview highlight
+F04,business-settings,component,Frontend/src/functions/businessContacts.ts,FE helper
+F04,business-settings,component,Frontend/src/functions/businessHours.ts,FE helper
+F04,business-settings,component,Frontend/src/functions/mapsLink.ts,FE helper
+F04,business-settings,component,Frontend/src/functions/newCustomersScope.ts,FE helper
+F04,business-settings,component,Frontend/src/functions/settingsPreview.ts,FE helper
+F04,business-settings,component,Frontend/src/hooks/useBusinessContact.ts,FE hook
+F04,business-settings,component,Frontend/src/locales/th/business.json,i18n namespace 'business' (en คู่กันที่ locales/en/business.json)
+F04,business-settings,component,Frontend/src/locales/th/chat.json,i18n namespace 'chat' (en คู่กันที่ locales/en/chat.json)
+F05,knowledge,doc,Backend/functions/CreateKnowledge/KNOWLEDGE-DETAILS.md,knowledge details/revisions model
+F05,knowledge,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F05,knowledge,function,Backend/functions/CreateKnowledge,knowledge CRUD/lifecycle/folders/status/restore; สินค้า = knowledge_items item_type=product จึง CRUD ผ่านตัวนี้ (F08); ส่วน import/index/variants แยกแถว | entry src/index.mjs; README.md
+F05,knowledge,function,Backend/functions/DescriptionParaphasing,paraphrase คำอธิบาย knowledge (เรียกจาก CreateKnowledge; ไม่มี FE เรียกตรง) | entry src/index.mjs
+F05,knowledge,function,Backend/functions/GetPresignedUrl,knowledge file upload URL (S3 -> disk) | entry src/index.mjs; README.md
+F05,knowledge,layer,Backend/layers/nodejs-utils/nodejs/moderation.mjs,content moderation ของ knowledge/templates
+F05,knowledge,sql,Database/knowledgedetails.sql,"tables: knowledge_detail_jobs, knowledge_detail_revisions, knowledge_detail_snapshots"
+F05,knowledge,sql,Database/knowledgefolders.sql,"tables: knowledge_folder_memberships, knowledge_folders"
+F05,knowledge,sql,Database/knowledgeitems.sql,"tables: knowledge_items; สินค้า = knowledge_items (item_type product/faq/document/other), facts ใน raw_data"
+F05,knowledge,page,Frontend/src/pages/businessdetail_pages/BusinessKnowledge.tsx,ไม่มีที่ import (orphan)
+F05,knowledge,page,Frontend/src/pages/Knowledge.tsx,/knowledge
+F05,knowledge,page,Frontend/src/pages/knowledgecreate_pages/KnowledgeCreate.tsx,/knowledge/create
+F05,knowledge,page,Frontend/src/pages/knowledgecreate_pages/KnowledgeCreateManual.tsx,manual create
+F05,knowledge,page,Frontend/src/pages/KnowledgeDetail.tsx,knowledge detail/edit
+F05,knowledge,page,Frontend/src/pages/KnowledgeList.tsx,knowledge list + status
+F05,knowledge,page,Frontend/src/pages/KnowledgeListCards.tsx,knowledge cards
+F05,knowledge,component,Frontend/src/components/card/BusinessKnowledgeCard.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/documentMarkdown.ts,
+F05,knowledge,component,Frontend/src/components/knowledge/DocumentTextDiff.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/DocumentTextEditor.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/documentTextSearch.ts,
+F05,knowledge,component,Frontend/src/components/knowledge/DocumentTextView.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeBusinessLink.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeBusinessPicker.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeCard.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeCardSkeleton.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeDetails.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeFacetChips.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeFacetSummary.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeFilterDialog.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeFolderStrip.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeFolderTools.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeGuideDialog.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeListControls.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeNameSuggestion.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeProposalDiff.tsx,
+F05,knowledge,component,Frontend/src/components/knowledge/RegeneratedText.tsx,
+F05,knowledge,component,Frontend/src/components/messenger/FaqPanel.tsx,FAQ = knowledge_items item_type=faq
+F05,knowledge,component,Frontend/src/functions/knowledgeActions.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeDetailsJob.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeFacets.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeFilter.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeFolders.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeList.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeListState.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeListView.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeRevisionSave.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeSaveError.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeSeed.ts,FE helper
+F05,knowledge,component,Frontend/src/functions/knowledgeToolbarFit.ts,FE helper
+F05,knowledge,component,Frontend/src/hooks/useKnowledgeDetails.ts,FE hook
+F05,knowledge,component,Frontend/src/hooks/useKnowledgeFolders.ts,FE hook
+F05,knowledge,component,Frontend/src/hooks/useKnowledgeStatusSocket.ts,FE hook
+F05,knowledge,component,Frontend/src/locales/th/knowledge.json,i18n namespace 'knowledge' (en คู่กันที่ locales/en/knowledge.json)
+F05,knowledge,function,Backend/functions/CreateKnowledge/src/knowledge-similar.mjs,เตือนว่ามีความรู้คล้ายกันก่อนบันทึก (AB#2734)
+F05,knowledge,component,Frontend/src/components/knowledge/SimilarKnowledgeDialog.tsx,similar-knowledge warning
+F05,knowledge,component,Frontend/src/components/knowledge/SimilarKnowledgeNotice.tsx,similar-knowledge warning
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgeMatchCard.tsx,การ์ดรายการที่ซ้ำ/คล้าย
+F05,knowledge,component,Frontend/src/components/knowledge/KnowledgePreviewPanel.tsx,preview ของรายการที่ซ้ำ
+F05,knowledge,component,Frontend/src/hooks/useSimilarKnowledgeGate.tsx,FE hook
+F05,knowledge,component,Frontend/src/functions/knowledgeMatches.ts,FE helper
+F06,knowledge-import,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/extraction-integrity.mjs,extraction integrity
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/extraction.mjs,save-time extraction
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/knowledge-files.mjs,file inputs
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/knowledge-input.mjs,input normalization
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/knowledge-processing.mjs,processing job progress
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/knowledge-source-availability.mjs,knowledge sources/versions
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/knowledge-source-edits.mjs,knowledge sources/versions
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/knowledge-source-inspector.mjs,knowledge sources/versions
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/knowledge-source-recovery.mjs,knowledge sources/versions
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/knowledge-source-relations.mjs,knowledge sources/versions
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/line-group-import.mjs,LINE group import
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/line-mining.mjs,mine Q&A จาก LINE chat
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/line-txt.mjs,LINE chat .txt import
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/link-discovery.mjs,link discovery
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/link-fetch.mjs,URL fetch (ห้าม internal URL)
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/link-import.mjs,URL import
+F06,knowledge-import,function,Backend/functions/CreateKnowledge/src/source-preparation.mjs,source prep
+F06,knowledge-import,function,Backend/functions/GetPresignedUrl,knowledge file upload URL (S3 -> disk) | entry src/index.mjs; README.md
+F06,knowledge-import,function,Backend/functions/GoogleDocsKnowledge,Google Docs import/sync (tab chunking) | entry src/index.mjs; README.md
+F06,knowledge-import,function,Backend/functions/KnowledgeExtraction,save-time LLM extraction -> raw_data.extracted (facets/variants/codes) = contract กับ F08/F10/F22 | entry src/index.mjs; README.md
+F06,knowledge-import,layer,Backend/layers/nodejs-utils/nodejs/google-docs.mjs,Google Docs client
+F06,knowledge-import,layer,Backend/layers/nodejs-utils/nodejs/google-integration-access.mjs,who may manage Google grant
+F06,knowledge-import,layer,Backend/layers/nodejs-utils/nodejs/knowledge-sources.mjs,sources/versions
+F06,knowledge-import,layer,Backend/layers/nodejs-utils/nodejs/link-import-policy.mjs,URL import policy
+F06,knowledge-import,layer,Backend/layers/nodejs-utils/nodejs/upload-limits.mjs,upload limits
+F06,knowledge-import,layer,Backend/layers/nodejs-utils/nodejs/web-reader.mjs,URL reader (SSRF guard)
+F06,knowledge-import,sql,Database/businessintegrations.sql,tables: business_integrations; Google grants
+F06,knowledge-import,sql,Database/knowledgedocumentlinks.sql,tables: knowledge_document_links
+F06,knowledge-import,sql,Database/knowledgesources.sql,"tables: knowledge_bases, knowledge_categories, knowledge_category_assignments, knowledge_chunk_representations, knowledge_chunks, knowledge_document_versions, knowledge_retrieval_traces, knowledge_source_relations, knowledge_source_versions, knowledge_sources"
+F06,knowledge-import,page,Frontend/src/pages/GoogleOAuthCallback.tsx,/google/callback (Calendar + Docs)
+F06,knowledge-import,page,Frontend/src/pages/knowledgecreate_pages/KnowledgeCreate.tsx,/knowledge/create
+F06,knowledge-import,page,Frontend/src/pages/knowledgecreate_pages/KnowledgeCreateByFile.tsx,import by file/link/Google Doc/generating/recheck
+F06,knowledge-import,page,Frontend/src/pages/knowledgecreate_pages/KnowledgeCreateByGoogleDoc.tsx,import by file/link/Google Doc/generating/recheck
+F06,knowledge-import,page,Frontend/src/pages/knowledgecreate_pages/KnowledgeCreateByLink.tsx,import by file/link/Google Doc/generating/recheck
+F06,knowledge-import,page,Frontend/src/pages/knowledgecreate_pages/KnowledgeCreateGenerating.tsx,import by file/link/Google Doc/generating/recheck
+F06,knowledge-import,page,Frontend/src/pages/knowledgecreate_pages/KnowledgeCreateRecheck.tsx,import by file/link/Google Doc/generating/recheck
+F06,knowledge-import,page,Frontend/src/pages/KnowledgeGroup.tsx,linked Google Doc page
+F06,knowledge-import,component,Frontend/src/components/knowledge/GoogleDocumentCard.tsx,
+F06,knowledge-import,component,Frontend/src/components/knowledge/KnowledgeSourceInspector.tsx,
+F06,knowledge-import,component,Frontend/src/components/knowledge/sourceDisplayName.ts,
+F06,knowledge-import,component,Frontend/src/components/modal/RecheckModal.tsx,
+F06,knowledge-import,component,Frontend/src/functions/connectGoogleDocs.ts,FE helper
+F06,knowledge-import,component,Frontend/src/functions/googleDocumentState.ts,FE helper
+F06,knowledge-import,component,Frontend/src/functions/linkImportPolicy.ts,FE helper
+F06,knowledge-import,component,Frontend/src/functions/linkImportWatch.ts,FE helper
+F06,knowledge-import,component,Frontend/src/hooks/useFileUploader.ts,FE hook
+F06,knowledge-import,component,Frontend/src/locales/th/knowledge.json,i18n namespace 'knowledge' (en คู่กันที่ locales/en/knowledge.json)
+F07,knowledge-search,doc,Backend/RAG_LOCAL.md,RAG retrieval notes
+F07,knowledge-search,doc,Backend/tests/rag-local-eval/README.md,RAG eval suite
+F07,knowledge-search,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F07,knowledge-search,function,Backend/functions/CreateKnowledge/src/knowledge-detail-indexes.mjs,detail indexes
+F07,knowledge-search,function,Backend/functions/CreateKnowledge/src/knowledge-indexing-events.mjs,indexing events/status
+F07,knowledge-search,function,Backend/functions/CreateKnowledge/src/knowledge-indexing.mjs,indexing
+F07,knowledge-search,function,Backend/functions/CreateKnowledge/src/knowledge-migration.mjs,index migration
+F07,knowledge-search,function,Backend/functions/CreateKnowledge/src/knowledge-workbench.mjs,workbench/evaluation
+F07,knowledge-search,function,Backend/functions/Orchestrator/src/context.mjs,context + RAG assembly
+F07,knowledge-search,function,Backend/functions/Orchestrator/src/knowledge-retrieval-state.mjs,retrieval state
+F07,knowledge-search,function,Backend/functions/Orchestrator/src/lexical-knowledge-fallback.mjs,lexical fallback
+F07,knowledge-search,function,Backend/functions/Orchestrator/src/multi-click-knowledge-search.mjs,multi-query search
+F07,knowledge-search,function,Backend/functions/Orchestrator/src/query-rewrite.mjs,query rewrite
+F07,knowledge-search,function,Backend/functions/Orchestrator/src/rag-query-profile.mjs,RAG query profile
+F07,knowledge-search,function,Backend/functions/TextToVector,embed + index knowledge (Cohere/Gemini -> OpenAI 1536) | entry src/index.mjs; README.md
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/embedding-model.mjs,embedding model config
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/embedding-routing.mjs,embedding routing
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/gemini-backfill.mjs,"provider-specific index backfill; port แค่ shape, ใช้ OpenAI index เดียว"
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/gemini-embedding.mjs,provider-specific embedding
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/gemini-index-readiness.mjs,index readiness (active+indexed เท่านั้น)
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/gemini-knowledge-search.mjs,live RAG read path วันนี้; port query logic
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/gemini-query-config.mjs,query config/thresholds (ต้อง re-tune บน OpenAI)
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/google-query-embedding.mjs,provider-specific query embedding
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-chunks.mjs,chunking
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-context-expansion.mjs,context expansion
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-coverage.mjs,whole-corpus coverage (bounded)
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-document.mjs,document model
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-evaluation-suite.mjs,evaluation suite
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-evaluation.mjs,evaluation
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-hybrid.mjs,hybrid lexical+vector
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-indexing-dispatch.mjs,indexing dispatch
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-openrouter-reranker.mjs,reranker (provider-specific)
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-relations.mjs,source relations
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-representation.mjs,representation text (variants)
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-reranker.mjs,reranker
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-rollout.mjs,per-business rollout flags
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-search.mjs,searchKnowledge
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-source-search.mjs,source search
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-sources.mjs,sources/versions
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/knowledge-taxonomy.mjs,taxonomy/categories
+F07,knowledge-search,layer,Backend/layers/nodejs-utils/nodejs/query-embedding-cache.mjs,optional query cache; ข้ามได้
+F07,knowledge-search,sql,Database/knowledgeitems.sql,"tables: knowledge_items; สินค้า = knowledge_items (item_type product/faq/document/other), facts ใน raw_data"
+F07,knowledge-search,sql,Database/knowledgesources.sql,"tables: knowledge_bases, knowledge_categories, knowledge_category_assignments, knowledge_chunk_representations, knowledge_chunks, knowledge_document_versions, knowledge_retrieval_traces, knowledge_source_relations, knowledge_source_versions, knowledge_sources"
+F07,knowledge-search,sql,Database/knowledgevectors.sql,"tables: knowledge_chunk_gemini_vectors, knowledge_item_embeddings, knowledge_item_gemini_vectors; gemini vector tables ไม่ต้อง port; ใช้ embeddings 1536 ชุดเดียว"
+F07,knowledge-search,sql,Database/queryembeddingcache.sql,tables: query_embedding_cache; optional cache; ข้ามได้
+F07,knowledge-search,component,Frontend/src/components/knowledge/KnowledgeCoverage.tsx,
+F07,knowledge-search,component,Frontend/src/components/knowledge/KnowledgeReadiness.tsx,index readiness
+F07,knowledge-search,component,Frontend/src/components/knowledge/KnowledgeWorkbench.tsx,workbench/evaluation
+F07,knowledge-search,component,Frontend/src/functions/knowledgeIndex.ts,FE helper
+F07,knowledge-search,component,Frontend/src/functions/knowledgeReadiness.ts,FE helper
+F07,knowledge-search,component,Frontend/src/hooks/useKnowledgeIndex.ts,FE hook
+F07,knowledge-search,component,Frontend/src/locales/th/knowledge.json,i18n namespace 'knowledge' (en คู่กันที่ locales/en/knowledge.json)
+F08,catalog,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F08,catalog,function,Backend/functions/CreateKnowledge,knowledge CRUD/lifecycle/folders/status/restore; สินค้า = knowledge_items item_type=product จึง CRUD ผ่านตัวนี้ (F08); ส่วน import/index/variants แยกแถว | entry src/index.mjs; README.md
+F08,catalog,function,Backend/functions/CreateKnowledge/src/knowledge-variant-details.mjs,variant details
+F08,catalog,function,Backend/functions/CreateKnowledge/src/variant-details.mjs,variants
+F08,catalog,function,Backend/functions/CreateKnowledge/src/variant-sku-text.mjs,SKU text
+F08,catalog,function,Backend/functions/KnowledgeExtraction,save-time LLM extraction -> raw_data.extracted (facets/variants/codes) = contract กับ F08/F10/F22 | entry src/index.mjs; README.md
+F08,catalog,function,Backend/functions/Orchestrator/src/catalogue-availability.mjs,availability/stock
+F08,catalog,function,Backend/functions/Orchestrator/src/product-identity.mjs,product identity/variant matching
+F08,catalog,function,Backend/functions/Orchestrator/src/product-record.mjs,product facts shape จาก knowledge_items.raw_data
+F08,catalog,function,Backend/functions/Orchestrator/src/variant-details.mjs,variant details
+F08,catalog,layer,Backend/layers/nodejs-utils/nodejs/knowledge-representation.mjs,representation text (variants)
+F08,catalog,layer,Backend/layers/nodejs-utils/nodejs/variant-details.mjs,variant details
+F08,catalog,sql,Database/knowledgeitems.sql,"tables: knowledge_items; สินค้า = knowledge_items (item_type product/faq/document/other), facts ใน raw_data"
+F08,catalog,page,Frontend/src/pages/Knowledge.tsx,/knowledge
+F08,catalog,page,Frontend/src/pages/KnowledgeListCards.tsx,knowledge cards
+F08,catalog,component,Frontend/src/components/knowledge/KnowledgeVariantsSection.tsx,variants/SKU
+F08,catalog,component,Frontend/src/functions/knowledgeVariants.ts,FE helper
+F08,catalog,function,Backend/functions/CreateKnowledge/src/sku-duplicates.mjs,"หลาย SKU ต่อ variant + เช็ก ""SKU ถูกใช้แล้ว"" (AB#2602, AB#2604)"
+F08,catalog,component,Frontend/src/components/knowledge/SkuChipsInput.tsx,SKU chips
+F09,inbox,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F09,inbox,function,Backend/functions/ChangeConversationStatus,takeover/release/close; escalated status | entry src/index.mjs
+F09,inbox,function,Backend/functions/DemoChat,web Demo Chat: publish NormalizedMessage channel=web เข้า pipeline จริง (MVP golden path) | entry src/index.mjs
+F09,inbox,function,Backend/functions/GetConversation,conversation detail | entry src/index.mjs
+F09,inbox,function,Backend/functions/GetLatestConversation,inbox list/filter/cursor; ai_new_friends_only scope | entry src/index.mjs
+F09,inbox,function,Backend/functions/GetMessages,message history + quoted messages | entry src/index.mjs
+F09,inbox,function,Backend/functions/WebsocketPush,server->dashboard push fan-out (message/summary/status/insight/knowledge_status) -> core realtime | entry src/index.mjs
+F09,inbox,function,Backend/functions/WebsocketSendMessage,"staff send จาก dashboard; takeover ก่อน lock (status=escalated, ai_force_on=false) | entry src/index.mjs; README.md"
+F09,inbox,layer,Backend/layers/nodejs-utils/nodejs/conversation.mjs,conversation helpers
+F09,inbox,layer,Backend/layers/nodejs-utils/nodejs/quoted-messages.mjs,reply-to quoted messages
+F09,inbox,layer,Backend/layers/nodejs-utils/nodejs/websocket-authorization.mjs,WS auth + ใครได้รับ event ไหน
+F09,inbox,sql,Database/chatinboundreceipts.sql,tables: chat_inbound_receipts; inbound dedup
+F09,inbox,sql,Database/conversation.sql,"tables: conversations; ai_force_on, assignee, status (หลายฟีเจอร์เพิ่มคอลัมน์)"
+F09,inbox,sql,Database/endusers.sql,tables: end_users; ตารางลูกค้า: ต้องเลือกเจ้าของเดียว
+F09,inbox,sql,Database/messages.sql,tables: messages
+F09,inbox,page,Frontend/src/pages/DemoChat.tsx,/chat/test web Demo Chat (MVP)
+F09,inbox,page,Frontend/src/pages/Messager.tsx,/chat inbox host (slot: F11/F12/F13/F15/F24/F26/F27)
+F09,inbox,page,Frontend/src/pages/messager/chatList/BusinessAiCard.tsx,business-wide AI bar ใน inbox
+F09,inbox,page,Frontend/src/pages/messager/chatList/ChatInboxPane.tsx,inbox list
+F09,inbox,page,Frontend/src/pages/messager/chatList/useChatInbox.ts,inbox list
+F09,inbox,page,Frontend/src/pages/messager/chatList/useInboxTitle.ts,inbox list
+F09,inbox,page,Frontend/src/pages/messager/messenger/ChatConversationPane.tsx,conversation pane
+F09,inbox,page,Frontend/src/pages/messager/messenger/chatLiveEvents.ts,live event handling
+F09,inbox,page,Frontend/src/pages/messager/messenger/ThreadNavRow.tsx,conversation pane
+F09,inbox,page,Frontend/src/pages/messager/messenger/useConversationMessaging.ts,send/receive
+F09,inbox,page,Frontend/src/pages/messager/messenger/useConversationTimeline.ts,conversation pane
+F09,inbox,component,Frontend/src/components/messenger/ChatSkeletons.tsx,
+F09,inbox,component,Frontend/src/components/messenger/ChatWindow.tsx,
+F09,inbox,component,Frontend/src/components/messenger/ContactFilterDialog.tsx,
+F09,inbox,component,Frontend/src/components/messenger/ContactList.tsx,
+F09,inbox,component,Frontend/src/components/messenger/types.ts,
+F09,inbox,component,Frontend/src/functions/chatDeepLink.ts,FE helper
+F09,inbox,component,Frontend/src/functions/chatFilter.ts,FE helper
+F09,inbox,component,Frontend/src/functions/chatReplyState.ts,FE helper
+F09,inbox,component,Frontend/src/functions/chatRows.ts,FE helper
+F09,inbox,component,Frontend/src/functions/chatSections.ts,FE helper
+F09,inbox,component,Frontend/src/functions/chatTimeline.ts,FE helper
+F09,inbox,component,Frontend/src/functions/contactAdvancedFilter.ts,FE helper
+F09,inbox,component,Frontend/src/functions/contactFilterStorage.ts,FE helper
+F09,inbox,component,Frontend/src/functions/contactSearch.ts,FE helper
+F09,inbox,component,Frontend/src/functions/contactTime.ts,FE helper
+F09,inbox,component,Frontend/src/functions/conversationPreview.ts,FE helper
+F09,inbox,component,Frontend/src/functions/messageAnnotations.ts,FE helper
+F09,inbox,component,Frontend/src/hooks/useChatSocket.ts,FE hook
+F09,inbox,component,Frontend/src/locales/th/chat.json,i18n namespace 'chat' (en คู่กันที่ locales/en/chat.json)
+F10,ai-agent,doc,Backend/functions/Orchestrator/AGENTS.md,"git-ignored: copy ด้วยมือ; pipeline order, intent tools, policy/facets, escalation"
+F10,ai-agent,doc,Backend/functions/Orchestrator/README.md,pipeline AI chat ฉบับเต็ม
+F10,ai-agent,doc,Backend/tests/escalation-eval/README.md,escalation eval cases
+F10,ai-agent,doc,Backend/tests/orchestration-evaluation/README.md,AI eval suite: ใช้เป็น regression fixtures
+F10,ai-agent,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F10,ai-agent,function,Backend/functions/CommerceJobRunner/src/reply-postprocess.mjs,reply_postprocess job
+F10,ai-agent,function,Backend/functions/DemoChat,web Demo Chat: publish NormalizedMessage channel=web เข้า pipeline จริง (MVP golden path) | entry src/index.mjs
+F10,ai-agent,function,Backend/functions/GetCustomConfiguration,bot settings/persona/answer_policy read | entry src/index.mjs
+F10,ai-agent,function,Backend/functions/Orchestrator,AI chat pipeline (283 modules); default owner ของทุก src module ที่ไม่มีแถวแยก | entry src/index.mjs; README.md
+F10,ai-agent,function,Backend/functions/Orchestrator/src/agent/,"agent runtime: tools, pending actions, reply contract"
+F10,ai-agent,function,Backend/functions/Orchestrator/src/context.mjs,context + RAG assembly
+F10,ai-agent,function,Backend/functions/Orchestrator/src/index.mjs,entry: pipeline session -> guards -> context+RAG -> intent tool -> LLM -> persist -> dispatch
+F10,ai-agent,function,Backend/functions/Orchestrator/src/intents.mjs,intent catalog (24 intents)
+F10,ai-agent,function,Backend/functions/Orchestrator/src/language.mjs,"ภาษาตอบ (leaf module, test import ได้)"
+F10,ai-agent,function,Backend/functions/Orchestrator/src/link-reader.mjs,"READ_LINK (SSRF guard, YouTube oEmbed)"
+F10,ai-agent,function,Backend/functions/Orchestrator/src/numeric-grounding.mjs,numeric guard: ห้ามตัวเลขที่ไม่มีใน source
+F10,ai-agent,function,Backend/functions/Orchestrator/src/policy.mjs,"answer_policy ∩ capabilities, deny-wins, null = permissive"
+F10,ai-agent,function,Backend/functions/Orchestrator/src/reply-splitting.mjs,แบ่ง reply เป็น bubble rows (message_group_id)
+F10,ai-agent,function,Backend/functions/Orchestrator/src/stages/,pipeline stages (ingress/guards/context/decide/compose/output/deliver)
+F10,ai-agent,function,Backend/functions/Orchestrator/src/tool-catalog.mjs,intent tool registry
+F10,ai-agent,function,Backend/functions/Orchestrator/src/vision.mjs,image understanding
+F10,ai-agent,function,Backend/functions/UpdateCustomConfiguration,"bot settings write + validation (persona, answer_policy, stickers) | entry src/index.mjs; README.md"
+F10,ai-agent,layer,Backend/layers/nodejs-utils/nodejs/inbound-batching.mjs,รวมข้อความที่ส่งรัวเป็น turn เดียว
+F10,ai-agent,sql,Database/customconfiguration.sql,tables: custom_configuration; persona/answer_policy jsonb
+F10,ai-agent,sql,Database/demoswitch.sql,tables: demo_switch_triggers; one OA many businesses (demo switcher)
+F10,ai-agent,page,Frontend/src/pages/Demo.tsx,/chat/setting AI settings
+F10,ai-agent,page,Frontend/src/pages/DemoChat.tsx,/chat/test web Demo Chat (MVP)
+F10,ai-agent,page,Frontend/src/pages/DemoChatBusinessList.tsx,admin overview ของ /chat/setting
+F10,ai-agent,page,Frontend/src/pages/DemoChatSettings.tsx,AI settings editor
+F10,ai-agent,page,Frontend/src/pages/demoChatSettings/configuration.ts,settings keys ที่ AI ใช้
+F10,ai-agent,component,Frontend/src/components/messenger/demoAnswerReason.ts,
+F10,ai-agent,component,Frontend/src/components/messenger/DemoAnswerTrace.tsx,
+F10,ai-agent,component,Frontend/src/components/messenger/demoAnswerTraceModel.ts,
+F10,ai-agent,component,Frontend/src/components/messenger/DemoChatPanel.tsx,Demo Chat panel (MVP)
+F10,ai-agent,component,Frontend/src/components/messenger/demoPendingSends.ts,
+F10,ai-agent,component,Frontend/src/components/messenger/demoReplyAnchor.ts,
+F10,ai-agent,component,Frontend/src/components/messenger/escalationRules.ts,
+F10,ai-agent,component,Frontend/src/components/messenger/EscalationRulesPanel.tsx,escalation settings
+F10,ai-agent,component,Frontend/src/functions/demoBusinessScope.ts,FE helper
+F10,ai-agent,component,Frontend/src/locales/th/chat.json,i18n namespace 'chat' (en คู่กันที่ locales/en/chat.json)
+F10,ai-agent,function,Backend/functions/Orchestrator/src/handoff-offer.mjs,ตอบคำถามก่อน แล้วค่อยถามว่าจะส่งต่อเจ้าหน้าที่ไหม (AB#2684-2686)
+F10,ai-agent,function,Backend/functions/Orchestrator/src/payment-card.mjs,ปิดเลขบัตรในข้อความลูกค้าก่อนเข้าโมเดลและ trace (AB#2691)
+F10,ai-agent,function,Backend/functions/Orchestrator/src/payment-card-reply.mjs,คำตอบเมื่อลูกค้าพิมพ์เลขบัตร (AB#2691)
+F11,team,doc,Backend/tests/escalation-eval/README.md,escalation eval cases
+F11,team,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F11,team,function,Backend/functions/ChangeConversationStatus,takeover/release/close; escalated status | entry src/index.mjs
+F11,team,function,Backend/functions/ChatIdleReassignment,scheduled: idle chat reassignment | entry src/index.mjs
+F11,team,function,Backend/functions/ChatTeamOperations,"assignment, availability, transfer preview, weekly schedule | entry src/index.mjs; README.md"
+F11,team,function,Backend/functions/ConversationNotes,internal notes + @mentions | entry src/index.mjs
+F11,team,function,Backend/functions/Orchestrator/src/escalation-confirmation.mjs,"escalation -> handoff (F10 ตรวจจับ, F11 รับช่วง, F31 แจ้ง)"
+F11,team,function,Backend/functions/Orchestrator/src/escalation-intent.mjs,"escalation -> handoff (F10 ตรวจจับ, F11 รับช่วง, F31 แจ้ง)"
+F11,team,function,Backend/functions/Orchestrator/src/escalation-line-call.mjs,"escalation -> handoff (F10 ตรวจจับ, F11 รับช่วง, F31 แจ้ง)"
+F11,team,function,Backend/functions/Orchestrator/src/escalation-phrases.mjs,"escalation -> handoff (F10 ตรวจจับ, F11 รับช่วง, F31 แจ้ง)"
+F11,team,function,Backend/functions/Orchestrator/src/escalation-reason.mjs,"escalation -> handoff (F10 ตรวจจับ, F11 รับช่วง, F31 แจ้ง)"
+F11,team,function,Backend/functions/Orchestrator/src/escalation-rules.mjs,"escalation -> handoff (F10 ตรวจจับ, F11 รับช่วง, F31 แจ้ง)"
+F11,team,function,Backend/functions/Orchestrator/src/operational-escalation.mjs,"escalation -> handoff (F10 ตรวจจับ, F11 รับช่วง, F31 แจ้ง)"
+F11,team,function,Backend/functions/TimeoutCloseConversation,scheduled: close idle conversation (TIMEOUT_HOURS) -> insight | entry src/index.mjs; README.md
+F11,team,function,Backend/functions/WebsocketSendMessage,"staff send จาก dashboard; takeover ก่อน lock (status=escalated, ai_force_on=false) | entry src/index.mjs; README.md"
+F11,team,layer,Backend/layers/nodejs-utils/nodejs/chat-schedule.mjs,chat availability schedule
+F11,team,layer,Backend/layers/nodejs-utils/nodejs/chat-team-delivery.mjs,team notifications
+F11,team,layer,Backend/layers/nodejs-utils/nodejs/chat-team-operations.mjs,assignment/availability/transfer
+F11,team,layer,Backend/layers/nodejs-utils/nodejs/conversation-assignment.mjs,assignment
+F11,team,layer,Backend/layers/nodejs-utils/nodejs/conversation-auto-assign.mjs,round-robin auto-assign secondaries + visibility (view_all)
+F11,team,layer,Backend/layers/nodejs-utils/nodejs/conversation-mentions.mjs,@mentions
+F11,team,layer,Backend/layers/nodejs-utils/nodejs/conversation-notes.mjs,notes
+F11,team,sql,Database/chatteamoperations.sql,"tables: chat_idle_events, chat_transfer_batches"
+F11,team,sql,Database/conversation.sql,"tables: conversations; ai_force_on, assignee, status (หลายฟีเจอร์เพิ่มคอลัมน์)"
+F11,team,sql,Database/conversationnotes.sql,tables: conversation_notes
+F11,team,page,Frontend/src/pages/Member.tsx,/member (+team ops panel)
+F11,team,page,Frontend/src/pages/messager/messenger/AskAssistanceDialog.tsx,ขอให้เพื่อนร่วมทีมช่วย (note)
+F11,team,page,Frontend/src/pages/messager/messenger/ConversationNoteDialog.tsx,notes
+F11,team,page,Frontend/src/pages/messager/messenger/useConversationCollaboration.ts,notes/mentions/assignment
+F11,team,component,Frontend/src/components/member/ChatScheduleEditor.tsx,
+F11,team,component,Frontend/src/components/member/ChatTeamOperationsPanel.tsx,
+F11,team,component,Frontend/src/components/messenger/ChatAiCard.tsx,per-chat AI switch (ai_force_on)
+F11,team,component,Frontend/src/components/messenger/ChatWorkflowAction.tsx,
+F11,team,component,Frontend/src/components/messenger/NoteBody.tsx,
+F11,team,component,Frontend/src/functions/chatAiToggle.ts,FE helper
+F11,team,component,Frontend/src/functions/chatCollaboration.ts,FE helper
+F11,team,component,Frontend/src/functions/chatSchedule.ts,FE helper
+F11,team,component,Frontend/src/functions/chatTeamOperations.ts,FE helper
+F11,team,component,Frontend/src/functions/contactAssigneeFilter.ts,FE helper
+F11,team,component,Frontend/src/locales/th/chat.json,i18n namespace 'chat' (en คู่กันที่ locales/en/chat.json)
+F11,team,component,Frontend/src/locales/th/member.json,i18n namespace 'member' (en คู่กันที่ locales/en/member.json)
+F12,message-templates,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F12,message-templates,function,Backend/functions/GetChatAttachmentUploadUrl,staff attachment upload (S3 -> disk) | entry src/index.mjs
+F12,message-templates,function,Backend/functions/MessageTemplates,"saved templates CRUD (+moderation, file refs) | entry src/index.mjs; README.md"
+F12,message-templates,function,Backend/functions/Orchestrator/src/suggest-reply.mjs,"reply suggestion (sandbox, ไม่ส่งลูกค้า)"
+F12,message-templates,function,Backend/functions/Orchestrator/src/suggestion-mode.mjs,inSuggestionMode guard ทุก exit
+F12,message-templates,function,Backend/functions/SuggestChatReply,AI reply suggestion draft (sandbox) | entry src/index.mjs
+F12,message-templates,function,Backend/functions/TranslateMessage,translate message ไม่แก้ต้นฉบับ | entry src/index.mjs
+F12,message-templates,function,Backend/functions/WebsocketSendMessage/src/reply-draft.mjs,ส่งจาก AI draft
+F12,message-templates,function,Backend/functions/WebsocketSendMessage/src/reply-suggestion-seal.mjs,suggestion seal
+F12,message-templates,function,Backend/functions/WebsocketSendMessage/src/template-message.mjs,ส่ง template
+F12,message-templates,layer,Backend/layers/nodejs-utils/nodejs/chat-attachments.mjs,staff attachments
+F12,message-templates,layer,Backend/layers/nodejs-utils/nodejs/message-templates.mjs,templates
+F12,message-templates,layer,Backend/layers/nodejs-utils/nodejs/moderation.mjs,content moderation ของ knowledge/templates
+F12,message-templates,layer,Backend/layers/nodejs-utils/nodejs/template-delivery.mjs,template delivery
+F12,message-templates,layer,Backend/layers/nodejs-utils/nodejs/template-file-references.mjs,template file ownership
+F12,message-templates,sql,Database/messagetemplates.sql,tables: message_templates
+F12,message-templates,page,Frontend/src/pages/messager/messenger/useConversationMessaging.ts,send/receive
+F12,message-templates,page,Frontend/src/pages/templates_pages/CardButtonsEditor.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/CarouselEditor.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/FieldError.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/FileBlockEditor.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/ImageSourceField.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/TemplateDetail.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/TemplateDialogs.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/TemplateEditorBar.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/templateEditorState.ts,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/TemplateKindIcon.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/TemplateList.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/TemplateSkeletons.tsx,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/useMutationLock.ts,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/useTemplateReorder.ts,template editor
+F12,message-templates,page,Frontend/src/pages/templates_pages/useUploadedImages.ts,template editor
+F12,message-templates,page,Frontend/src/pages/Templates.tsx,/chat/template
+F12,message-templates,component,Frontend/src/components/messenger/AiReplyDraft.tsx,
+F12,message-templates,component,Frontend/src/components/messenger/LineMessagePreview.tsx,
+F12,message-templates,component,Frontend/src/components/messenger/TemplateImageCropper.tsx,
+F12,message-templates,component,Frontend/src/components/messenger/TemplateImageLibrary.tsx,
+F12,message-templates,component,Frontend/src/components/messenger/TemplatePicker.tsx,
+F12,message-templates,component,Frontend/src/components/messenger/TemplateSequenceEditor.tsx,
+F12,message-templates,component,Frontend/src/components/messenger/TemplateSequencePreview.tsx,
+F12,message-templates,component,Frontend/src/functions/chatAttachments.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/messageTemplates.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/messageTranslation.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/replySuggestion.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/replyTemplateText.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/templateDelivery.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/templateFileIcons.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/templateFiles.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/templateFileTypes.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/templateImageCrop.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/templateImages.ts,FE helper
+F12,message-templates,component,Frontend/src/functions/templateOrder.ts,FE helper
+F12,message-templates,component,Frontend/src/locales/th/chat.json,i18n namespace 'chat' (en คู่กันที่ locales/en/chat.json)
+F12,message-templates,component,Frontend/src/locales/th/templates.json,i18n namespace 'templates' (en คู่กันที่ locales/en/templates.json)
+F13,orders,doc,Backend/functions/Orchestrator/src/commerce/README.md,"commerce state machine, cart, payment flow"
+F13,orders,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F13,orders,function,Backend/functions/CommerceJobRunner,job types sales_followup/sheet_sync/reply_postprocess/conversation_summary (lease pattern) | entry src/index.mjs
+F13,orders,function,Backend/functions/CommerceJobRunner/src/followups.mjs,sales follow-up ครั้งเดียวหลัง delay; ยกเลิกเมื่อลูกค้าตอบ
+F13,orders,function,Backend/functions/CommerceJobRunner/src/sheets.mjs,"confirmed order -> Google Sheet (idempotent, formula-safe)"
+F13,orders,function,Backend/functions/CommerceSettings,"GET/PUT /commerce/settings: delivery policy, follow-up, Google Sheet, payment methods (encrypted) | entry src/index.mjs"
+F13,orders,function,Backend/functions/Orchestrator/src/agent/action-commerce.mjs,commerce action -> proposal
+F13,orders,function,Backend/functions/Orchestrator/src/agent/action-delivery.mjs,delivery action
+F13,orders,function,Backend/functions/Orchestrator/src/agent/pending-actions.mjs,proposal -> explicit consent -> createOrderFromProposal/createBooking
+F13,orders,function,Backend/functions/Orchestrator/src/commerce/,"cart, quote, checkout, delivery, order state machine"
+F13,orders,function,Backend/functions/Orchestrator/src/merchant-delivery.mjs,merchant delivery rules
+F13,orders,function,Backend/functions/Orchestrator/src/order-lookup.mjs,ORDER_LOOKUP intent
+F13,orders,function,Backend/functions/Orchestrator/src/sales-followup-scheduling.mjs,schedule sales follow-up job
+F13,orders,function,Backend/functions/Orchestrator/src/shipping-quote.mjs,shipping quote
+F13,orders,function,Backend/functions/OrderMaintenance,scheduled: expire stale orders | entry src/index.mjs
+F13,orders,function,Backend/functions/StaffOrders,staff order actions/create order | entry src/index.mjs; README.md
+F13,orders,layer,Backend/layers/nodejs-utils/nodejs/commerce/constants.mjs,commerce constants
+F13,orders,layer,Backend/layers/nodejs-utils/nodejs/commerce/money.mjs,money (minor units)
+F13,orders,layer,Backend/layers/nodejs-utils/nodejs/commerce/observability.mjs,commerce logs
+F13,orders,layer,Backend/layers/nodejs-utils/nodejs/commerce/order-transition.mjs,order state transitions
+F13,orders,layer,Backend/layers/nodejs-utils/nodejs/commerce/scope.mjs,commerce scope
+F13,orders,layer,Backend/layers/nodejs-utils/nodejs/commerce/settings.mjs,commerce settings
+F13,orders,layer,Backend/layers/nodejs-utils/nodejs/commerce/staff-order-actions.mjs,staff order actions (version 409)
+F13,orders,layer,Backend/layers/nodejs-utils/nodejs/merchant-capabilities/delivery.mjs,delivery fee engine
+F13,orders,sql,Database/businesscommercesettings.sql,"tables: business_commerce_settings; follow_up_delay_minutes, spreadsheet_id, payment fields"
+F13,orders,sql,Database/commercejobs.sql,tables: commerce_jobs; job types sales_followup/sheet_sync/reply_postprocess/conversation_summary
+F13,orders,sql,Database/democheckoutgrants.sql,tables: demo_checkout_grants; demo showcase checkout grant; optional
+F13,orders,sql,Database/orderitems.sql,tables: order_items
+F13,orders,sql,Database/orders.sql,tables: orders
+F13,orders,sql,Database/orderstaffactions.sql,tables: order_staff_actions
+F13,orders,page,Frontend/src/pages/businessdetail_pages/BusinessCommerce.tsx,commerce settings
+F13,orders,page,Frontend/src/pages/businessdetail_pages/BusinessDelivery.tsx,delivery settings
+F13,orders,page,Frontend/src/pages/Orders.tsx,/orders
+F13,orders,component,Frontend/src/components/messenger/CustomerOrdersSection.tsx,
+F13,orders,component,Frontend/src/components/modal/ConnectSheetModal.tsx,order Google Sheet
+F13,orders,component,Frontend/src/components/order/,ทั้งโฟลเดอร์
+F13,orders,component,Frontend/src/components/orders/,ทั้งโฟลเดอร์
+F13,orders,component,Frontend/src/functions/commerceSettings.ts,FE helper
+F13,orders,component,Frontend/src/functions/customerOrders.ts,FE helper
+F13,orders,component,Frontend/src/functions/deliverySettings.ts,FE helper
+F13,orders,component,Frontend/src/functions/orderContract.ts,FE helper
+F13,orders,component,Frontend/src/functions/sheetIntegration.ts,FE helper
+F13,orders,component,Frontend/src/functions/staffOrderRules.ts,FE helper
+F13,orders,component,Frontend/src/hooks/useDeliveryCopy.ts,FE hook
+F13,orders,component,Frontend/src/locales/th/delivery.json,i18n namespace 'delivery' (en คู่กันที่ locales/en/delivery.json)
+F13,orders,component,Frontend/src/locales/th/orders.json,i18n namespace 'orders' (en คู่กันที่ locales/en/orders.json)
+F13,orders,function,Backend/functions/Orchestrator/src/cart-cards.mjs,ถามตะกร้า → การ์ดสินค้าทีละบรรทัดของออเดอร์ที่เปิดอยู่ (AB#2653)
+F13,orders,function,Backend/functions/GetInsights/src/daily-order-report.mjs,รายงานยอดขายและจัดส่งรายวันแบบพิมพ์ได้
+F13,orders,function,Backend/functions/StaffOrders/src/shipment-notice.mjs,staff ใส่เลข tracking + ขนส่ง แล้วแจ้งลูกค้า (AB#2732)
+F13,orders,component,Frontend/src/functions/dailyOrderReport.ts,FE helper
+F13,orders,component,Frontend/src/locales/th/ordersReport.json,i18n namespace 'ordersReport' (en คู่กันที่ locales/en/ordersReport.json)
+F13,orders,page,Frontend/src/pages/businessdetail_pages/deliveryControls.tsx,ค่าส่งแบบง่ายใน Orders → Settings (แทน DeliveryPolicyEditor)
+F14,payments,doc,Backend/functions/Orchestrator/src/commerce/README.md,"commerce state machine, cart, payment flow"
+F14,payments,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F14,payments,function,Backend/functions/CommerceSettings,"GET/PUT /commerce/settings: delivery policy, follow-up, Google Sheet, payment methods (encrypted) | entry src/index.mjs"
+F14,payments,function,Backend/functions/Orchestrator/src/commerce/manual-payment.mjs,manual payment
+F14,payments,function,Backend/functions/Orchestrator/src/commerce/payment-artifact-store.mjs,slip artifacts
+F14,payments,function,Backend/functions/Orchestrator/src/commerce/payment-cards.mjs,payment cards
+F14,payments,function,Backend/functions/Orchestrator/src/commerce/payment-config.mjs,merchant payment config
+F14,payments,function,Backend/functions/Orchestrator/src/commerce/payment-effect.mjs,payment effects
+F14,payments,function,Backend/functions/Orchestrator/src/commerce/payment-flow.mjs,payment flow
+F14,payments,function,Backend/functions/Orchestrator/src/commerce/payment-outcomes.mjs,paid/unpaid/unknown outcomes
+F14,payments,function,Backend/functions/Orchestrator/src/commerce/promptpay.mjs,PromptPay QR
+F14,payments,function,Backend/functions/Orchestrator/src/commerce/slip2go.mjs,slip verification provider
+F14,payments,function,Backend/functions/StaffOrders/src/payment-request.mjs,staff payment request
+F14,payments,layer,Backend/layers/nodejs-utils/nodejs/commerce/crypto.mjs,AES-GCM encrypt payment settings
+F14,payments,layer,Backend/layers/nodejs-utils/nodejs/commerce/settings.mjs,commerce settings
+F14,payments,sql,Database/businesscommercesettings.sql,"tables: business_commerce_settings; follow_up_delay_minutes, spreadsheet_id, payment fields"
+F14,payments,page,Frontend/src/pages/businessdetail_pages/BusinessPayment.tsx,merchant payment methods
+F14,payments,page,Frontend/src/pages/businessdetail_pages/BusinessPaymentSummary.tsx,payment summary
+F14,payments,component,Frontend/src/components/messenger/StaffOrderPaymentPanel.tsx,
+F15,booking,doc,Backend/BOOKING_DEPLOYMENT.md,booking feature overview
+F15,booking,doc,Backend/functions/Orchestrator/BOOKING-RELIABILITY.md,booking reliability rules
+F15,booking,doc,Backend/tests/booking-concurrency/README.md,booking concurrency cases
+F15,booking,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F15,booking,function,Backend/functions/AppointmentMaintenance,scheduled: expire/cleanup appointments | entry src/index.mjs
+F15,booking,function,Backend/functions/AppointmentReminder,scheduled: reminder ผ่าน proactive message | entry src/index.mjs
+F15,booking,function,Backend/functions/CommerceJobRunner/src/booking-action-effects.mjs,booking effects
+F15,booking,function,Backend/functions/CreateAppointment,staff create appointment (+calendar effect) | entry src/index.mjs
+F15,booking,function,Backend/functions/CreateKnowledge/src/attachment-booking-facts.mjs,booking facts จาก attachment
+F15,booking,function,Backend/functions/GetAppointments,list appointments | entry src/index.mjs
+F15,booking,function,Backend/functions/GetBookingSettings,services/resources/hours/closures | entry src/index.mjs
+F15,booking,function,Backend/functions/Orchestrator/src/agent/action-booking.mjs,booking action
+F15,booking,function,Backend/functions/Orchestrator/src/agent/pending-actions.mjs,proposal -> explicit consent -> createOrderFromProposal/createBooking
+F15,booking,function,Backend/functions/Orchestrator/src/booking-action.mjs,booking intent flow
+F15,booking,function,Backend/functions/Orchestrator/src/booking-confirmation.mjs,booking intent flow
+F15,booking,function,Backend/functions/Orchestrator/src/booking-context.mjs,booking intent flow
+F15,booking,function,Backend/functions/Orchestrator/src/booking-discussion.mjs,booking intent flow
+F15,booking,function,Backend/functions/Orchestrator/src/booking-intake.mjs,booking intent flow
+F15,booking,function,Backend/functions/Orchestrator/src/booking-interest.mjs,booking intent flow
+F15,booking,function,Backend/functions/Orchestrator/src/booking-model.mjs,booking intent flow
+F15,booking,function,Backend/functions/Orchestrator/src/booking-selection.mjs,booking intent flow
+F15,booking,function,Backend/functions/Orchestrator/src/booking-status-renderer.mjs,booking intent flow
+F15,booking,function,Backend/functions/Orchestrator/src/booking-tools.mjs,booking intent flow
+F15,booking,function,Backend/functions/UpdateAppointment,reschedule/cancel (+calendar effect) | entry src/index.mjs
+F15,booking,function,Backend/functions/UpdateBookingSettings,booking settings write | entry src/index.mjs
+F15,booking,service,Backend/services/VoiceGateway/src/voice-booking.mjs,voice booking
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/appointment-audit.mjs,appointment audit events
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/appointment-lifecycle.mjs,appointment lifecycle + reminder
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/booking-action-adapters.mjs,booking actions จาก AI
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/booking-calendar-identity.mjs,deterministic calendar event id
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/booking-domain.mjs,booking domain
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/booking-effects.mjs,booking -> calendar effects
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/booking-mutations.mjs,create/reschedule/cancel
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/booking-presentation.mjs,booking presentation
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/booking-records.mjs,booking records
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/booking-rules.mjs,capacity/rules
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/booking-schedule.mjs,slots (Bangkok tz)
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/booking-store.mjs,booking store + locks
+F15,booking,layer,Backend/layers/nodejs-utils/nodejs/proactive-message.mjs,ข้อความนอก turn (reminder/cancel) -> sendToCustomer()
+F15,booking,sql,Database/appointments.sql,tables: appointments
+F15,booking,sql,Database/bookinglifecycle.sql,"tables: appointment_events, booking_waitlist, business_closures, resource_services, resources"
+F15,booking,page,Frontend/src/pages/Appointments.tsx,/appointments (feature gate booking)
+F15,booking,component,Frontend/src/components/appointment/AppointmentDialog.tsx,
+F15,booking,component,Frontend/src/components/appointment/BookingReadiness.tsx,
+F15,booking,component,Frontend/src/components/appointment/BookingRulesPanel.tsx,
+F15,booking,component,Frontend/src/components/appointment/BookingSetupWizard.tsx,
+F15,booking,component,Frontend/src/components/appointment/ChatBookingSetup.tsx,
+F15,booking,component,Frontend/src/components/appointment/ScheduleBoard.tsx,
+F15,booking,component,Frontend/src/components/messenger/ChatAppointmentAction.tsx,
+F15,booking,component,Frontend/src/components/voice/BookingCard.tsx,
+F15,booking,component,Frontend/src/functions/appointmentContract.ts,FE helper
+F15,booking,component,Frontend/src/functions/bookingHoursForm.ts,FE helper
+F15,booking,component,Frontend/src/functions/bookingReadiness.ts,FE helper
+F15,booking,component,Frontend/src/locales/th/appointment.json,i18n namespace 'appointment' (en คู่กันที่ locales/en/appointment.json)
+F16,calendar,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F16,calendar,function,Backend/functions/ConnectGoogleCalendar,Google OAuth grant + calendar select | entry src/index.mjs
+F16,calendar,function,Backend/functions/DisconnectGoogleCalendar,revoke Google grant | entry src/index.mjs
+F16,calendar,function,Backend/functions/GetIntegrations,non-messaging integrations (วันนี้ = Google Calendar) | entry src/index.mjs
+F16,calendar,layer,Backend/layers/nodejs-utils/nodejs/booking-calendar-identity.mjs,deterministic calendar event id
+F16,calendar,layer,Backend/layers/nodejs-utils/nodejs/booking-effects.mjs,booking -> calendar effects
+F16,calendar,layer,Backend/layers/nodejs-utils/nodejs/google-calendar.mjs,Google Calendar client
+F16,calendar,layer,Backend/layers/nodejs-utils/nodejs/google-integration-access.mjs,who may manage Google grant
+F16,calendar,sql,Database/businessintegrations.sql,tables: business_integrations; Google grants
+F16,calendar,page,Frontend/src/pages/Channels.tsx,/channels hub
+F16,calendar,page,Frontend/src/pages/GoogleOAuthCallback.tsx,/google/callback (Calendar + Docs)
+F16,calendar,component,Frontend/src/components/appointment/GoogleCalendarCard.tsx,
+F16,calendar,component,Frontend/src/components/card/IntegrationCard.tsx,
+F16,calendar,component,Frontend/src/functions/calendarIntegration.ts,FE helper
+F16,calendar,component,Frontend/src/functions/connectGoogleCalendar.ts,FE helper
+F17,line,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F17,line,function,Backend/functions/ConnectLineChannel,LINE channel secret/token verify + connect | entry src/index.mjs
+F17,line,function,Backend/functions/DisconnectLineChannel,disconnect + revoke generation | entry src/index.mjs; README.md
+F17,line,function,Backend/functions/GetLineQuota,LINE message quota | entry src/index.mjs
+F17,line,function,Backend/functions/LineWebhook,"LINE webhook: signature, dedup, normalize, enqueue | entry src/index.mjs"
+F17,line,function,Backend/functions/Orchestrator/src/flex-templates.mjs,LINE Flex cards (carousel/contact/receipt) -> MessagePart
+F17,line,function,Backend/functions/Orchestrator/src/line-message-refs.mjs,LINE message refs
+F17,line,function,Backend/functions/Orchestrator/src/line-sticker-catalog.mjs,LINE sticker catalog
+F17,line,function,Backend/functions/Orchestrator/src/papi-sticker-catalog.mjs,merchant sticker packs
+F17,line,function,Backend/functions/Orchestrator/src/sticker-response.mjs,sticker reply
+F17,line,function,Backend/functions/OutgoingLine,"LINE reply/push, flex, stickers | entry src/index.mjs"
+F17,line,function,Backend/functions/RefreshLineAccessTokens,scheduled LINE token refresh | entry src/index.mjs; README.md
+F17,line,layer,Backend/layers/nodejs-utils/nodejs/channel-disconnect.mjs,shared disconnect
+F17,line,layer,Backend/layers/nodejs-utils/nodejs/channel-http.mjs,shared connect helpers
+F17,line,layer,Backend/layers/nodejs-utils/nodejs/conversation-presence.mjs,typing/presence; ซ่อนเมื่อ bot ปิด (ai_force_on override)
+F17,line,layer,Backend/layers/nodejs-utils/nodejs/gateway.mjs,routing lookup platform account -> business
+F17,line,layer,Backend/layers/nodejs-utils/nodejs/line-credentials.mjs,LINE credentials
+F17,line,layer,Backend/layers/nodejs-utils/nodejs/line-sticker-message.mjs,sticker message
+F17,line,layer,Backend/layers/nodejs-utils/nodejs/line-sticker-pack.mjs,merchant sticker packs (ตั้งใน bot settings)
+F17,line,layer,Backend/layers/nodejs-utils/nodejs/profile-enrichment.mjs,ชื่อ/รูปลูกค้าจาก platform ตอน webhook
+F17,line,layer,Backend/layers/nodejs-utils/nodejs/signature.mjs,webhook signature verify
+F17,line,sql,Database/conversationrouting.sql,"tables: channel_retention_choices, conversation_routing; channel connections (ตารางร่วม) + channel_retention_choices"
+F17,line,page,Frontend/src/pages/businessdetail_pages/BusinessChannel.tsx,channel connect (LINE/Meta/WhatsApp/TikTok) + history import
+F17,line,page,Frontend/src/pages/Channels.tsx,/channels hub
+F17,line,page,Frontend/src/pages/LineInstructions.tsx,/instructions/line
+F17,line,component,Frontend/src/components/card/ChannelAvatar.tsx,
+F17,line,component,Frontend/src/components/card/ChannelCard.tsx,
+F17,line,component,Frontend/src/components/card/ChannelLogo.tsx,
+F17,line,component,Frontend/src/components/channelLine/ChannelLine.tsx,
+F17,line,component,Frontend/src/components/channelLine/LineQuotaSummary.tsx,
+F17,line,component,Frontend/src/components/messenger/LineMessagePreview.tsx,
+F17,line,component,Frontend/src/functions/lineInstructions.ts,FE helper
+F17,line,component,Frontend/src/functions/lineQuota.ts,FE helper
+F17,line,component,Frontend/src/hooks/useConnectedChannels.ts,FE hook
+F17,line,component,Frontend/src/hooks/useLineQuota.ts,FE hook
+F18,meta,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F18,meta,function,Backend/functions/ConnectInstagramChannel,Instagram OAuth connect + channel capacity check | entry src/index.mjs
+F18,meta,function,Backend/functions/ConnectMessengerChannel,Facebook Page connect
+OUT,-,function,Backend/functions/ConnectTikTokChannel,(เดิม F18) TikTok OAuth connect (ไม่มีใน F01-F36 เดิม; วางไว้ F18). DM ยังรอ provider approval -> U | entry src/index.mjs; README.md; ใหม่หลัง kit 11-17
+F18,meta,function,Backend/functions/DisconnectInstagramChannel,disconnect + close conversations | entry src/index.mjs; README.md
+F18,meta,function,Backend/functions/DisconnectMessengerChannel,disconnect + unsubscribe page | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/DisconnectTikTokChannel,(เดิม F18) TikTok disconnect (นอก F01-F36 เดิม; วางไว้ F18) | entry src/index.mjs; README.md; ใหม่หลัง kit 11-17
+F18,meta,function,Backend/functions/GetMessengerPages,list FB pages ของ grant | entry src/index.mjs
+F18,meta,function,Backend/functions/ImagePad,pad รูปสินค้าเป็นสี่เหลี่ยมสำหรับ Meta generic cards (ไม่อยู่ใน F01-F36 เดิม) | entry src/index.mjs
+F18,meta,function,Backend/functions/InstagramWebhook,IG webhook: DM + comment events | entry src/index.mjs; README.md
+F18,meta,function,Backend/functions/MessengerWebhook,"Messenger webhook: DM, comments, marketing opt-in | entry src/index.mjs; README.md"
+F18,meta,function,Backend/functions/Orchestrator/src/generic-templates.mjs,Meta generic template cards (+ImagePad)
+F18,meta,function,Backend/functions/OutgoingInstagram,IG Send API | entry src/index.mjs
+F18,meta,function,Backend/functions/OutgoingMessenger,"Messenger Send API (24h window, HUMAN_AGENT) | entry src/index.mjs"
+F18,meta,function,Backend/functions/RefreshInstagramAccessTokens,scheduled token refresh | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/RefreshTikTokAccessTokens,(เดิม F18) scheduled TikTok token refresh (นอก F01-F36 เดิม; วางไว้ F18) | entry src/index.mjs; README.md; ใหม่หลัง kit 11-17
+F18,meta,function,Backend/functions/SelectMessengerPage,เลือก FB page | entry src/index.mjs
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/channel-disconnect.mjs,shared disconnect
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/channel-http.mjs,shared connect helpers
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/conversation-presence.mjs,typing/presence; ซ่อนเมื่อ bot ปิด (ai_force_on override)
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/gateway.mjs,routing lookup platform account -> business
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/instagram-credentials.mjs,IG credentials
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/meta-human-agent.mjs,HUMAN_AGENT tag
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/meta-inbound.mjs,Meta inbound normalize
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/meta-outgoing.mjs,Meta send
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/meta.mjs,Graph API client
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/profile-enrichment.mjs,ชื่อ/รูปลูกค้าจาก platform ตอน webhook
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/signature.mjs,webhook signature verify
+F18,meta,sql,Database/conversationrouting.sql,"tables: channel_retention_choices, conversation_routing; channel connections (ตารางร่วม) + channel_retention_choices"
+F18,meta,sql,Database/marketingmessagesettings.sql,tables: marketing_message_settings; Messenger marketing messages
+F18,meta,sql,Database/marketingsubscriptions.sql,tables: marketing_subscriptions
+F18,meta,page,Frontend/src/pages/businessdetail_pages/BusinessChannel.tsx,channel connect (LINE/Meta/WhatsApp/TikTok) + history import
+F18,meta,page,Frontend/src/pages/Channels.tsx,/channels hub
+F18,meta,page,Frontend/src/pages/InstagramOAuthCallback.tsx,/instagram/callback
+OUT,-,page,Frontend/src/pages/TikTokOAuthCallback.tsx,(เดิม F18) /tiktok/callback (TikTok connect)
+F18,meta,component,Frontend/src/components/card/ChannelAvatar.tsx,
+F18,meta,component,Frontend/src/components/card/ChannelCard.tsx,
+F18,meta,component,Frontend/src/components/card/ChannelLogo.tsx,
+F18,meta,component,Frontend/src/components/card/InstagramGradientIcon.tsx,
+F18,meta,component,Frontend/src/components/modal/ChannelSelectModal.tsx,เลือก FB page
+F18,meta,component,Frontend/src/functions/connectFacebook.js,FE helper
+F18,meta,component,Frontend/src/functions/connectInstagram.ts,FE helper
+F18,meta,component,Frontend/src/functions/connectMetaMarketing.js,FE helper
+OUT,-,component,Frontend/src/functions/connectTikTok.ts,(เดิม F18) FE helper
+F18,meta,function,Backend/functions/RefillMessengerProfiles,เติมชื่อและรูปลูกค้า Messenger ที่ webhook ดึงไม่ได้ ทุก 15 นาที + เก็บรูป/ไฟล์ที่ staff ส่งจาก Page Inbox | entry src/index.mjs
+F18,meta,function,Backend/functions/MessengerWebhook/src/page-echo.mjs,message_echoes: เก็บข้อความของ Page เอง ข้าม echo ของ Papi
+F18,meta,function,Backend/functions/MessengerWebhook/src/thread-control.mjs,handover protocol: app ไหนเป็นเจ้าของแชต (Meta AI)
+F18,meta,function,Backend/functions/GetLatestConversation/src/meta-agent.mjs,ธงว่า Meta AI ถือแชตนี้อยู่ใน inbox
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/customer-profile.mjs,เติมชื่อ/รูป end_users ที่ยังว่าง ไม่ทับของเดิม
+F18,meta,layer,Backend/layers/nodejs-utils/nodejs/meta-business-agent.mjs,บันทึกเมื่อ Meta Business Agent ถือแชต
+F18,meta,page,Frontend/src/pages/MetaAiGuide.tsx,คู่มือปิด Meta AI ของ Page
+F18,meta,component,Frontend/src/components/messenger/MetaAgentNotice.tsx,แถบเตือนว่า Meta AI ถือแชต
+F18,meta,component,Frontend/src/functions/metaAgent.ts,FE helper
+F18,meta,component,Frontend/src/functions/metaAiGuide.ts,FE helper
+OUT,-,doc,AGENTS.md,(เดิม F19/F20/F25/F28/F29/F32/F33/F34) git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+OUT,-,function,Backend/functions/ConnectWhatsAppChannel,(เดิม F19) WhatsApp embedded signup connect | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/DisconnectWhatsAppChannel,(เดิม F19) disconnect WhatsApp | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/MessagingConsents,(เดิม F19/F34) opt-in/consent records | entry src/index.mjs
+OUT,-,function,Backend/functions/OutgoingWhatsApp,(เดิม F19) WhatsApp send (24h + consent) | entry src/index.mjs
+OUT,-,function,Backend/functions/WebsocketSendMessage/src/whatsapp-send.mjs,(เดิม F19) staff send ทาง WhatsApp
+OUT,-,function,Backend/functions/WhatsAppInboundWorker,(เดิม F19) inbound media download + normalize | entry src/index.mjs
+OUT,-,function,Backend/functions/WhatsAppTemplates,(เดิม F19) approved templates | entry src/index.mjs
+OUT,-,function,Backend/functions/WhatsAppWebhook,"(เดิม F19) webhook: wamid dedup, receipts, reactions, coexistence | entry src/index.mjs; README.md"
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/channel-disconnect.mjs,(เดิม F19) shared disconnect
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/channel-http.mjs,(เดิม F19) shared connect helpers
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/conversation-presence.mjs,(เดิม F19) typing/presence; ซ่อนเมื่อ bot ปิด (ai_force_on override)
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/gateway.mjs,(เดิม F19) routing lookup platform account -> business
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/inbound-media.mjs,(เดิม F19) inbound media ที่ worker เก็บไว้ก่อน
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/message-update-push.mjs,(เดิม F19) receipt/status push
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/messaging-consent.mjs,(เดิม F19) consent check
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/meta.mjs,(เดิม F19) Graph API client
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/signature.mjs,(เดิม F19) webhook signature verify
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/whatsapp-coexistence.mjs,(เดิม F19) coexistence
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/whatsapp-credentials.mjs,(เดิม F19) credentials
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/whatsapp-graph.mjs,(เดิม F19) Graph client
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/whatsapp-inbound.mjs,(เดิม F19) inbound
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/whatsapp-outgoing.mjs,(เดิม F19) outgoing
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/whatsapp-store.mjs,(เดิม F19) store/refs
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/whatsapp-templates.mjs,(เดิม F19) templates
+OUT,-,sql,Database/conversationrouting.sql,"(เดิม F19/F28) tables: channel_retention_choices, conversation_routing; channel connections (ตารางร่วม) + channel_retention_choices"
+OUT,-,sql,Database/messagingconsents.sql,(เดิม F19) tables: messaging_consents
+OUT,-,sql,Database/whatsappmessagerefs.sql,(เดิม F19) tables: whatsapp_message_refs
+OUT,-,sql,Database/whatsappmessagetemplates.sql,(เดิม F19) tables: whatsapp_message_templates
+OUT,-,page,Frontend/src/pages/businessdetail_pages/BusinessChannel.tsx,(เดิม F19/F20) channel connect (LINE/Meta/WhatsApp/TikTok) + history import
+OUT,-,page,Frontend/src/pages/Channels.tsx,(เดิม F19) /channels hub
+OUT,-,page,Frontend/src/pages/WhatsAppTemplates.tsx,(เดิม F19) /whatsapp-templates
+OUT,-,component,Frontend/src/components/messenger/WhatsAppDeliveryMark.tsx,(เดิม F19)
+OUT,-,component,Frontend/src/components/messenger/WhatsAppTemplatePicker.tsx,(เดิม F19)
+OUT,-,component,Frontend/src/components/modal/ConnectWhatsAppModal.tsx,(เดิม F19)
+OUT,-,component,Frontend/src/components/whatsapp/,(เดิม F19) ทั้งโฟลเดอร์
+OUT,-,component,Frontend/src/functions/connectWhatsApp.js,(เดิม F19) FE helper
+OUT,-,component,Frontend/src/functions/whatsappChat.ts,(เดิม F19) FE helper
+OUT,-,component,Frontend/src/functions/whatsappFeatures.ts,(เดิม F19) FE helper
+OUT,-,component,Frontend/src/functions/whatsappTemplates.ts,(เดิม F19) FE helper
+OUT,-,function,Backend/functions/LineHistoryImports,(เดิม F20) LINE history CSV import API | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/LineHistoryImportWorker,"(เดิม F20) import worker (resume, grouping) | entry src/index.mjs; README.md"
+OUT,-,function,Backend/functions/LineOaCrawler,(เดิม F20) crawl LINE OA Manager history (ต้องมี session จริง) | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/LineOaHistoryRestore,(เดิม F20) restore history jobs | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/LineWebhook/src/line-contacts.mjs,(เดิม F20) บันทึก LINE contacts
+OUT,-,function,Backend/functions/Orchestrator/src/customer-origin.mjs,(เดิม F20) customer origin
+OUT,-,function,Backend/functions/RefreshChannelProfiles,(เดิม F20) scheduled: refresh LINE OA profile images | entry src/index.mjs
+OUT,-,function,Backend/functions/RefreshInstagramAccessTokens,(เดิม F20) scheduled token refresh | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/RefreshLineAccessTokens,(เดิม F20) scheduled LINE token refresh | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/RegisterLineOaManagerSession,(เดิม F20) register LINE OA Manager session (ห้ามใช้ session จริงในวันงาน) | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/SyncLineContacts,(เดิม F20) sync LINE contacts | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/SyncLineOaManagerSession,(เดิม F20) sync OA Manager session | entry src/index.mjs; README.md
+OUT,-,service,Backend/services/line-oa-session-broker/,(เดิม F20) LINE OA Manager browser session broker; ห้ามใช้ session จริง -> sandbox/U
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/line-contacts.mjs,(เดิม F20) LINE contacts
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/line-history-import.mjs,(เดิม F20) history import
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/line-import-grouping.mjs,(เดิม F20) import grouping
+OUT,-,sql,Database/customerorigins.sql,(เดิม F20) tables: customer_origins
+OUT,-,sql,Database/linecontacts.sql,(เดิม F20) tables: line_contacts
+OUT,-,sql,Database/linehistoryimports.sql,"(เดิม F20) tables: line_history_contact_links, line_history_import_contacts, line_history_import_messages, line_history_imports"
+OUT,-,sql,Database/lineoacrawlstate.sql,"(เดิม F20) tables: line_oa_crawl_state, line_oa_history_restore_jobs"
+OUT,-,component,Frontend/src/components/channelLine/ImportChatHistoryModal.tsx,(เดิม F20) LINE history import/restore/OA session
+OUT,-,component,Frontend/src/components/channelLine/LineHistoryImportPanel.tsx,(เดิม F20) LINE history import/restore/OA session
+OUT,-,component,Frontend/src/components/channelLine/LineOaHistoryRestorePanel.tsx,(เดิม F20) LINE history import/restore/OA session
+OUT,-,component,Frontend/src/components/channelLine/LineOaManagerSessionCard.tsx,(เดิม F20) LINE history import/restore/OA session
+OUT,-,component,Frontend/src/functions/lineHistoryImport.ts,(เดิม F20) FE helper
+F21,comments,doc,Backend/functions/InstagramWebhook/COMMENT-TO-DM.md,comment -> private reply flow (Instagram)
+F21,comments,doc,Backend/functions/MessengerWebhook/COMMENT-TO-DM.md,comment -> private reply flow (Facebook)
+F21,comments,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F21,comments,function,Backend/functions/CommentLivePoller,scheduled: poll live video comments | entry src/index.mjs
+F21,comments,function,Backend/functions/CommentReplyReconciler,reconcile pending/unknown comment replies | entry src/index.mjs
+F21,comments,function,Backend/functions/CommentReplyRules,keyword rules + templates + product code generator | entry src/index.mjs; README.md
+F21,comments,function,Backend/functions/CommentReplyWorker,ส่ง private/public reply ต่อ comment ครั้งเดียว | entry src/index.mjs; README.md
+F21,comments,function,Backend/functions/InstagramWebhook,IG webhook: DM + comment events | entry src/index.mjs; README.md
+F21,comments,function,Backend/functions/MessengerWebhook,"Messenger webhook: DM, comments, marketing opt-in | entry src/index.mjs; README.md"
+F21,comments,function,Backend/functions/Orchestrator/src/comment-cards.mjs,comment answer cards
+F21,comments,function,Backend/functions/Orchestrator/src/comment-product-cards.mjs,comment product cards
+F21,comments,function,Backend/functions/Orchestrator/src/commerce/comment-order.mjs,order จาก comment/live code
+F21,comments,layer,Backend/layers/nodejs-utils/nodejs/comment-reply.mjs,comment reply core (+live cart)
+F21,comments,sql,Database/commentreply.sql,"tables: comment_product_code_generators, comment_product_codes, comment_reply_rules, comment_reply_templates, facebook_comment_deliveries, instagram_comment_deliveries"
+F21,comments,page,Frontend/src/pages/CommentReplies.tsx,"/comment-replies, /comment-replies/live"
+F21,comments,component,Frontend/src/components/business/CommentReplyPanelSection.tsx,
+F21,comments,component,Frontend/src/components/business/CommentReplySettings.tsx,
+F21,comments,component,Frontend/src/components/business/CommentReplyTemplateMenu.tsx,
+F21,comments,component,Frontend/src/functions/commentReplyContract.ts,FE helper
+F22,live-commerce,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F22,live-commerce,function,Backend/functions/CommentLivePoller,scheduled: poll live video comments | entry src/index.mjs
+F22,live-commerce,function,Backend/functions/CommentReplyRules,keyword rules + templates + product code generator | entry src/index.mjs; README.md
+F22,live-commerce,function,Backend/functions/CommentReplyWorker,ส่ง private/public reply ต่อ comment ครั้งเดียว | entry src/index.mjs; README.md
+F22,live-commerce,function,Backend/functions/Orchestrator/src/commerce/comment-order.mjs,order จาก comment/live code
+F22,live-commerce,function,Backend/functions/Orchestrator/src/product-code-key.mjs,product code key
+F22,live-commerce,function,Backend/functions/Orchestrator/src/product-codes.mjs,live product codes lookup
+F22,live-commerce,layer,Backend/layers/nodejs-utils/nodejs/live-cart.mjs,live cart
+F22,live-commerce,sql,Database/commentreply.sql,"tables: comment_product_code_generators, comment_product_codes, comment_reply_rules, comment_reply_templates, facebook_comment_deliveries, instagram_comment_deliveries"
+F22,live-commerce,sql,Database/livecarts.sql,"tables: live_cart_comments, live_cart_items, live_carts"
+F22,live-commerce,page,Frontend/src/pages/CommentReplies.tsx,"/comment-replies, /comment-replies/live"
+F22,live-commerce,page,Frontend/src/pages/ProductCodesPresentation.tsx,fullscreen product codes
+F22,live-commerce,component,Frontend/src/components/business/CommentProductCodes.tsx,/comment-replies/product-codes
+F22,live-commerce,component,Frontend/src/functions/productCodeGenerator.ts,FE helper
+F22,live-commerce,component,Frontend/src/functions/productCodeHistory.ts,FE helper
+F22,live-commerce,component,Frontend/src/functions/productCodeKey.ts,FE helper
+F22,live-commerce,component,Frontend/src/functions/productCodeLines.ts,FE helper
+F22,live-commerce,component,Frontend/src/functions/productCodePresentation.ts,FE helper
+F22,live-commerce,component,Frontend/src/functions/productCodeSearch.ts,FE helper
+F23,broadcast,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F23,broadcast,function,Backend/functions/LineBroadcast,broadcast create/preview/confirm (+Messenger marketing) | entry src/index.mjs
+F23,broadcast,function,Backend/functions/LineBroadcastWorker,batch send + recipient outcomes | entry src/index.mjs; README.md
+F23,broadcast,function,Backend/functions/MessagingConsents,opt-in/consent records | entry src/index.mjs
+F23,broadcast,function,Backend/functions/MessengerWebhook/src/marketing-optin.mjs,marketing opt-in
+F23,broadcast,layer,Backend/layers/nodejs-utils/nodejs/broadcast-http.mjs,HTTP gate ของ broadcast/customer-tag routes (permission + primaryOnly)
+F23,broadcast,layer,Backend/layers/nodejs-utils/nodejs/line-broadcast.mjs,LINE broadcast
+F23,broadcast,layer,Backend/layers/nodejs-utils/nodejs/messaging-consent.mjs,consent check
+F23,broadcast,sql,Database/broadcastbatches.sql,tables: broadcast_batches
+F23,broadcast,sql,Database/broadcastrecipients.sql,tables: broadcast_recipients
+F23,broadcast,sql,Database/broadcasts.sql,tables: broadcasts
+F23,broadcast,sql,Database/marketingmessagesettings.sql,tables: marketing_message_settings; Messenger marketing messages
+F23,broadcast,sql,Database/marketingsubscriptions.sql,tables: marketing_subscriptions
+F23,broadcast,sql,Database/messagingconsents.sql,tables: messaging_consents
+F23,broadcast,page,Frontend/src/pages/Broadcast.tsx,/broadcast (feature gate broadcast)
+F23,broadcast,component,Frontend/src/components/broadcast/,ทั้งโฟลเดอร์
+F23,broadcast,component,Frontend/src/functions/broadcastApi.ts,FE helper
+F23,broadcast,component,Frontend/src/functions/broadcastContract.ts,FE helper
+F23,broadcast,component,Frontend/src/functions/connectMetaMarketing.js,FE helper
+F23,broadcast,component,Frontend/src/functions/marketingApi.ts,FE helper
+F23,broadcast,component,Frontend/src/functions/marketingBroadcast.ts,FE helper
+F23,broadcast,component,Frontend/src/locales/th/broadcast.json,i18n namespace 'broadcast' (en คู่กันที่ locales/en/broadcast.json)
+F24,crm,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F24,crm,function,Backend/functions/CustomerTagAssignments,assign/unassign tags | entry src/index.mjs
+F24,crm,function,Backend/functions/CustomerTagAutomation,automation rules (inactivity ฯลฯ) | entry src/index.mjs; README.md
+F24,crm,function,Backend/functions/CustomerTags,tag CRUD | entry src/index.mjs
+F24,crm,function,Backend/functions/InsightExtraction/src/customer-profile.mjs,customer insight profile
+F24,crm,function,Backend/functions/InsightExtraction/src/tagging.mjs,auto tagging
+F24,crm,function,Backend/functions/Orchestrator/src/customer-origin.mjs,customer origin
+F24,crm,layer,Backend/layers/nodejs-utils/nodejs/broadcast-http.mjs,HTTP gate ของ broadcast/customer-tag routes (permission + primaryOnly)
+F24,crm,layer,Backend/layers/nodejs-utils/nodejs/customer-tag-automation.mjs,tag automation
+F24,crm,sql,Database/customercontactdetails.sql,tables: customer_contact_details
+F24,crm,sql,Database/customerinsightprofiles.sql,tables: customer_insight_profiles
+F24,crm,sql,Database/customerorigins.sql,tables: customer_origins
+F24,crm,sql,Database/customertagassignments.sql,tables: customer_tag_assignments
+F24,crm,sql,Database/customertags.sql,tables: customer_tags
+F24,crm,sql,Database/endusers.sql,tables: end_users; ตารางลูกค้า: ต้องเลือกเจ้าของเดียว
+F24,crm,page,Frontend/src/pages/Customers.tsx,/customers
+F24,crm,page,Frontend/src/pages/messager/customerInfo/CustomerInfoPane.tsx,customer panel
+F24,crm,component,Frontend/src/components/dashboard/CustomerDetailModal.tsx,
+F24,crm,component,Frontend/src/components/dashboard/CustomerProfileCard.tsx,
+F24,crm,component,Frontend/src/components/messenger/CustomerContactDetails.tsx,
+F24,crm,component,Frontend/src/components/messenger/CustomerStageChip.tsx,3-stage customer label
+F24,crm,component,Frontend/src/components/messenger/CustomerTagsField.tsx,
+F24,crm,component,Frontend/src/functions/customerContact.ts,FE helper
+F24,crm,component,Frontend/src/functions/customerOrigin.ts,FE helper
+F24,crm,component,Frontend/src/functions/customerStage.ts,FE helper
+F24,crm,component,Frontend/src/functions/customerTagAutomation.ts,FE helper
+F24,crm,component,Frontend/src/functions/customerTags.ts,FE helper
+F24,crm,component,Frontend/src/functions/customerTagsApi.ts,FE helper
+F24,crm,component,Frontend/src/hooks/useCustomerDetail.ts,FE hook
+OUT,-,function,Backend/functions/CustomerIntakeForm,"(เดิม F25) Flex card link -> hosted form page ที่ Lambda render เอง (GET/POST ?t=token), single-use token เก็บ SHA-256 | entry src/index.mjs; README.md"
+OUT,-,function,Backend/functions/Orchestrator/src/intake-form.mjs,(เดิม F25) REGISTRATION_FORM intent -> form link
+OUT,-,sql,Database/businessintakeforms.sql,(เดิม F25) tables: business_intake_forms
+OUT,-,sql,Database/customerformsubmissions.sql,(เดิม F25) tables: customer_form_submissions
+OUT,-,component,Frontend/src/functions/intakeFormTemplate.ts,(เดิม F25) FE helper
+F26,insights,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F26,insights,function,Backend/functions/CommerceJobRunner/src/conversation-summary.mjs,conversation_summary job
+F26,insights,function,Backend/functions/GetInsights,insight sections (trends/topics/service/booking/customers) | entry src/index.mjs
+F26,insights,function,Backend/functions/InsightExtraction,conversation close -> summary/insight/profile | entry src/index.mjs; README.md
+F26,insights,function,Backend/functions/Orchestrator/src/rolling-summary.mjs,rolling conversation summary
+F26,insights,function,Backend/functions/Orchestrator/src/summary-jobs.mjs,summary jobs
+F26,insights,function,Backend/functions/TranslateSummary,แปล summary ตามภาษาผู้อ่าน (ไม่อยู่ใน F01-F36 เดิม) | entry src/index.mjs
+F26,insights,layer,Backend/layers/nodejs-utils/nodejs/billing/insight-charts.mjs,plan-gated insight charts
+F26,insights,layer,Backend/layers/nodejs-utils/nodejs/conversation-closure-queue.mjs,queue conversations -> insight หลัง teardown
+F26,insights,sql,Database/customerinsightprofiles.sql,tables: customer_insight_profiles
+F26,insights,sql,Database/rollingsummary.sql,tables: rolling_summary
+F26,insights,page,Frontend/src/pages/Insight.tsx,/insight
+F26,insights,page,Frontend/src/pages/messager/customerInfo/CustomerInfoPane.tsx,customer panel
+F26,insights,page,Frontend/src/pages/messager/customerInfo/useSummaryTranslation.ts,summary translate
+F26,insights,component,Frontend/src/components/dashboard/BarList.tsx,
+F26,insights,component,Frontend/src/components/dashboard/InsightCharts.tsx,
+F26,insights,component,Frontend/src/components/dashboard/insightKit.tsx,
+F26,insights,component,Frontend/src/components/dashboard/insightLock.ts,
+F26,insights,component,Frontend/src/components/dashboard/InsightLockOverlay.tsx,plan-gated charts
+F26,insights,component,Frontend/src/components/dashboard/insightPreview.ts,
+F26,insights,component,Frontend/src/components/dashboard/InsightRangeCard.tsx,
+F26,insights,component,Frontend/src/components/dashboard/InsightSkeleton.tsx,
+F26,insights,component,Frontend/src/components/dashboard/InsightSummary.tsx,
+F26,insights,component,Frontend/src/components/dashboard/InsightTable.tsx,
+F26,insights,component,Frontend/src/components/dashboard/insightTokens.ts,
+F26,insights,component,Frontend/src/components/dashboard/insightVisibility.ts,
+F26,insights,component,Frontend/src/components/dashboard/Matrix.tsx,
+F26,insights,component,Frontend/src/components/dashboard/panels/BookingPanel.tsx,insight panels
+F26,insights,component,Frontend/src/components/dashboard/panels/CustomersPanel.tsx,insight panels
+F26,insights,component,Frontend/src/components/dashboard/panels/KnowledgePanel.tsx,insight panels
+F26,insights,component,Frontend/src/components/dashboard/panels/OverviewPanel.tsx,insight panels
+F26,insights,component,Frontend/src/components/dashboard/panels/ServicePanel.tsx,insight panels
+F26,insights,component,Frontend/src/components/dashboard/panels/TeamPerformancePanel.tsx,insight panels
+F26,insights,component,Frontend/src/components/dashboard/panels/TopicsPanel.tsx,insight panels
+F26,insights,component,Frontend/src/components/dashboard/SectionRule.tsx,
+F26,insights,component,Frontend/src/components/messenger/ConversationBriefing.tsx,
+F26,insights,component,Frontend/src/components/messenger/SummaryPanel.tsx,
+F26,insights,component,Frontend/src/components/messenger/SummaryText.tsx,
+F26,insights,component,Frontend/src/components/WordCloud.tsx,
+F26,insights,component,Frontend/src/functions/conversationBriefing.ts,FE helper
+F26,insights,component,Frontend/src/functions/insightRange.ts,FE helper
+F26,insights,component,Frontend/src/functions/summaryFormat.ts,FE helper
+F26,insights,component,Frontend/src/functions/summaryTranslation.ts,FE helper
+F26,insights,component,Frontend/src/hooks/useInsightSections.ts,FE hook
+F26,insights,component,Frontend/src/locales/th/dashboard.json,i18n namespace 'dashboard' (en คู่กันที่ locales/en/dashboard.json)
+F27,analytics,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F27,analytics,function,Backend/functions/ExportTurnTraces,export traces ไป S3/Athena; optional (export redacted) | entry src/index.mjs; README.md
+F27,analytics,function,Backend/functions/GetAccountUsage,usage/cost ต่อ account | entry src/index.mjs; README.md
+F27,analytics,function,Backend/functions/GetChatTrace,Developer Mode trace ต่อข้อความ | entry src/index.mjs
+F27,analytics,function,Backend/functions/GetPlatformUsage,admin platform dashboard topics | entry src/index.mjs
+F27,analytics,function,Backend/functions/Orchestrator/src/dev-trace.mjs,turn trace / Developer Mode
+F27,analytics,function,Backend/functions/Orchestrator/src/retrieval-trace.mjs,turn trace / Developer Mode
+F27,analytics,function,Backend/functions/Orchestrator/src/trace-answer-evidence.mjs,turn trace / Developer Mode
+F27,analytics,function,Backend/functions/Orchestrator/src/trace-versions.mjs,turn trace / Developer Mode
+F27,analytics,function,Backend/functions/Orchestrator/src/turn-trace.mjs,turn trace / Developer Mode
+F27,analytics,layer,Backend/layers/nodejs-utils/nodejs/billing/model-pricing.mjs,model price table -> cost
+F27,analytics,layer,Backend/layers/nodejs-utils/nodejs/model-usage.mjs,บันทึก usage ทุก model call
+F27,analytics,sql,Database/aitokenusage.sql,tables: ai_token_usage; usage ledger ที่ model.chat()/embed() เขียน
+F27,analytics,sql,Database/chatanswerdiagnostics.sql,tables: chat_answer_diagnostics
+F27,analytics,sql,Database/chatturntraces.sql,"tables: chat_trace_views, chat_turn_traces"
+F27,analytics,page,Frontend/src/pages/AdminAccountUsage.tsx,"/usage, /usage/:accountId"
+F27,analytics,page,Frontend/src/pages/DevTraces.tsx,/dev/traces
+F27,analytics,page,Frontend/src/pages/Home.tsx,/ merchant dashboard; admin = platform dashboard
+F27,analytics,component,Frontend/src/components/dashboard/DashboardUsage.tsx,
+F27,analytics,component,Frontend/src/components/dashboard/HomeShortcuts.tsx,
+F27,analytics,component,Frontend/src/components/dashboard/WaitingQueue.tsx,
+F27,analytics,component,Frontend/src/components/devtrace/,ทั้งโฟลเดอร์
+F27,analytics,component,Frontend/src/components/messenger/DemoAnswerTrace.tsx,
+F27,analytics,component,Frontend/src/components/messenger/demoAnswerTraceModel.ts,
+F27,analytics,component,Frontend/src/functions/accountUsage.ts,FE helper
+F27,analytics,component,Frontend/src/functions/dashboardUsageLive.ts,FE helper
+F27,analytics,component,Frontend/src/functions/dashboardUsagePresentation.ts,FE helper
+F27,analytics,component,Frontend/src/functions/developerMode.ts,FE helper
+F27,analytics,component,Frontend/src/functions/devTrace.ts,FE helper
+F27,analytics,component,Frontend/src/functions/traceInsights.ts,FE helper
+F27,analytics,component,Frontend/src/functions/traceTimeline.ts,FE helper
+F27,analytics,component,Frontend/src/functions/waitingQueue.ts,FE helper
+F27,analytics,component,Frontend/src/hooks/useDashboardUsage.ts,FE hook
+F27,analytics,component,Frontend/src/locales/th/dashboard.json,i18n namespace 'dashboard' (en คู่กันที่ locales/en/dashboard.json)
+F27,analytics,component,Frontend/src/locales/th/devtrace.json,i18n namespace 'devtrace' (en คู่กันที่ locales/en/devtrace.json)
+F27,analytics,component,Frontend/src/locales/th/usage.json,i18n namespace 'usage' (en คู่กันที่ locales/en/usage.json)
+OUT,-,function,Backend/functions/GetAccountBilling,"(เดิม F28/F29) billing overview: plan, allowance, invoices | entry src/index.mjs"
+OUT,-,function,Backend/functions/GetSubscriptionCatalog,(เดิม F28) plan/addon catalog | entry src/index.mjs
+OUT,-,function,Backend/functions/ManageAccountSubscription,(เดิม F28) change plan/addons | entry src/index.mjs
+OUT,-,function,Backend/functions/ManagePlanReplacements,(เดิม F28/F29/F33) plan replacement rules (admin) | entry src/index.mjs
+OUT,-,function,Backend/functions/Orchestrator/src/model-usage-bridge.mjs,(เดิม F28) quota check + usage settle ต่อ turn
+OUT,-,function,Backend/functions/Orchestrator/src/subscription-access.mjs,(เดิม F28) quota check + usage settle ต่อ turn
+OUT,-,function,Backend/functions/Orchestrator/src/usage-settlement.mjs,(เดิม F28) quota check + usage settle ต่อ turn
+OUT,-,function,Backend/functions/Orchestrator/src/usage.mjs,(เดิม F28) quota check + usage settle ต่อ turn
+OUT,-,function,Backend/functions/SelectChannelRetention,(เดิม F28) เลือก channel ที่เก็บไว้เมื่อ allowance ลด (backlog F20 เขียน retention แต่พฤติกรรมเป็น plan capacity) | entry src/index.mjs
+OUT,-,function,Backend/functions/VoiceMinutes,(เดิม F28) voice balance/switch/grant | entry src/index.mjs
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/ai-reply-quota.mjs,(เดิม F28) AI reply quota
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/allowance-cycles.mjs,(เดิม F28) allowance cycles
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/auth.mjs,"(เดิม F28/F29) billing route auth (primary-only, inactive carve-out)"
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/business-capacity.mjs,(เดิม F28) business count capacity
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/business-grants.mjs,(เดิม F28/F33) admin grants
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/catalog.mjs,(เดิม F28) plan catalog
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/channel-capacity.mjs,(เดิม F28) channel capacity per plan
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/constants.mjs,(เดิม F28/F29) billing constants
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/entitlements.mjs,(เดิม F28) entitlements resolver
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/feature-access.mjs,(เดิม F28) feature gates
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/insight-charts.mjs,(เดิม F28) plan-gated insight charts
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/model-pricing.mjs,(เดิม F28) model price table -> cost
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/usage-month.mjs,(เดิม F28) usage month window
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/usage.mjs,(เดิม F28) usage ledger
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/voice-minutes.mjs,(เดิม F28) voice minute ledger
+OUT,-,sql,Database/accountallowancecycle.sql,(เดิม F28) tables: account_allowance_cycles
+OUT,-,sql,Database/accountsubscription.sql,"(เดิม F28/F29) tables: account_message_credit_adjustments, account_message_packs, account_recurring_addons, account_subscriptions, subscription_periods"
+OUT,-,sql,Database/accountvoiceminuteledger.sql,(เดิม F28) tables: account_voice_minute_ledger
+OUT,-,sql,Database/subscriptioncatalog.sql,"(เดิม F28) tables: subscription_addon_versions, subscription_addons, subscription_plan_versions, subscription_plans"
+OUT,-,page,Frontend/src/pages/AccountTab.tsx,(เดิม F28/F29/F32) /account/:tab (Billing/Payment/Subscription/Contact/Feedback)
+OUT,-,page,Frontend/src/pages/businessdetail_pages/BusinessSubscription.tsx,(เดิม F28) subscription tab
+OUT,-,component,Frontend/src/components/admin/BusinessLimitsCard.tsx,(เดิม F28/F33)
+OUT,-,component,Frontend/src/components/billing/BusinessCapacityNotice.tsx,(เดิม F28)
+OUT,-,component,Frontend/src/components/billing/InactiveBusinessNotice.tsx,(เดิม F28/F29)
+OUT,-,component,Frontend/src/components/billing/SubscriptionFeatureGate.tsx,(เดิม F28)
+OUT,-,component,Frontend/src/components/dashboard/AllowanceCard.tsx,(เดิม F28)
+OUT,-,component,Frontend/src/components/dashboard/insightLock.ts,(เดิม F28)
+OUT,-,component,Frontend/src/components/dashboard/InsightLockOverlay.tsx,(เดิม F28) plan-gated charts
+OUT,-,component,Frontend/src/components/member/UpgradePlanDialog.tsx,(เดิม F28)
+OUT,-,component,Frontend/src/components/messenger/AiQuotaNotice.tsx,(เดิม F28)
+OUT,-,component,Frontend/src/functions/aiQuota.ts,(เดิม F28) FE helper
+OUT,-,component,Frontend/src/functions/businessLimits.ts,(เดิม F28/F33) FE helper
+OUT,-,component,Frontend/src/functions/subscriptionContract.ts,(เดิม F28) FE helper
+OUT,-,component,Frontend/src/functions/subscriptionFeatures.ts,(เดิม F28) FE helper
+OUT,-,component,Frontend/src/functions/subscriptionPresentation.ts,(เดิม F28) FE helper
+OUT,-,component,Frontend/src/hooks/useAccountBilling.ts,(เดิม F28/F29) FE hook
+OUT,-,component,Frontend/src/hooks/useSubscriptionFeatures.ts,(เดิม F28) FE hook
+OUT,-,component,Frontend/src/locales/th/plans.json,(เดิม F28/F29) i18n namespace 'plans' (en คู่กันที่ locales/en/plans.json)
+OUT,-,function,Backend/functions/BillingDemoControl,(เดิม F29) demo clock สำหรับ billing runner (scoped หนึ่ง account) | entry src/index.mjs
+OUT,-,function,Backend/functions/BillingRunner,(เดิม F29) scheduled renewal/grace/reconcile | entry src/index.mjs
+OUT,-,function,Backend/functions/CreateBillingCheckout,(เดิม F29) Omise checkout (test mode) | entry src/index.mjs
+OUT,-,function,Backend/functions/GetPaymentConfig,(เดิม F29) Omise public key สำหรับ checkout | entry src/index.mjs
+OUT,-,function,Backend/functions/OmiseWebhook,(เดิม F29) Omise webhook verify + fulfillment | entry src/index.mjs
+OUT,-,function,Backend/functions/ReferralCodes,(เดิม F29) referral codes redeem | entry src/index.mjs
+OUT,-,function,Backend/functions/RetryBillingPayment,(เดิม F29) retry invoice payment | entry src/index.mjs
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/account-details.mjs,(เดิม F29) invoice account details
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/account-lock.mjs,(เดิม F29) checkout lock
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/business-suspension.mjs,(เดิม F29) suspend business เมื่อไม่จ่าย
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/checkout.mjs,(เดิม F29) checkout
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/fulfillment.mjs,(เดิม F29) payment -> entitlement fulfillment
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/invoices.mjs,(เดิม F29) invoices
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/notify.mjs,(เดิม F29) billing notifications
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/omise-client.mjs,(เดิม F29) Omise client (test mode)
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/omise-webhook.mjs,(เดิม F29) Omise webhook verify
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/plan-replacement.mjs,(เดิม F29/F33) plan replacement
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/runner.mjs,(เดิม F29) renewal/grace runner
+OUT,-,sql,Database/billing.sql,"(เดิม F29) tables: billing_invoice_items, billing_invoices, billing_payment_attempts, billing_webhook_events"
+OUT,-,sql,Database/referralcodes.sql,"(เดิม F29) tables: referral_code_redemptions, referral_codes"
+OUT,-,page,Frontend/src/pages/AdminPlanReplacements.tsx,(เดิม F29/F33) /plans
+OUT,-,page,Frontend/src/pages/BillingReturn.tsx,(เดิม F29) /billing/return
+OUT,-,page,Frontend/src/pages/businessdetail_pages/AccountDetails.tsx,(เดิม F29) invoice/payer details (primary only)
+OUT,-,component,Frontend/src/components/billing/billingVisualStyles.ts,(เดิม F29)
+OUT,-,component,Frontend/src/components/modal/AccountSettingsPanels.tsx,(เดิม F29/F32)
+OUT,-,component,Frontend/src/components/modal/BillingCheckoutModal.tsx,(เดิม F29)
+OUT,-,component,Frontend/src/components/payment/PromptPayInvoice.tsx,(เดิม F29) billing invoice QR
+OUT,-,component,Frontend/src/components/referral/RedeemReferralCode.tsx,(เดิม F29)
+OUT,-,component,Frontend/src/components/referral/ReferralCodeAdmin.tsx,(เดิม F29/F33)
+OUT,-,component,Frontend/src/functions/billingPayload.ts,(เดิม F29) FE helper
+OUT,-,component,Frontend/src/functions/invoiceRetry.ts,(เดิม F29) FE helper
+OUT,-,component,Frontend/src/functions/omise.ts,(เดิม F29) FE helper
+OUT,-,component,Frontend/src/functions/planReplacements.ts,(เดิม F29) FE helper
+OUT,-,component,Frontend/src/functions/referralContract.ts,(เดิม F29) FE helper
+OUT,-,component,Frontend/src/hooks/useBillingStatusSocket.ts,(เดิม F29) FE hook
+OUT,-,component,Frontend/src/hooks/useRenewSubscription.ts,(เดิม F29) FE hook
+OUT,-,component,Frontend/src/locales/th/referral.json,(เดิม F29) i18n namespace 'referral' (en คู่กันที่ locales/en/referral.json)
+F30,voice,doc,Backend/services/VoiceGateway/VOICE_FEATURE_FLAGS.md,voice feature flags
+F30,voice,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F30,voice,function,Backend/functions/Orchestrator/src/commerce/voice-checkout.mjs,voice checkout
+F30,voice,function,Backend/functions/Orchestrator/src/realtime-tools.mjs,voice path ของ agent
+F30,voice,function,Backend/functions/Orchestrator/src/spoken-price.mjs,voice path ของ agent
+F30,voice,function,Backend/functions/Orchestrator/src/voice-call-intent.mjs,voice path ของ agent
+F30,voice,function,Backend/functions/Orchestrator/src/voice-output.mjs,voice path ของ agent
+F30,voice,function,Backend/functions/Orchestrator/src/voice-prompt.mjs,voice path ของ agent
+F30,voice,function,Backend/functions/Orchestrator/src/voice-response.mjs,voice path ของ agent
+F30,voice,function,Backend/functions/VoiceMinutes,voice balance/switch/grant | entry src/index.mjs
+F30,voice,service,Backend/services/VoiceGateway/,realtime voice gateway (หลาย provider) -> OpenAI realtime; เรียก agent เดียวกับ F10
+F30,voice,layer,Backend/layers/nodejs-utils/nodejs/voice-minutes.mjs,voice minute ledger
+F30,voice,sql,Database/accountvoiceminuteledger.sql,tables: account_voice_minute_ledger
+F30,voice,sql,Database/voicesessions.sql,"tables: voice_sessions, voice_tool_calls"
+F30,voice,page,Frontend/src/pages/CustomerCall.tsx,/call/:businessId public voice call
+F30,voice,page,Frontend/src/pages/DemoVoice.tsx,/demo/voice
+F30,voice,page,Frontend/src/pages/LineCallCallback.tsx,/call/line-callback LINE Login
+F30,voice,component,Frontend/src/components/voice/BookingCard.tsx,
+F30,voice,component,Frontend/src/components/voice/CompanionCards.tsx,
+F30,voice,component,Frontend/src/components/voice/VoiceCallPane.tsx,
+F30,voice,component,Frontend/src/components/voice/voiceInk.ts,
+F30,voice,component,Frontend/src/components/voice/VoiceMinuteGrant.tsx,
+F30,voice,component,Frontend/src/components/voice/VoiceOutputButton.tsx,
+F30,voice,component,Frontend/src/components/voice/VoiceSettingCard.tsx,
+F30,voice,component,Frontend/src/components/voice/VoiceThreadBubble.tsx,
+F30,voice,component,Frontend/src/functions/assistantVoice.ts,FE helper
+F30,voice,component,Frontend/src/functions/lineLogin.ts,FE helper
+F30,voice,component,Frontend/src/functions/mockLineCustomer.ts,FE helper
+F30,voice,component,Frontend/src/functions/voiceAudio.ts,FE helper
+F30,voice,component,Frontend/src/functions/voiceEcho.ts,FE helper
+F30,voice,component,Frontend/src/functions/voiceFeatures.ts,FE helper
+F30,voice,component,Frontend/src/functions/voiceGatewayTarget.ts,FE helper
+F30,voice,component,Frontend/src/functions/voiceImage.ts,FE helper
+F30,voice,component,Frontend/src/functions/voiceOutput.ts,FE helper
+F30,voice,component,Frontend/src/functions/voicePlaybackStream.ts,FE helper
+F30,voice,component,Frontend/src/functions/voiceThread.ts,FE helper
+F30,voice,component,Frontend/src/hooks/useVoiceAvailability.ts,FE hook
+F30,voice,component,Frontend/src/hooks/useVoiceCall.ts,FE hook
+F31,notifications,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F31,notifications,function,Backend/functions/DispatchWebPush,ส่ง web push | entry src/index.mjs
+F31,notifications,function,Backend/functions/GetNotifications,bell list | entry src/index.mjs
+F31,notifications,function,Backend/functions/ManagePush,push subscription CRUD | entry src/index.mjs
+F31,notifications,function,Backend/functions/MarkNotificationsRead,mark read | entry src/index.mjs
+F31,notifications,layer,Backend/layers/nodejs-utils/nodejs/notification-access.mjs,who sees which notification (owned-only)
+F31,notifications,layer,Backend/layers/nodejs-utils/nodejs/notifications.mjs,notify()
+F31,notifications,layer,Backend/layers/nodejs-utils/nodejs/web-push-transport.mjs,web push transport
+F31,notifications,layer,Backend/layers/nodejs-utils/nodejs/web-push.mjs,web push
+F31,notifications,sql,Database/notifications.sql,tables: notifications
+F31,notifications,sql,Database/push_subscriptions.sql,tables: push_subscriptions
+F31,notifications,component,Frontend/src/components/notification/,ทั้งโฟลเดอร์
+F31,notifications,component,Frontend/src/functions/notificationContract.ts,FE helper
+F31,notifications,component,Frontend/src/functions/notificationCopy.ts,FE helper
+F31,notifications,component,Frontend/src/functions/webPush.ts,FE helper
+F31,notifications,component,Frontend/src/hooks/useNotifications.ts,FE hook
+F31,notifications,component,Frontend/src/layout/NotificationPanel.tsx,bell panel
+F31,notifications,component,Frontend/src/locales/th/notification.json,i18n namespace 'notification' (en คู่กันที่ locales/en/notification.json)
+OUT,-,doc,Backend/tests/help-assistant-eval/README.md,(เดิม F32) help assistant eval cases
+OUT,-,function,Backend/functions/AnswerReports,(เดิม F32) merchant แจ้งคำตอบผิด + staff reply | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/Feedback,(เดิม F32) merchant feedback + screenshot | entry src/index.mjs
+OUT,-,function,Backend/functions/HelpAssistant,(เดิม F32) help copilot (RAG ของ help content) | entry src/index.mjs
+OUT,-,function,Backend/functions/SupportConversations,(เดิม F32) support chat history | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/SupportRetention,(เดิม F32/F34) scheduled: support data retention | entry src/index.mjs
+OUT,-,sql,Database/answerreports.sql,"(เดิม F32) tables: answer_report_replies, answer_reports"
+OUT,-,sql,Database/supportconversations.sql,"(เดิม F32) tables: support_conversations, support_messages"
+OUT,-,sql,Database/supportfeedback.sql,(เดิม F32) tables: support_feedback
+OUT,-,page,Frontend/src/pages/AdminFeedback.tsx,(เดิม F32/F33) /feedback-inbox
+OUT,-,component,Frontend/src/components/answerReport/,(เดิม F32) ทั้งโฟลเดอร์
+OUT,-,component,Frontend/src/components/help/,(เดิม F32) ทั้งโฟลเดอร์
+OUT,-,component,Frontend/src/components/support/AnswerReportsAdmin.tsx,(เดิม F32/F33)
+OUT,-,component,Frontend/src/components/support/ContactUsPanel.tsx,(เดิม F32)
+OUT,-,component,Frontend/src/components/support/FeedbackAdmin.tsx,(เดิม F32)
+OUT,-,component,Frontend/src/components/support/FeedbackAttachments.tsx,(เดิม F32)
+OUT,-,component,Frontend/src/components/support/FeedbackPanel.tsx,(เดิม F32)
+OUT,-,component,Frontend/src/contexts/CopilotContext.tsx,(เดิม F32) FE context
+OUT,-,component,Frontend/src/contexts/copilotState.ts,(เดิม F32) FE context
+OUT,-,component,Frontend/src/functions/answerReportReplyTemplates.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/functions/answerReports.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/functions/copilotActions.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/functions/feedbackContract.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/functions/helpAssistant.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/functions/helpBot.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/functions/helpCollections.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/functions/helpMarkdown.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/functions/supportContact.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/functions/supportHistory.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/functions/useSupportHistory.ts,(เดิม F32) FE helper
+OUT,-,component,Frontend/src/locales/th/help.json,(เดิม F32) i18n namespace 'help' (en คู่กันที่ locales/en/help.json)
+OUT,-,component,Frontend/src/locales/th/support.json,(เดิม F32) i18n namespace 'support' (en คู่กันที่ locales/en/support.json)
+OUT,-,function,Backend/functions/AdminAccounts,"(เดิม F33) admin accounts/businesses: status, grants, limits, persona limit | entry src/index.mjs"
+OUT,-,function,Backend/functions/GetAccountList,(เดิม F33) business list (admin: ทั้งหมด) | entry src/index.mjs
+OUT,-,function,Backend/functions/GetAccountUsage,(เดิม F33) usage/cost ต่อ account | entry src/index.mjs; README.md
+OUT,-,function,Backend/functions/GetPlatformUsage,(เดิม F33) admin platform dashboard topics | entry src/index.mjs
+OUT,-,function,Backend/functions/GetUserList,(เดิม F33) users list | entry src/index.mjs
+OUT,-,function,Backend/functions/UpdateBusinessStatus,(เดิม F33) pause/block/delete business + channel teardown | entry src/index.mjs
+OUT,-,function,Backend/functions/UpdateUserStatus,(เดิม F33) disable/enable user | entry src/index.mjs
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/account-cascade.mjs,(เดิม F33) account status -> businesses cascade
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/channel-teardown.mjs,(เดิม F33) disconnect ทุก channel ของ business
+OUT,-,page,Frontend/src/pages/AdminAccounts.tsx,(เดิม F33) /accounts
+OUT,-,page,Frontend/src/pages/AdminAccountUsage.tsx,"(เดิม F33) /usage, /usage/:accountId"
+OUT,-,page,Frontend/src/pages/DemoChatBusinessList.tsx,(เดิม F33) admin overview ของ /chat/setting
+OUT,-,page,Frontend/src/pages/Home.tsx,(เดิม F33) / merchant dashboard; admin = platform dashboard
+OUT,-,component,Frontend/src/components/admin/AccountDetailPanel.tsx,(เดิม F33)
+OUT,-,component,Frontend/src/components/dashboard/platform/AttentionTopic.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/CostTopic.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/CoverageTopic.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/CustomersTopic.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/DeliveryTopic.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/DrillModal.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/HandoffTopic.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/kit.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/OverviewTopic.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/QualityTopic.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/TrendCharts.tsx,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/platform/types.ts,(เดิม F33) admin dashboard topics
+OUT,-,component,Frontend/src/components/dashboard/PlatformDashboard.tsx,(เดิม F33)
+OUT,-,component,Frontend/src/components/dashboard/PlatformUsagePanel.tsx,(เดิม F33)
+OUT,-,component,Frontend/src/components/voice/VoiceMinuteGrant.tsx,(เดิม F33)
+OUT,-,component,Frontend/src/functions/adminBusinessMembers.ts,(เดิม F33) FE helper
+OUT,-,component,Frontend/src/functions/adminBusinessOwner.ts,(เดิม F33) FE helper
+OUT,-,component,Frontend/src/functions/adminBusinessScope.ts,(เดิม F33) FE helper
+OUT,-,component,Frontend/src/functions/adminBusinessSelection.ts,(เดิม F33) FE helper
+OUT,-,component,Frontend/src/functions/demoBusinessScope.ts,(เดิม F33) FE helper
+OUT,-,component,Frontend/src/functions/platformAdmin.ts,(เดิม F33) FE helper
+OUT,-,component,Frontend/src/functions/platformAdminSections.ts,(เดิม F33) FE helper
+OUT,-,component,Frontend/src/functions/platformUsagePresentation.ts,(เดิม F33) FE helper
+OUT,-,component,Frontend/src/hooks/useAdminBusinessOwner.ts,(เดิม F33) FE hook
+OUT,-,component,Frontend/src/hooks/useAdminBusinessSelection.ts,(เดิม F33) FE hook
+OUT,-,component,Frontend/src/hooks/useAdminBusinessSwitch.ts,(เดิม F33) FE hook
+OUT,-,component,Frontend/src/layout/AdminBusinessScope.tsx,(เดิม F33) admin business scope
+OUT,-,component,Frontend/src/layout/AdminBusinessSwitcher.tsx,(เดิม F33) admin switcher
+OUT,-,component,Frontend/src/layout/AdminHeaderBusinessSwitcher.tsx,(เดิม F33) admin switcher
+OUT,-,component,Frontend/src/locales/th/adminDashboard.json,(เดิม F33) i18n namespace 'adminDashboard' (en คู่กันที่ locales/en/adminDashboard.json)
+OUT,-,component,Frontend/src/locales/th/usage.json,(เดิม F33) i18n namespace 'usage' (en คู่กันที่ locales/en/usage.json)
+OUT,-,function,Backend/functions/DeleteAccount,(เดิม F34) account soft delete + channel teardown | entry src/index.mjs
+OUT,-,function,Backend/functions/LegalAcceptance,(เดิม F34) accept versioned terms/privacy | entry src/index.mjs
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/billing/account-deletion.mjs,(เดิม F34) account deletion billing rules
+OUT,-,layer,Backend/layers/nodejs-utils/nodejs/legal-acceptance.mjs,(เดิม F34) legal gate
+OUT,-,sql,Database/user_document_acceptance.sql,(เดิม F34) tables: user_document_acceptance
+OUT,-,page,Frontend/src/pages/LegalDocument.tsx,(เดิม F34) /terms /privacy /data-deletion
+OUT,-,component,Frontend/src/components/AnalyticsBridge.tsx,(เดิม F34) Clarity analytics bridge (ตาม consent)
+OUT,-,component,Frontend/src/components/MaskAudit.tsx,(เดิม F34) Clarity masking audit
+OUT,-,component,Frontend/src/components/modal/LegalConsentModal.tsx,(เดิม F34)
+OUT,-,component,Frontend/src/functions/analytics.ts,(เดิม F34) FE helper
+OUT,-,component,Frontend/src/functions/analyticsConsent.ts,(เดิม F34) FE helper
+OUT,-,component,Frontend/src/functions/legalAcceptanceApi.ts,(เดิม F34) FE helper
+OUT,-,component,Frontend/src/functions/legalDocuments.ts,(เดิม F34) FE helper
+F35,core/jobs,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+F35,core/jobs,function,Backend/functions/ChatOutboxDispatch,"outbox recovery (lease 10 นาที, 25 jobs/รอบ) -> pattern ของ jobs/outbox | entry src/index.mjs; README.md"
+F35,core/jobs,function,Backend/functions/CommerceJobRunner,job types sales_followup/sheet_sync/reply_postprocess/conversation_summary (lease pattern) | entry src/index.mjs
+F35,core/jobs,function,Backend/functions/SheetBot,auxiliary: sync API catalog -> Google Sheet; low priority | entry src/index.mjs; README.md
+DROP,-,function,Backend/functions/SrsBot,"ops bot; folder has committed credential-like files, deleted from papi-ref"
+F35,core/jobs,layer,Backend/layers/nodejs-utils/nodejs/channel-delivery.mjs,delivery checkpoint ต่อ provider request (redelivery ไม่ส่งซ้ำ)
+F35,core/jobs,layer,Backend/layers/nodejs-utils/nodejs/chat-outbox.mjs,chat outbox
+F35,core/jobs,layer,Backend/layers/nodejs-utils/nodejs/inbound-enqueue.mjs,durable receipt แล้ว enqueue -> jobs.enqueue()
+F35,core/jobs,layer,Backend/layers/nodejs-utils/nodejs/job-limits.mjs,job limits
+F35,core/jobs,layer,Backend/layers/nodejs-utils/nodejs/log-redaction.mjs,redacted logs
+F35,core/jobs,layer,Backend/layers/nodejs-utils/nodejs/upload-limits.mjs,upload limits
+F35,core/jobs,sql,Database/channeldelivery.sql,"tables: channel_delivery_progress, chat_outbox"
+F35,core/jobs,sql,Database/chatinboundreceipts.sql,tables: chat_inbound_receipts; inbound dedup
+F35,core/jobs,sql,Database/commercejobs.sql,tables: commerce_jobs; job types sales_followup/sheet_sync/reply_postprocess/conversation_summary
+F36,release,doc,Backend/tests/e2e/,Jest e2e ที่ยิง AWS จริง: ใช้เป็นรายการ scenario เท่านั้น ห้ามรัน
+F36,release,doc,AGENTS.md,git-ignored ใน Papi: copy เข้า papi-ref ด้วยมือ; แผนที่ระบบทั้งหมด อ่านก่อนทุกฟีเจอร์
+DROP,-,doc,Backend/scripts/,PowerShell deploy/alarm tooling ของ AWS
+DROP,-,function,Backend/functions/BusinessContactChannelsMigration,one-off Migration Lambda; schema อยู่ใน Database/*.sql | entry src/index.mjs
+DROP,-,function,Backend/functions/CustomerTagAutomationMigration,one-off Migration Lambda | entry src/index.mjs
+DROP,-,function,Backend/functions/CustomerTagDescriptionMigration,one-off Migration Lambda | entry src/index.mjs
+DROP,-,function,Backend/functions/DailyHealthReport,ops report -> LINE 08:00; ไม่ใช่พฤติกรรมสินค้า | entry src/index.mjs; README.md
+DROP,-,function,Backend/functions/Database,SQL runner Lambda -> แทนด้วย migration runner ของ F01 | entry src/index.mjs
+DROP,-,function,Backend/functions/DlqAutoRedrive,SQS DLQ redrive -> F35 jobs retry/dead state แทน | entry src/index.mjs; README.md
+DROP,-,function,Backend/functions/EscalationScenarioMigration,one-off Migration Lambda | entry src/index.mjs
+DROP,-,function,Backend/functions/FormatAlarmEmail,CloudWatch alarm email formatter | entry src/index.mjs; README.md
+DROP,-,function,Backend/functions/InboundFederationAttributeNormalizer,Cognito Google federation trigger; Google sign-in = OUT | entry src/index.mjs
+DROP,-,function,Backend/functions/LegalAcceptanceMigration,one-off Migration Lambda | entry src/index.mjs
+DROP,-,function,Backend/functions/LineBroadcastMigration,one-off Migration Lambda | entry src/index.mjs
+DROP,-,function,Backend/functions/LineHistoryImportMigration,one-off Migration Lambda | entry src/index.mjs; README.md
+DROP,-,function,Backend/functions/NestTestPipeline,CI/test pipeline Lambda | entry src/index.mjs
+DROP,-,function,Backend/functions/OpsLineAlert,CloudWatch alarm -> LINE ops alert | entry src/index.mjs; README.md
+DROP,-,function,Backend/functions/Outgoing,generic SQS fallback consumer; logic ซ้ำกับ OutgoingLine/OutgoingMessenger -> sendToCustomer registry | entry src/index.mjs
+DROP,-,function,Backend/functions/PreSignUpIntentGate,Cognito pre-signup trigger; กฎ intent อยู่ที่ layer registration-intents.mjs -> F02 | entry src/index.mjs
+DROP,-,function,Backend/functions/WebsocketConnect,APIGW WebSocket $connect; auth handshake -> core WebSocket (ดู websocket-authorization.mjs) | entry src/index.mjs
+DROP,-,function,Backend/functions/WebsocketDisconnect,APIGW WebSocket $disconnect | entry src/index.mjs
+DROP,-,layer,Backend/layers/external/,"npm layer packaging (pg, aws-jwt-verify, validator, rag-reranker) -> ติดตั้งใน package.json ตอน C1 setup"
+DROP,-,layer,Backend/layers/nodejs-utils/nodejs/certs/,RDS CA bundle ของ AWS
+DROP,-,layer,Backend/layers/nodejs-utils/nodejs/outgoing-batch.mjs,SQS batch lifecycle ของ Outgoing workers
+DROP,-,layer,Backend/layers/nodejs-utils/nodejs/pending-ingress.mjs,signed envelope ข้าม SQS; process เดียวไม่ต้องใช้
+DROP,-,layer,Backend/layers/nodejs-utils/nodejs/upload-scan.mjs,GuardDuty malware scan (AWS)
+DROP,-,sql,Backend/functions/Orchestrator/migrations/2026-09-29-provider-health.sql,llm provider health (หลาย provider) ไม่ใช้
+DROP,-,sql,Database/llmproviderhealth.sql,tables: llm_provider_health; multi-provider health; ใช้ provider เดียว
+DROP,-,sql,Database/migrations/,307 migration ประวัติ; ระบบใหม่เขียน migrations ต่อฟีเจอร์จาก root *.sql
+DROP,-,sql,Database/pgaudit.sql,pgaudit extension (infra)
+DROP,-,page,Frontend/src/pages/TestBackend.tsx,/testapi dev tool
+DROP,-,page,Frontend/src/pages/UiGallery.tsx,/ui dev-only gallery
+DROP,-,component,Frontend/src/data/,mock data
+DROP,-,doc,Frontend/pipeline-local/,สคริปต์ deploy frontend บนเครื่อง (tooling)
+OUT,-,doc,docs/tutorial_web/,internal Lambda docs site (คู่กับ GetDocsAccess); อธิบายสถาปัตยกรรมเก่า
+OUT,-,function,Backend/functions/GetDocsAccess,CloudFront cookie ของ internal docs site; ไม่มีความหมายในสถาปัตยกรรมใหม่ | entry src/index.mjs; README.md
+OUT,-,page,Frontend/src/pages/AuthCallback.tsx,/callback Google sign-in; PLAN ใช้ email+password
+OUT,-,page,Frontend/src/pages/TeamWorkflowPreview.tsx,"static preview (team-workflows.html), browser-local sample data"
+OUT,-,component,Frontend/src/components/nav/DocsLink.tsx,ลิงก์ internal docs site
+OUT,-,component,Frontend/src/functions/federatedAuth.ts,FE helper: Google sign-in
+OUT,-,component,Frontend/src/functions/internalDocs.ts,FE helper: docs site / browser-local preview
+OUT,-,component,Frontend/src/functions/staffWorkflowTrial.ts,FE helper: docs site / browser-local preview
+OUT,-,component,Frontend/src/functions/teamWorkflowPermissions.ts,FE helper: docs site / browser-local preview
+OUT,-,component,Frontend/src/functions/teamWorkflowStore.ts,FE helper: docs site / browser-local preview
+OUT,-,component,Frontend/src/layout/DocsMenu.tsx,internal docs menu

@@ -1,0 +1,19 @@
+{
+    "competitionRepo":  "tanagornf/Endless-Hackathon",
+    "boardIssue":  1,
+    "lead":  "A",
+    "people":  {
+                   "A":  {
+                             "name":  "Wattanun Teeratanapong",
+                             "login":  "Ikkyuuuu"
+                         },
+                   "B":  {
+                             "name":  "Ratha Rotruchiphong (Tart)",
+                             "login":  "RathaTart"
+                         },
+                   "C":  {
+                             "name":  "Tanagorn Fukuhara",
+                             "login":  "tanagornf"
+                         }
+               }
+}

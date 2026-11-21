@@ -1,0 +1,50 @@
+# Copy to %USERPROFILE%\.codex\rules\default.rules, then restart the ChatGPT app (rules load at startup).
+# Starlark, prefix_rule() per learn.chatgpt.com/docs/agent-configuration/rules (checked 20 Nov 2026). decision "allow" = the command
+# runs OUTSIDE the sandbox without a prompt (this also avoids the linked-worktree "index.lock: Permission denied" bug, GH#32880).
+# Rules match an exact command PREFIX: "git -C <dir> status" does NOT match ["git","status"]. Agents run git from the worktree root.
+# When several rules match, the most restrictive wins (forbidden > prompt > allow), so the prompt rules below beat the allow rules.
+# UNCONFIRMED (verify tonight): the app applies this file (not only the CLI). Test: in a lane chat run "git status" and
+#   "git commit --allow-empty -m probe" in the worktree: no approval prompt = rules work. Check the syntax with:
+#   codex execpolicy check --pretty --rules %USERPROFILE%\.codex\rules\default.rules git push origin HEAD
+
+prefix_rule(
+    pattern = ["git", ["add", "commit", "fetch", "rebase", "push", "worktree", "switch", "checkout", "status", "diff", "log"]],
+    decision = "allow",
+    justification = "Lane git workflow runs outside the sandbox",
+    match = ["git status", "git fetch origin", "git switch -c lane/A1/inbox origin/main", "git checkout --detach origin/main", "git push -u origin HEAD", "git rebase origin/main", "git worktree list"],
+    not_match = ["git -C ../nless-a1 status", "git reset --hard"],
+)
+
+prefix_rule(
+    pattern = ["gh", ["pr", "run"]],
+    decision = "allow",
+    justification = "PRs and CI runs of the lane workflow",
+    match = ["gh pr create --base main --fill", "gh pr merge --squash --delete-branch", "gh run list", "gh run view 123 --log-failed"],
+    not_match = ["gh issue create", "gh auth logout"],
+)
+
+# Team board and local alert: gh keeps its token in the Windows keyring, which a sandboxed command may not reach, and a
+# failed post looks like "gh is not signed in". These two scripts of the repo therefore run outside the sandbox.
+# The rule matches only this exact way of calling them (the one every prompt uses), from the worktree root.
+prefix_rule(
+    pattern = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ["tools/team-board.ps1", "tools\\team-board.ps1", "tools/alert.ps1", "tools\\alert.ps1"]],
+    decision = "allow",
+    justification = "Team board posts and the local alert need gh credentials, the network and the sound device",
+    match = ["powershell -NoProfile -ExecutionPolicy Bypass -File tools/team-board.ps1 read", "powershell -NoProfile -ExecutionPolicy Bypass -File tools/team-board.ps1 post -MessageFile handoff/F09-done.txt -PostId F09-done", "powershell -NoProfile -ExecutionPolicy Bypass -File tools/alert.ps1 -Test"],
+    not_match = ["powershell -NoProfile -Command Remove-Item x", "powershell -NoProfile -ExecutionPolicy Bypass -File tools/other.ps1"],
+)
+
+# Never without a human look.
+prefix_rule(
+    pattern = ["git", "push", ["--force", "-f", "--force-with-lease", "--delete", "-d"]],
+    decision = "prompt",
+    justification = "Force-push or branch delete: ask the human",
+    match = ["git push --force origin HEAD", "git push -f origin HEAD"],
+)
+
+prefix_rule(
+    pattern = ["git", "reset", "--hard"],
+    decision = "prompt",
+    justification = "Throws away work: ask the human",
+    match = ["git reset --hard origin/main"],
+)

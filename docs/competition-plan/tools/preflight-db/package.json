@@ -1,0 +1,9 @@
+{
+  "name": "nless-preflight-db",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Readiness probe for the hackathon PC: CREATE DATABASE, CREATE EXTENSION vector, cosine distance, DROP. Used by ../preflight.ps1.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "dependencies": { "pg": "8.23.1" }
+}

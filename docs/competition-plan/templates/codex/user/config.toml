@@ -1,0 +1,57 @@
+# Per-person USER config: copy to %USERPROFILE%\.codex\config.toml (merge by hand if the file already has [projects] entries
+# or login settings). Replace REPLACE_ROOT (folder that holds the worktrees, no trailing slash) and the person letter <p> (a|b|c).
+# Keys below were checked against the Codex configuration reference on 20 Nov 2026 (learn.chatgpt.com/docs/config-file/config-reference).
+# UNCONFIRMED (verify tonight, see README): that the ChatGPT desktop app reads this file for its default model/effort
+#   (the composer pickers may override it), and that [projects.'<path>'] trust entries make the app trust a worktree without a click
+#   (the reference lists the key projects.<path>.trust_level but shows no quoted-path example).
+
+model = "gpt-6.2-sol"
+# Default effort for new chats. D3: orchestrator = high, worker = medium, mechanical = low: set it per chat in the composer.
+model_reasoning_effort = "medium"
+approvals_reviewer = "auto_review"
+sandbox_mode = "workspace-write"
+# Our AGENTS.md is about 30 KB; the default combined limit is 32 KiB, so raise it.
+project_doc_max_bytes = 65536
+
+[sandbox_workspace_write]
+network_access = true
+
+[agents]
+max_concurrent_threads_per_session = 4
+default_subagent_model = "gpt-6.2-sol"
+default_subagent_reasoning_effort = "low"
+
+# ---- MCP servers (README.md § MCP; chatgpt-app-setup.md §9) ----
+# Every person signs in with THEIR OWN account through OAuth (`codex mcp login <name>` opens the browser). No Render or Neon
+# password, API key or connection string goes into this file, the board, a chat or git, and nobody shares an account.
+# UNCONFIRMED (verify tonight, README): the keys below come from the Codex config reference (mcp_servers.<id>.url / enabled_tools).
+
+# Neon, EVERY PC: read-only and scoped to this person's own dev project nless-hack-<A|B|C> (Neon: never point MCP at production;
+# our production DB is on Render, so it is never reachable here). Creating databases and migrations stay with npm run db:create /
+# the migration runner, never the MCP. Replace REPLACE_NEON_PROJECT_ID (Neon console → project → Settings → Project ID).
+[mcp_servers.neon]
+url = "https://mcp.neon.tech/mcp?readonly=true&projectId=REPLACE_NEON_PROJECT_ID"
+
+# Render, C's PC ONLY (C owns the Render workspace; a free Hobby workspace has one member). Do not copy this block on A's and B's PCs.
+# Render's MCP has no read-only mode, and update_environment_variables replaces a service's WHOLE env list, so only read tools are
+# allowed: deploy status, logs, metrics, read-only SQL. Creating services, env changes, deploys and rollbacks stay with C in the
+# dashboard (deployment.md). Add it with the command below (it writes [mcp_servers.render] with Render's OAuth client), then paste
+# the enabled_tools line under that header:
+#   codex mcp add render --url https://mcp.render.com/mcp --oauth-client-id codex
+#
+# [mcp_servers.render]
+# enabled_tools = ["list_workspaces", "select_workspace", "get_selected_workspace", "list_services", "get_service", "list_deploys", "get_deploy", "list_events", "list_logs", "list_log_label_values", "get_metrics", "list_postgres_instances", "get_postgres", "query_render_postgres"]
+
+# Fallback trust for the 4 worktrees of this person (D14): use it only if the app's "Trust project" click does not stick.
+# Literal strings (single quotes): backslashes are not escapes.
+[projects.'REPLACE_ROOT\nless-<p>0']
+trust_level = "trusted"
+
+[projects.'REPLACE_ROOT\nless-<p>1']
+trust_level = "trusted"
+
+[projects.'REPLACE_ROOT\nless-<p>2']
+trust_level = "trusted"
+
+[projects.'REPLACE_ROOT\nless-<p>3']
+trust_level = "trusted"
