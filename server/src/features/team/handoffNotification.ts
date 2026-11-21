@@ -16,7 +16,7 @@ const titles: Record<string, { th: string; en: string }> = {
 };
 const defaultTitle = { th: 'แชตรอให้พนักงานรับช่วง', en: 'A conversation needs a team member' };
 
-export async function prepareHandoffNotification(row: NotificationTarget, reason: string): Promise<NotifyInput> {
+export async function prepareHandoffNotification(row: NotificationTarget, reason: string): Promise<NotifyInput & { dedupKey: string }> {
   const { getBusinessSettings } = await import('../business-settings/service');
   const [settings, customer] = await Promise.all([
     getBusinessSettings(row.businessId),
