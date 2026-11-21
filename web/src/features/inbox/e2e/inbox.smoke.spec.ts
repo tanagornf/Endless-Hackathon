@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import type { ApiResult } from '@nless/shared/core/types';
-import type { DemoChatSendResult } from '@nless/shared/features/inbox/types';
+import type { ConversationDetail, DemoChatSendResult } from '@nless/shared/features/inbox/types';
 import { e2eMarker, expect, setUiLanguage, test } from '../../../../../tests/e2e/fixtures';
 
 test.use({ trace: 'off', screenshot: 'off' });
@@ -37,7 +37,18 @@ test('public demo chat on a phone survives reload and reaches the correct staff 
     await expect(bubbles(page, 'customer').filter({ hasText: text })).toHaveCount(1);
     await expect(bubbles(page, 'ai').filter({ hasText: /1,490/ })).toBeVisible();
 
+    const detail = await ownerPage.request.get('/api/v1/conversations/' + data.conversationId);
+    expect(detail.ok()).toBe(true);
+    const thread = await detail.json() as ApiResult<ConversationDetail>;
+    const visitorName = thread.data.conversation.customer.displayName;
+    expect(visitorName).toBeTruthy();
     await ownerPage.goto('/chat');
+    const filtered = ownerPage.waitForResponse((reply) => {
+      const url = new URL(reply.url());
+      return url.pathname.endsWith('/conversations') && url.searchParams.get('search') === visitorName;
+    });
+    await ownerPage.getByRole('textbox', { name: /ค้นหาแชต|Search conversations/ }).fill(visitorName);
+    expect((await filtered).ok()).toBe(true);
     const row = ownerPage.locator('[data-conversation-id="' + data.conversationId + '"]');
     await expect(row).toBeVisible();
     await row.click();
