@@ -45,3 +45,9 @@
 - Local typecheck and 22 focused tests passed across six files. Production verification and operator review and resend controls are pending.
 - Review extended atomic reconciliation to ordinary dead-job settlement and claims expiring before dispatch. An ambiguous LINE retry stays unknown unless a later provider acknowledgement resolves it.
 - Recording the pending message and enqueueing its delivery now share a transaction. New tests exercise both dead-job paths and an enqueue rollback followed by an idempotent retry.
+
+### F01 public product web search
+
+- Ten focused tests passed for keyword validation, completed search detection, citation filtering and fake usage attribution. Typecheck and lane path checks passed.
+- A real `app-dev` OpenAI request through `model.searchWeb` returned one cited result for a public headphone specification query in 8.78 seconds. The usage write was captured in memory and estimated $0.031556 in model and tool charges.
+- Native C1 review and the F10 integration and production smoke are pending.
