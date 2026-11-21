@@ -19,7 +19,8 @@
     "loadMore": "Load more",
     "reload": "Load latest version",
     "back": "Back to knowledge",
-    "leave": "Leave page"
+    "leave": "Leave page",
+    "folders": "Manage folders"
   },
   "tabs": {
     "all": "All",
@@ -30,7 +31,9 @@
     "deleted": "Deleted"
   },
   "filter": {
-    "search": "Search title or ID"
+    "search": "Search title or ID",
+    "folder": "Folder",
+    "allFolders": "All folders"
   },
   "table": {
     "title": "Title",
@@ -88,5 +91,19 @@
   "confirm": {
     "deleteTitle": "Delete this item?",
     "deleteMessage": "The AI will stop using this item. Chat history that cites it stays viewable."
+  },
+  "folders": {
+    "title": "Folders",
+    "add": "Add folder",
+    "rename": "Rename",
+    "name": "Folder name",
+    "actions": "Actions",
+    "items": "Items",
+    "empty": "No folders yet",
+    "choice": "{{name}} ({{n}})",
+    "deleteTitle": "Delete this folder?",
+    "deleteMessage": "Items in this folder will be kept without a folder.",
+    "folder_name_taken": "A folder with this name already exists.",
+    "folder_name_invalid": "Use a folder name of 1–100 characters on one line."
   }
 }

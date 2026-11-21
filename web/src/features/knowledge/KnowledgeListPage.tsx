@@ -1,4 +1,4 @@
-import { Alert, Button, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
+import { Alert, Button, MenuItem, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,8 @@ import {
   DataTable, EmptyState, PageHeader, StatusChip, formatDateTime, useApiMutation,
   useApiQuery, useCan, useRealtime, useSession, useSlot,
 } from '../../core';
+import FolderManager from './FolderManager';
+import type { FolderList } from './FolderManager';
 
 const statuses = ['all', 'draft', 'reviewed', 'active', 'inactive', 'deleted'] as const;
 type Filter = typeof statuses[number];
@@ -18,13 +20,14 @@ function KnowledgeSlot({ entry, businessId }: { entry: SlotContribution; busines
   return <Suspense fallback={null}><Action businessId={businessId} /></Suspense>;
 }
 
-function Results({ filter, term, add }: { filter: Filter; term: string; add: React.ReactNode }) {
+function Results({ filter, term, folderId, add }: { filter: Filter; term: string; folderId: string | null; add: React.ReactNode }) {
   const { t } = useTranslation('knowledge');
   const navigate = useNavigate();
   const [cursor, setCursor] = useState<string | null>(null);
   const [rows, setRows] = useState<KnowledgeItemRow[]>([]);
   const request = new URLSearchParams();
   if (term) request.set('q', term);
+  if (folderId) request.set('folderId', folderId);
   if (filter === 'deleted') request.set('includeDeleted', 'true');
   else if (filter !== 'all') request.set('status', filter);
   if (cursor) request.set('cursor', cursor);
@@ -64,12 +67,18 @@ function Results({ filter, term, add }: { filter: Filter; term: string; add: Rea
   </Stack>;
 }
 
-export default function KnowledgeListPage() {
+function KnowledgeList({ businessId }: { businessId: string }) {
   const { t } = useTranslation('knowledge');
   const navigate = useNavigate();
-  const businessId = useSession().currentBusiness?.id;
   const canWrite = useCan('product.write');
   const slotActions = useSlot('knowledgeActions');
+  const canManageFolders = useCan('product.delete') || canWrite;
+  const folderQuery = useApiQuery<FolderList>('/knowledge/folders');
+  const [folderId, setFolderId] = useState<string | null>(null);
+  const [folderRevision, setFolderRevision] = useState(0);
+  const [folders, setFolders] = useState<FolderList>();
+  const [manageFolders, setManageFolders] = useState(false);
+  useEffect(() => { if (folderQuery.data) setFolders(folderQuery.data); }, [folderQuery.data]);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [term, setTerm] = useState('');
@@ -92,6 +101,7 @@ export default function KnowledgeListPage() {
     <PageHeader title={t('page.title')} description={t('page.subtitle')}
       actions={<Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
         {businessId && slotActions.map((entry) => <KnowledgeSlot key={entry.id} businessId={businessId} entry={entry} />)}
+        {canManageFolders && <Button onClick={() => setManageFolders((open) => !open)}>{t('actions.folders')}</Button>}
         {add}
       </Stack>} />
     <Stack spacing={2}>
@@ -99,9 +109,31 @@ export default function KnowledgeListPage() {
         aria-label={t('table.status')}>
         {statuses.map((status) => <Tab key={status} value={status} label={t('tabs.' + status)} />)}
       </Tabs>
-      <TextField label={t('filter.search')} size="small" value={query} onChange={(event) => setQuery(event.target.value)}
-        slotProps={{ htmlInput: { maxLength: 160 } }} sx={{ maxWidth: 360 }} />
-      {businessId && <Results key={JSON.stringify([businessId, filter, term])} filter={filter} term={term} add={add} />}
+
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+        <TextField label={t('filter.search')} size="small" value={query} onChange={(event) => setQuery(event.target.value)}
+          slotProps={{ htmlInput: { maxLength: 160 } }} sx={{ maxWidth: 360 }} />
+        <TextField select label={t('filter.folder')} size="small" value={folderId ?? ''}
+          onChange={(event) => setFolderId(event.target.value || null)} sx={{ minWidth: 220 }}>
+          <MenuItem value="">{t('filter.allFolders')}</MenuItem>
+          <MenuItem value="unfiled">{t('folders.choice', { name: t('table.unfiled'), n: folders?.unfiledCount ?? 0 })}</MenuItem>
+          {folders?.items.map((folder) =>
+            <MenuItem key={folder.id} value={folder.id}>{t('folders.choice', { name: folder.name, n: folder.itemCount })}</MenuItem>)}
+        </TextField>
+      </Stack>
+      {manageFolders && <FolderManager items={folders?.items ?? []} loading={folderQuery.loading || !folders}
+        failed={!!folderQuery.error} refresh={(removed) => {
+          if (removed && removed === folderId) setFolderId(null);
+          folderQuery.reload();
+          setFolderRevision((revision) => revision + 1);
+        }} />}
+      <Results key={JSON.stringify([businessId, filter, term, folderId, folderRevision])}
+        filter={filter} term={term} folderId={folderId} add={add} />
     </Stack>
   </>;
+}
+
+export default function KnowledgeListPage() {
+  const businessId = useSession().currentBusiness?.id;
+  return businessId ? <KnowledgeList key={businessId} businessId={businessId} /> : null;
 }
