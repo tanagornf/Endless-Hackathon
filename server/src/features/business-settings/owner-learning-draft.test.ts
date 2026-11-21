@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { prepareOwnerLearningDraft } from './owner-learning-draft';
 import type { OwnerLearningDraftInput, OwnerLearningDraftReceipt } from './owner-learning-draft';
-import type { KnowledgeDraftInput } from '@nless/shared/features/knowledge/types';
+import type { KnowledgeDraftInput, KnowledgeDraftResult } from '@nless/shared/features/knowledge/types';
 import { db } from '../../core';
 
 const key: OwnerLearningDraftInput = {
@@ -39,11 +39,16 @@ const valid = {
 };
 
 function ports() {
+  const createDraft = vi.fn<(input: KnowledgeDraftInput) => Promise<KnowledgeDraftResult>>()
+    .mockResolvedValue({ itemId: 'draft-1', revision: 1, created: true, warnings: [] });
   return {
     analyze: vi.fn().mockResolvedValue(valid),
     readReceipt: vi.fn().mockResolvedValue(receipt),
-    createDraft: vi.fn().mockResolvedValue({ itemId: 'draft-1', revision: 1, created: true, warnings: [] }),
-    readDraftRevision: vi.fn(),
+    createDraft,
+    readDraftRevision: vi.fn(async (_businessId: string, _itemId: string, _revision: number) => {
+      const written = createDraft.mock.calls.at(-1)?.[0];
+      return written ? { title: written.title, body: written.body } : null;
+    }),
   };
 }
 
@@ -102,7 +107,9 @@ describe('owner-reviewed learning draft', () => {
     const deps = ports();
     const read = vi.spyOn(db, 'maybeOne').mockResolvedValue(receipt);
     try {
-      await expect(prepareOwnerLearningDraft(key, { analyze: deps.analyze, createDraft: deps.createDraft }))
+      await expect(prepareOwnerLearningDraft(key, {
+        analyze: deps.analyze, createDraft: deps.createDraft, readDraftRevision: deps.readDraftRevision,
+      }))
         .resolves.toMatchObject({ kind: 'draft' });
       expect(read).toHaveBeenCalledTimes(2);
       for (const [sql, params] of read.mock.calls) {
@@ -162,6 +169,15 @@ describe('owner-reviewed learning draft', () => {
     });
     expect(deps.readDraftRevision).toHaveBeenCalledWith(key.businessId, 'draft-1', 1);
     expect(items.size).toBe(1);
+  });
+
+  it('hashes the saved revision contents instead of the submitted text', async () => {
+    const deps = ports();
+    const saved = { title: 'Saved FAQ title', body: 'ไทย\nรับได้วันศุกร์\n\nEnglish\nFriday pickup.' };
+    deps.readDraftRevision.mockResolvedValue(saved);
+    const expected = createHash('sha256').update(JSON.stringify(saved)).digest('hex');
+    await expect(prepareOwnerLearningDraft(key, deps)).resolves.toMatchObject({ candidateDigest: expected });
+    expect(deps.readDraftRevision).toHaveBeenCalledWith(key.businessId, 'draft-1', 1);
   });
 
   it('rejects consent supplied by the caller rather than the stored receipt', async () => {

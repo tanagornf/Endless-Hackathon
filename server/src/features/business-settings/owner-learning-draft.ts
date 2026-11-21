@@ -125,7 +125,7 @@ function candidateTextIsSafe(text: string): boolean {
   return scrub(text, textLimit) === text.normalize('NFKC').trim();
 }
 
-/** Digest of the exact title and body of the saved revision. This is not a publication receipt. */
+/** Digest of the exact title and body of the saved revision. Publication requires separate owner approval. */
 export function digestOwnerLearningDraft(input: { title: string; body: string }): string {
   return createHash('sha256').update(JSON.stringify({ title: input.title, body: input.body })).digest('hex');
 }
@@ -189,7 +189,7 @@ export async function prepareOwnerLearningDraft(
   };
   signal?.throwIfAborted();
   const item = await createDraft(draft);
-  const saved = item.created ? draft : await (ports.readDraftRevision ?? getKnowledgeRevision)(businessId, item.itemId, item.revision);
+  const saved = await (ports.readDraftRevision ?? getKnowledgeRevision)(businessId, item.itemId, item.revision);
   if (!saved) throw new AppError('SERVICE_NOT_READY', 'Owner draft revision unavailable', { retryable: true });
   return { kind: 'draft', ...item, candidateDigest: digestOwnerLearningDraft(saved) };
 }
