@@ -1,8 +1,154 @@
 {
   "menu": {
-    "title": "Channels"
+    "title": "LINE channel"
   },
   "page": {
-    "title": "Channels"
+    "title": "LINE channel",
+    "subtitle": "Connect a LINE Official Account so customers can chat with the AI and your team"
+  },
+  "status": {
+    "title": "Connection status",
+    "active": "Connected",
+    "error": "Needs attention",
+    "none": "Not connected",
+    "emptyDescription": "Connect your shop's LINE Official Account to receive and reply to messages",
+    "reason": {
+      "token_rejected": "LINE rejected the token. Issue a new one and reconnect",
+      "bot_changed": "The connected OA changed. Please reconnect"
+    }
+  },
+  "sandbox": {
+    "notice": "Sandbox mode. Messages are not sent to LINE"
+  },
+  "information": {
+    "channelId": "Channel ID",
+    "basicId": "Basic ID",
+    "lastEvent": "Last event received",
+    "lastVerified": "Last checked",
+    "eventsTotal": "Events received",
+    "never": "Never",
+    "loading": "Loading connection",
+    "unavailable": "—"
+  },
+  "actions": {
+    "connect": "Connect LINE OA",
+    "reconnect": "Reconnect",
+    "verify": "Check connection",
+    "disconnect": "Disconnect",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Could not copy",
+    "refresh": "Refresh",
+    "retry": "Try again"
+  },
+  "connect": {
+    "title": "Connect a LINE Official Account",
+    "channelId": "Channel ID",
+    "channelSecret": "Channel secret",
+    "accessToken": "Channel access token (optional)",
+    "accessTokenHelp": "Leave blank to let Endless request a short-lived token from LINE",
+    "replaceTitle": "Replace the LINE connection?",
+    "replaceWarning": "Connecting a different OA will replace the shop's current channel",
+    "success": "Connected. Set up the webhook in LINE Developers Console",
+    "err": {
+      "channel_in_use": "This OA is already used by another shop",
+      "credentials_rejected": "LINE rejected these credentials",
+      "secret_mismatch": "The Channel ID or Channel secret does not match LINE",
+      "provider": "Could not reach LINE. Try again",
+      "channelId": "Enter a Channel ID with 5–20 digits",
+      "channelSecret": "Enter a 32-character hexadecimal Channel secret",
+      "accessToken": "Enter a token with 40–400 characters"
+    }
+  },
+  "verify": {
+    "success": "Connection verified",
+    "error": "Could not verify the connection"
+  },
+  "disconnect": {
+    "title": "Disconnect LINE?",
+    "message": "Incoming messages and pending outgoing messages stop until you reconnect",
+    "success": "LINE disconnected",
+    "error": "Could not disconnect LINE"
+  },
+  "friend": {
+    "title": "Add as friend",
+    "help": "Customers scan this QR to chat with the shop",
+    "qrAlt": "QR code to add the shop on LINE"
+  },
+  "webhook": {
+    "title": "Webhook setup",
+    "url": "Webhook URL",
+    "httpsWarning": "LINE requires an HTTPS webhook URL",
+    "step1": "Open LINE Developers Console and select the OA's Messaging API channel",
+    "step2": "On the Messaging API tab, edit Webhook URL, paste the URL above and select Update",
+    "step3": "Select Verify. After Success, turn on Use webhook and Webhook redelivery if available",
+    "step4": "Turn off Auto-reply messages and Greeting messages in LINE Official Account Manager"
+  },
+  "usage": {
+    "title": "Push usage this month",
+    "mine": "Sent {{messages}} Push messages ({{calls}} calls)",
+    "line": "LINE quota used {{used}} of {{value}} messages",
+    "lineUnlimited": "LINE reports {{used}} messages sent",
+    "note": "Replies within 50 seconds use Reply and do not count toward the quota. Later responses use Push"
+  },
+  "events": {
+    "title": "Recent events",
+    "time": "Time",
+    "type": "Event type",
+    "messageType": "Message type",
+    "redelivery": "Redelivery",
+    "state": "Status",
+    "note": "Note",
+    "empty": "No events yet",
+    "yes": "Yes",
+    "no": "No",
+    "other": "Other",
+    "pages": "Event pages",
+    "pagination": {
+      "page": "Page {{page}}",
+      "first": "First page",
+      "last": "Last page",
+      "next": "Next page",
+      "previous": "Previous page",
+      "start-ellipsis": "More previous pages",
+      "end-ellipsis": "More following pages"
+    }
+  },
+  "eventType": {
+    "message": "Message",
+    "follow": "Follow",
+    "unfollow": "Unfollow",
+    "postback": "Button response"
+  },
+  "messageType": {
+    "text": "Text",
+    "image": "Image",
+    "sticker": "Sticker",
+    "audio": "Audio",
+    "video": "Video",
+    "file": "File",
+    "location": "Location"
+  },
+  "eventState": {
+    "received": "Received",
+    "done": "Processed",
+    "ignored": "Ignored",
+    "failed": "Failed"
+  },
+  "eventNote": {
+    "connection_gone": "Connection no longer active",
+    "business_inactive": "Inactive shop",
+    "invalid_event_payload": "Invalid event data",
+    "invalid_event": "Invalid event format",
+    "stale": "Event too old",
+    "group_source": "Event outside a direct chat",
+    "empty": "Empty message",
+    "unsupported_type": "Unsupported type",
+    "processing_failed": "Processing failed"
+  },
+  "readOnly": "View only. You need the channels permission to change this",
+  "error": {
+    "events": "Could not load LINE events",
+    "connection": "Could not load the LINE connection"
   }
 }

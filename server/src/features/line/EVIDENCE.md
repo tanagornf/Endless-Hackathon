@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F17 | line | C2 | DOING | R | S | LINE test OA pending | 3c9664e551fc35c009a001172a16333c6b417ea5 | F17 tests 21/21, typecheck, check:paths, 2 Playwright API tests discovered | 2026-11-21 12:16:20 +07:00 | NLess Demo activation and on-device receipt, channels UI in TH/EN, media, postback, Flex |
+| F17 | line | C2 | DOING | R | S | LINE test OA pending | 7c0e495546531333c6eca5bb189d4d90aacf8c0c | F17 tests 23/23, typecheck, check:paths, 3 Playwright checks discovered | 2026-11-21 12:20:17 +07:00 | NLess Demo activation and on-device receipt, bilingual production smoke, media, postback, Flex |
 
 ## Log
 
@@ -13,3 +13,4 @@
 - The sender uses a 50-second local reply-token window and stable Push retry keys. A claimed reply is retained as uncertain if the worker exits before saving the provider response.
 - The deployment smoke uses the verified connection and webhooks without sending customer messages. Production smoke and console/mobile evidence remain pending. S1 merged in PR #10.
 - The Reply safety regression reproduced a 502 followed by replay. The sender now keeps the uncertain reservation, with exactly one Reply request and zero Push requests in the regression test.
+- The settings slice wires the bilingual channels page to the existing connection and event APIs. Tests exercise both languages and the staff read-only view.
