@@ -3,7 +3,7 @@ import { SEED } from '@nless/shared/core/fixtures';
 import { describe, expect, it } from 'vitest';
 import { db } from '../../core';
 import { createTestAgent, loginAs } from '../../core/test-utils';
-import { getBusinessSettings } from './service';
+import { getBusinessSettings, getEffectiveAnswerRules } from './service';
 
 const demoA = SEED.businesses.find(({ alias }) => alias === 'biz_demo_a')!;
 const demoB = SEED.businesses.find(({ alias }) => alias === 'biz_demo_b')!;
@@ -143,6 +143,63 @@ describe('F04 business settings', () => {
     expect(response.body.error).toMatchObject({
       code: 'VALIDATION_ERROR',
       details: { issues: expect.arrayContaining([expect.objectContaining({ path: 'enabled' })]) },
+    });
+  });
+
+  it('resolves effective rules from the right business and keeps explicit denials', async () => {
+    const { businessId } = await newBusiness();
+    await db.query(
+      'INSERT INTO business_settings (business_id,hours,answer_policy,capabilities) VALUES ($1,$2::jsonb,$3::jsonb,$4::jsonb)',
+      [businessId, JSON.stringify(demoB.settings.hours),
+        JSON.stringify({ price: { reveal: 'always' }, stock: { reveal: 'ask_staff' }, booking: { enabled: false } }),
+        JSON.stringify({ canQuotePrices: false, canHandoffToHuman: false, canShareContact: false })],
+    );
+
+    await expect(getEffectiveAnswerRules(businessId)).resolves.toEqual({
+      price: 'never', stock: 'ask_staff', contact: 'never', generalKnowledge: true,
+      booking: false, orders: false, handoff: false,
+    });
+    await expect(getEffectiveAnswerRules(demoB.id)).resolves.toEqual({
+      price: 'always', stock: 'always', contact: 'always', generalKnowledge: true,
+      booking: true, orders: true, handoff: true,
+    });
+  });
+
+  it('rejects an unknown business when looking up effective rules', async () => {
+    await expect(getEffectiveAnswerRules(randomUUID())).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('fails closed for corrupt persisted answer policy', async () => {
+    const { businessId } = await newBusiness();
+    await db.query(
+      'INSERT INTO business_settings (business_id,hours,answer_policy) VALUES ($1,$2::jsonb,$3::jsonb)',
+      [businessId, JSON.stringify(demoB.settings.hours), JSON.stringify({ price: { reveal: 'unknown' } })],
+    );
+    await expect(getEffectiveAnswerRules(businessId)).resolves.toEqual({
+      price: 'never', stock: 'never', contact: 'never', generalKnowledge: false,
+      booking: false, orders: false, handoff: true,
+    });
+  });
+
+  it('fails closed for corrupt persisted capabilities without erasing explicit denials', async () => {
+    const { businessId } = await newBusiness();
+    await db.query(
+      'INSERT INTO business_settings (business_id,hours,capabilities) VALUES ($1,$2::jsonb,$3::jsonb)',
+      [businessId, JSON.stringify(demoB.settings.hours), JSON.stringify({
+        canQuotePrices: false, canTakeBookings: 'unknown', canHandoffToHuman: false, canShareContact: false,
+      })],
+    );
+    await expect(getEffectiveAnswerRules(businessId)).resolves.toEqual({
+      price: 'never', stock: 'always', contact: 'never', generalKnowledge: true,
+      booking: false, orders: false, handoff: false,
+    });
+  });
+
+  it('allows all supported actions by default for an existing unconfigured business', async () => {
+    const { businessId } = await newBusiness();
+    await expect(getEffectiveAnswerRules(businessId)).resolves.toEqual({
+      price: 'always', stock: 'always', contact: 'always', generalKnowledge: true,
+      booking: true, orders: true, handoff: true,
     });
   });
 });
