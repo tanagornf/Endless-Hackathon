@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F03 | tenancy | C3 | DOING | R | A | none | | 37 F03 tests passed, typecheck and ownership passed, anonymous production invitation smoke passed | 2026-11-21 13:28 +07:00 | Authenticated production smoke and shop lifecycle smoke pending |
+| F03 | tenancy | C3 | DOING | R | A | none | | 37 focused tests, ownership, production anonymous invitation smoke and authenticated member/invitation reads passed | 2026-11-21 14:14 +07:00 | Synthetic invitation/shop lifecycle writes pending |
 
 ## Log
 
@@ -25,3 +25,4 @@
 - C3 rebased S3 on the merged invitations and persisted F04 defaults. All 37 focused tenancy tests passed across 10 files in 95.68 seconds on a6bafc97f2f9b6c470e172bb7c248f190544777e in the assigned C3 test environment. This included five shop lifecycle tests, provisioning rollback and repeated calls, account-serialized deletion, and prior invitation and tenant checks. Typecheck, ownership and git diff checks passed. Only this evidence changed afterward.
 - The recipient page now links directly to F02 invitation signup after Auth S2 merge 74189fc4fc6c0d525f9764f86d0324a00d93e2ba. The URL contains only the invite-mode flag and the token stays in browser session storage until the existing signup flow uses it. The browser unit test failed before the link was introduced and passed afterward. All 37 focused tenancy cases, 31 localization checks, and typecheck passed. Authenticated production invitation testing is pending.
 - S4 adds the prescribed isolated synthetic invitation and shop lifecycle smoke cases, with cleanup assertions, no captured token artifacts, and an explicit write-slot opt-in. Typecheck and five-test Playwright discovery passed. With write opt-in off, both lifecycle cases skipped. All 37 focused tenancy regression tests passed in 102.33 seconds on the merged S3 source. Authenticated production execution awaits the assigned owner slot.
+- C0 confirmed a signed-in Shop A owner read-only on production build 5aa261520d7b09a1b9479730c9d97a5d87e67e26. Members showed Owner A as active Owner and Staff A as active Staff. Invitations rendered its loaded empty table. No member, invitation or shop was modified. C3 reran anonymous invitation Playwright on the same exact build after the signup-link merge and passed in 9.8 seconds. The initial HTML set no-referrer, the browser scrubbed the synthetic token, and the Thai invalid-invitation state rendered.
