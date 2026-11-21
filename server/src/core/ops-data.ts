@@ -5,7 +5,7 @@ import type { z } from 'zod';
 import { config } from './config';
 import { db } from './db';
 import { AppError } from './errors';
-import { featureFlags } from './features';
+import { assertFeatureVisibilityAllowed, featureFlags } from './features';
 import { publishJob } from './jobs';
 import { opsAudit, opsPolicy, safeOpsText } from './ops-audit';
 import { createdAtForCursor, cursorPage, readOpsCursor } from './ops-page';
@@ -99,6 +99,7 @@ export async function setOpsFeatures(routes: Registry, body: z.output<typeof Bul
       throw new AppError('VALIDATION_ERROR', 'Unknown or non-selectable feature', { details: { featureId: id } });
     }
   }
+  for (const [featureId, hidden] of changes) assertFeatureVisibilityAllowed(featureId, hidden);
   const views = (await featureFlags(routes)).filter((row) => changes.has(row.featureId));
   const reason = safeOpsText(body.reason ?? null, 200);
   await db.tx(async (tx) => {
