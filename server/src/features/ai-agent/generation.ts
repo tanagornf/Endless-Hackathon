@@ -8,6 +8,7 @@ import type { ModelChatInput, ModelChatResult } from '../../core';
 import { getBusinessOpenState } from '../business-settings/service';
 import { casualIntent, catalogPriceIntent, classifyIntent, unknownIntent } from './classifier';
 import type { IntentScore } from './classifier';
+import { needsProductCareConsult } from './consultIntake';
 import { buildReplyContext, turnLanguage, unansweredCustomerMessages, unansweredInbounds } from './context';
 import type { ReplyContext } from './context';
 import { fallbacks } from './fallbacks';
@@ -347,8 +348,14 @@ export async function generateDraft(
       !/\b(?:and|also)\b|และ|อีกอย่าง/iu.test(context.unanswered[0]);
     const availability = currentAvailabilityReply(context);
     if (availability && (oneCatalogQuestion || text === fallbacks.no_answer[language])) text = availability;
-    const receipt = receiptText(context, text);
-    Object.assign(draft, usedEvidence(text, context, receipt));
+    let receipt = receiptText(context, text);
+    let evidence = usedEvidence(text, context, receipt);
+    if (needsProductCareConsult(context.catalogRequest.text, text, evidence.evidenceIds)) {
+      text = fallbacks.no_answer[language];
+      receipt = null;
+      evidence = { evidenceIds: [], productRefs: [] };
+    }
+    Object.assign(draft, evidence);
     draft.parts = shapeReply(text);
     if (receipt) draft.parts.push({ type: 'text', text: receipt });
     const noGrounding = !draft.evidenceIds.length && !context.tools.some(({ ok }) => ok) &&

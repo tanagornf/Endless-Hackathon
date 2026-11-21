@@ -4,6 +4,7 @@ import type { ConversationRecord, MessageRecord } from '@nless/shared/features/i
 import { AppError, log, publish, sendToCustomer } from '../../core';
 import { getConversation, getHistory, saveMessage } from '../inbox/service';
 import { notify } from '../notifications/service';
+import { openConsultOnShopMiss } from './consultIntake';
 import { fallbacks } from './fallbacks';
 import { finalSkipReason, isAiAllowed } from './gate';
 import { generateDraft } from './generation';
@@ -290,6 +291,21 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       }
       let parts = draft.parts;
       if (!replyMessageId) {
+        const consultOpened = await openConsultOnShopMiss(finalGate.conversation, inbound, draft, signal);
+        if (signal.aborted) {
+          await releaseClaim(turn);
+          return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
+        }
+        if (consultOpened) {
+          // The owner can answer this case without a separate staff handoff.
+          draft.parts = [{ type: 'text', text: fallbacks.no_answer[draft.language] }];
+          draft.handoffOffered = false;
+          draft.staffConsentKind = null;
+          if (!(await storeDraft(turn, draft))) {
+            return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
+          }
+          parts = draft.parts;
+        }
         const persistStart = performance.now();
         const saved = await saveMessage({
           businessId: conversation.businessId, conversationId, direction: 'outbound', author: 'ai',
