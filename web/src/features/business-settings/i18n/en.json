@@ -1,7 +1,8 @@
 {
   "menu": {
     "title": "Business",
-    "bot": "Bot settings"
+    "bot": "Bot settings",
+    "business": "Business"
   },
   "page": {
     "title": "Business"
@@ -24,6 +25,66 @@
     "saved": "Saved",
     "readOnly": "You do not have permission to edit this page",
     "retry": "Retry",
-    "error": "Business settings could not be loaded"
+    "error": "Business settings could not be loaded",
+    "conflict": "Someone changed the settings. Reloaded",
+    "actions": "Actions",
+    "invalid": "Check this value"
+  },
+  "business": {
+    "title": "Business and hours"
+  },
+  "tabs": {
+    "hours": "Hours"
+  },
+  "hours": {
+    "title": "Weekly hours",
+    "openNow": "Open now",
+    "closedNow": "Closed now",
+    "nextOpen": "Opens again {{when}}",
+    "noNextOpen": "No opening time in the next 31 days",
+    "reason": {
+      "closure": "Special closure",
+      "closed_day": "Closed today",
+      "outside_hours": "Outside hours"
+    },
+    "dayOpen": "Open",
+    "dayClosed": "Closed",
+    "open": "From",
+    "close": "To",
+    "addInterval": "Add interval",
+    "copyAll": "Copy to all days",
+    "issue": {
+      "close_before_open": "Closing time must be after opening time",
+      "overlap_or_touching": "Intervals overlap or touch; merge them"
+    },
+    "day": {
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday",
+      "sun": "Sunday"
+    },
+    "status": "Business status",
+    "dayLabel": "Day",
+    "timeLabel": "Opening and closing times"
+  },
+  "closures": {
+    "title": "Special closures",
+    "add": "Add closure",
+    "start": "From date",
+    "end": "To date",
+    "reason": "Reason",
+    "deleteTitle": "Delete this closure?",
+    "empty": "No special closures",
+    "issue": {
+      "closure_overlap": "Overlaps an existing closure",
+      "invalid_date": "Enter a valid date",
+      "end_before_start": "The end date must be on or after the start date",
+      "closure_too_long": "Closures can last up to 366 days",
+      "closure_in_past": "The end date is in the past",
+      "too_many_closures": "The business has reached the closure limit"
+    }
   }
 }
