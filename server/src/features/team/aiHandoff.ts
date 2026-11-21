@@ -4,7 +4,7 @@ import type {
 import { z } from 'zod';
 import { auditInTransaction, db, log, publish } from '../../core';
 import type { DbExecutor } from '../../core';
-import { notify } from '../notifications/service';
+import { hasNotificationReceipt, notify } from '../notifications/service';
 import { prepareHandoffNotification } from './handoffNotification';
 import { uuid } from './validation';
 
@@ -61,7 +61,7 @@ export async function getExplicitStaffRequestForNotification(
     r.committed_version AS "committedVersion", r.explicit_request_evidence AS "explicitRequestEvidence"
     FROM team_ai_handoff_receipts r JOIN conversations c ON ${joinConversation}
     WHERE r.business_id=$1 AND r.conversation_id=$2 AND r.committed_version=$3 AND r.reason='customer_request'
-      AND r.explicit_request_evidence IS NOT NULL AND ${stillQueued}`, [businessId, match[1], version]);
+      AND c.channel='line' AND r.explicit_request_evidence IS NOT NULL AND ${stillQueued}`, [businessId, match[1], version]);
 }
 
 export async function getAiHandoffReceipt(intent: AiHandoffIntent): Promise<AiHandoffReceipt | null> {
@@ -116,11 +116,11 @@ async function dispatchHandoffNotification(key: ReceiptKey): Promise<void> {
     // and moves the deadline forward, including when a crashed worker is replaced.
     const target = await db.maybeOne<ReceiptKey & {
       customerId: string; version: number; reason: string; lease: string; active: boolean;
-      explicitRequestEvidence: ExplicitStaffRequestEvidence | null;
+      explicitRequestEvidence: ExplicitStaffRequestEvidence | null; channel: string;
     }>(`UPDATE team_ai_handoff_receipts r SET notification_due_at = clock_timestamp() + interval '2 minutes'
       FROM conversations c WHERE ${joinConversation} AND ${receiptKey}
       AND r.notification_result IS NULL AND r.notification_due_at <= clock_timestamp()
-      RETURNING ${receiptColumns}, c.customer_id AS "customerId", r.committed_version AS version,
+      RETURNING ${receiptColumns}, c.customer_id AS "customerId", c.channel, r.committed_version AS version,
         r.notification_due_at::text AS lease, (${stillQueued}) AS active`, keyParams(key));
     if (!target) return;
     const params = [...keyParams(key), target.lease];
@@ -131,10 +131,19 @@ async function dispatchHandoffNotification(key: ReceiptKey): Promise<void> {
       FROM team_ai_handoff_receipts r JOIN conversations c ON ${joinConversation}
       WHERE ${receiptKey} AND ${ownsLease}`, params);
     if (!current) return;
-    if (input && target.explicitRequestEvidence) {
-      input.dedupKey = 'staff-offer-accepted:' + target.businessId + ':' + target.conversationId + ':v' + target.version;
+    let mode: 'obsolete' | 'real' | 'sandbox' = 'obsolete';
+    if (current.active && input) {
+      const canonicalKey = input.dedupKey;
+      const confirmedLine = target.channel === 'line' && target.explicitRequestEvidence !== null;
+      if (confirmedLine) {
+        input.dedupKey = 'staff-offer-accepted:' + target.businessId + ':' + target.conversationId + ':v' + target.version;
+      }
+      const result = await notify(input);
+      // An empty real result can also mean the write failed. Recover only from a stored bell receipt.
+      if (confirmedLine && result.mode === 'real' && !result.notificationIds.length &&
+          !await hasNotificationReceipt({ businessId: target.businessId, dedupKey: canonicalKey })) return;
+      mode = result.mode;
     }
-    const mode = current.active && input ? (await notify(input)).mode : 'obsolete';
     await db.query(`UPDATE team_ai_handoff_receipts r SET notification_result = $5
       WHERE ${receiptKey} AND ${ownsLease}`, [...params, mode]);
   } catch {
