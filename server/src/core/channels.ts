@@ -98,7 +98,7 @@ export async function sendToCustomer(conversationId: string, parts: MessagePart[
             details: { reason: 'delivery_job_terminal' },
           });
         }
-        return job;
+        if (existing.state === 'succeeded') return job;
       }
       await transaction.query(`UPDATE messages SET delivery_mode=COALESCE(delivery_mode,$4),
         delivery_error=CASE WHEN delivery_state='failed' AND delivery_error=$5 THEN NULL ELSE delivery_error END,
@@ -148,16 +148,17 @@ registerJob('core.deliver', async ({ payload, businessId, attempt, maxAttempts, 
   if (!row) return;
   const { author, handoffAckVersion, previousError, ...delivery } = row;
   const previousAmbiguity = isAmbiguousRetry(previousError);
+  const deferred = !canDispatch(delivery.channel);
+  const sender = deferred ? undefined : senders.get(delivery.channel);
+  if (!deferred && !sender) throw new AppError('CHANNEL_NOT_CONNECTED', 'Channel is unavailable');
   const key = { messageId, businessId: delivery.businessId };
   signal.throwIfAborted();
   const checkpoint = await markInflight(key, attempt);
   if (!checkpoint) return resolveAmbiguous(key);
-  if (!canDispatch(delivery.channel)) {
+  if (!sender) {
     if (previousAmbiguity) return resolveAmbiguous(key);
     return settleDelivery(key, checkpoint, { state: 'failed', error: 'CHANNEL_DEFERRED' });
   }
-  const sender = senders.get(delivery.channel);
-  if (!sender) throw new AppError('CHANNEL_NOT_CONNECTED', 'Channel is unavailable');
 
   let allowed: boolean;
   try {

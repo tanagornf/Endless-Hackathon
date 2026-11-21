@@ -225,11 +225,39 @@ test.each([
 }, 20_000);
 
 test('deduping a succeeded job preserves its legacy stored message state', async () => {
+  const send = vi.fn(async () => ({ state: 'sent', mode: 'real' } as const));
+  registerChannelSender('web', { channel: 'web', mode: 'real', send });
   const { jobId, messageId, conversationId } = await queueDelivery();
   await db.tx(async (tx) => {
-    await tx.query("UPDATE jobs SET state='succeeded',finished_at=now() WHERE id=$1", [jobId]);
-    await tx.query("UPDATE messages SET delivery_state='not_required' WHERE id=$1", [messageId]);
+    await tx.query("UPDATE jobs SET state='succeeded',finished_at=now() WHERE id=$1 AND business_id=$2", [jobId, businessId]);
+    await tx.query("UPDATE messages SET delivery_state='not_required' WHERE id=$1 AND business_id=$2", [messageId, businessId]);
   });
   expect((await sendToCustomer(conversationId, parts, { businessId, messageId })).jobId).toBe(jobId);
+  await drain();
   expect(await deliveryState(messageId)).toMatchObject({ state: 'not_required', error: null });
+  expect(send).not.toHaveBeenCalled();
+  expect(await db.one('SELECT count(*)::int AS count FROM jobs WHERE business_id=$1 AND dedup_key=$2', [
+    businessId, 'deliver:' + messageId,
+  ])).toEqual({ count: 1 });
+}, 20_000);
+
+test('an active canonical job recovers its message and a repeated sent request never dispatches twice', async () => {
+  const send = vi.fn(async () => ({ state: 'sent', mode: 'real', externalRef: 'synthetic receipt' } as const));
+  registerChannelSender('web', { channel: 'web', mode: 'real', send });
+  const { jobId, messageId, conversationId } = await queueDelivery();
+  await db.query("UPDATE messages SET delivery_state='failed',delivery_error='DELIVERY_ENQUEUE_FAILED' WHERE id=$1 AND business_id=$2",
+    [messageId, businessId]);
+  expect((await sendToCustomer(conversationId, parts, { businessId, messageId })).jobId).toBe(jobId);
+  expect(await deliveryState(messageId)).toEqual({ state: 'pending', error: null, ref: null });
+  await drain();
+  expect(await deliveryState(messageId)).toEqual({ state: 'sent', error: null, ref: 'synthetic receipt' });
+
+  expect((await sendToCustomer(conversationId, parts, { businessId, messageId })).jobId).toBe(jobId);
+  await drain();
+  expect(await jobs.get(jobId)).toMatchObject({ state: 'succeeded' });
+  expect(await deliveryState(messageId)).toEqual({ state: 'sent', error: null, ref: 'synthetic receipt' });
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(await db.one('SELECT count(*)::int AS count FROM jobs WHERE business_id=$1 AND dedup_key=$2', [
+    businessId, 'deliver:' + messageId,
+  ])).toEqual({ count: 1 });
 }, 20_000);
