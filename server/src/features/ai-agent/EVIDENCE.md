@@ -87,6 +87,8 @@ B2 used `generateReply` with synthetic web conversations and indexed demo knowle
 
 The authenticated `/ai-settings` page shows the seven-day summary, paginated histories and selected turn details in Thai and English. The two added APIs require `chat.read` and scope all queries to the authenticated business. Buyer and reply text stay in the inbox. The list cursor preserves PostgreSQL timestamp precision with a UUID tie-breaker. Metrics combine skipped and superseded replies and compute the median over eligible response states. The exported topic reader only includes saved reply turns in the requested time range. Local PostgreSQL trace and reporting tests passed 8/8. Production owner smoke is pending.
 
+Queued buyer replies on LINE and internal Demo Chat now ask for explicit staff consent. Only the immediately preceding delivered prompt can be confirmed. Declines, new questions, expiry and voice-only assent keep the conversation with the bot, and preview does not consume consent. LINE forwards the two confirmed origins to F11's assignment receipt. The same turn can recover the receipt without creating another assignment. Storage helper independently passed 33/33; the paired native and actual device checks are tracked separately.
+
 ## F10 P1 cited public product facts
 
 - The real turn checks an exact, active F05 suggestion, then the tenant's catalog description and approved knowledge. A web lookup requires an eligible product specification or standards question and the shop's general-knowledge setting.

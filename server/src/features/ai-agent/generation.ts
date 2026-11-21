@@ -21,6 +21,8 @@ import { currentAvailabilityReply, currentPhotoRequest, getReplyProductImages } 
 import { repairPrompt } from './prompt';
 import { customerInboundsHeldByStaff, priorSavedReply } from './repo';
 import type { TurnDraft } from './repo';
+import { staffConsentCopy } from './staffConsent';
+import type { StaffConsentDecision, StaffConsentKind } from './staffConsent';
 import { productFactQuestion, replyWithProductFact } from './product-facts';
 
 type Generation =
@@ -56,6 +58,17 @@ function appendHandoffOffer(draft: TurnDraft): void {
     draft.parts.push({ type: 'text', text: offer });
   }
   draft.handoffOffered = true;
+  draft.staffConsentKind = 'staff_offer';
+}
+
+const explicitVoiceRequest = /(?:\b(?:voice call|(?:can|could|may) i call|i(?:'d| would) like to call|call the (?:shop|store)|phone call)\b|ขอ(?:โทร|คุยทางโทรศัพท์)|โทรคุย|โทรหาร้าน)/iu;
+
+function staffPrompt(draft: TurnDraft, score: IntentScore, kind: StaffConsentKind): Generation {
+  rememberIntent(draft, score);
+  draft.staffConsentKind = kind;
+  draft.handoffOffered = true;
+  draft.parts = [{ type: 'text', text: staffConsentCopy(draft.language, kind) }];
+  return { state: 'completed', draft };
 }
 
 function summarizeUsage(calls: readonly Pick<ModelChatResult, 'usage'>[]): AiTurnUsage | null {
@@ -133,6 +146,7 @@ export async function generateDraft(
   settings: BusinessSettings,
   cancellation: AbortSignal,
   mode: 'reply' | 'suggest',
+  consent?: StaffConsentDecision,
 ): Promise<Generation> {
   const started = performance.now();
   const signal = AbortSignal.any([cancellation, AbortSignal.timeout(config.MODEL_TIMEOUT_MS)]);
@@ -155,11 +169,17 @@ export async function generateDraft(
     const matchingPrior = previousAnswer && previousAnswer.id === prior?.replyMessageId && previousAnswer.delivery.state !== 'failed'
       ? prior : null;
     const offerPending = matchingPrior?.offeredHandoff === true;
-    const offerReply = offerPending && unanswered.length === 1 ? replyToStaffOffer(unanswered[0]) : null;
-    if (mode === 'reply' && (explicitlyRequestsStaff(unanswered.join('\n')) || offerReply === 'accepted') &&
+    const currentText = inbound.parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('\n');
+    const decision = { label: 'ESCALATION', source: 'regex', confidence: 1 } as const;
+    const offerReply = consent?.status === 'declined' ? 'declined'
+      : offerPending && unanswered.length === 1 ? replyToStaffOffer(unanswered[0]) : null;
+    if (mode === 'reply' && (consent?.status === 'confirmed' || explicitlyRequestsStaff(currentText) || explicitVoiceRequest.test(currentText)) &&
         await withinDeadline(canRequestHandoff(conversation.businessId), signal)) {
-      const opening = await withinDeadline(getBusinessOpenState(conversation.businessId).catch(() => null), signal);
-      return staffAcknowledgement(draft, { label: 'ESCALATION', source: 'regex', confidence: 1 }, opening?.open ?? null);
+      if (consent?.status === 'confirmed') {
+        const opening = await withinDeadline(getBusinessOpenState(conversation.businessId).catch(() => null), signal);
+        return staffAcknowledgement(draft, decision, opening?.open ?? null);
+      }
+      return staffPrompt(draft, decision, explicitVoiceRequest.test(currentText) ? 'voice_unavailable' : 'customer_request');
     }
     const casual = casualIntent(unanswered);
     if (mode === 'reply' && !unanswered.length && prior?.recentlySentNonTextNotice) {
@@ -245,7 +265,7 @@ export async function generateDraft(
       modelAbort.abort();
       await firstReply;
       draft.tools = [];
-      return staffAcknowledgement(draft, score, context.shopOpen);
+      return staffPrompt(draft, score, 'staff_offer');
     }
     const first = await firstReply;
     if ('error' in first) throw first.error;

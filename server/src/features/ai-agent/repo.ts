@@ -4,6 +4,7 @@ import type { ConversationRecord, MessageRecord } from '@nless/shared/features/i
 import type { CustomerLanguage } from '@nless/shared/core/language';
 import { db } from '../../core';
 import type { SkipReason } from './gate';
+import type { StaffConsentKind } from './staffConsent';
 
 export const MAX_ATTEMPTS = 3;
 export const LEASE_RENEW_MS = 20_000;
@@ -30,6 +31,7 @@ export interface TurnDraft {
   intentSource?: AiTurnTrace['intentSource'];
   intentConfidence?: number | null;
   handoffOffered?: boolean;
+  staffConsentKind?: StaffConsentKind | null;
 }
 
 interface TurnRow {
@@ -59,6 +61,7 @@ interface TurnRow {
   intent_source: AiTurnTrace['intentSource'];
   intent_confidence: string | null;
   handoff_offered: boolean;
+  staff_consent_kind: StaffConsentKind | null;
 }
 
 export type TurnLease = Pick<TurnRow, 'id' | 'business_id' | 'conversation_id' | 'attempts' | 'mode'>;
@@ -176,6 +179,7 @@ export function readDraft(turn: TurnRow): TurnDraft | null {
     intentSource: turn.intent_source,
     intentConfidence: turn.intent_confidence === null ? null : Number(turn.intent_confidence),
     handoffOffered: turn.handoff_offered,
+    staffConsentKind: turn.staff_consent_kind,
   };
 }
 
@@ -185,13 +189,13 @@ export async function storeDraft(turn: TurnLease, draft: TurnDraft): Promise<boo
       product_refs = $8::jsonb, tools = $9::jsonb, guard_actions = $10::jsonb, usage_summary = $11::jsonb,
       timings = $12::jsonb, retry_used = $13, error_code = $14, reply_group_id = id,
       handoff_reason = $15, intent = $16, intent_source = $17, intent_confidence = $18,
-      handoff_offered = $19,
+      handoff_offered = $19, staff_consent_kind = $20,
       lease_until = now() + interval '60 seconds'
     WHERE ` + owned, [
     ...leaseParams(turn), draft.language, JSON.stringify(draft.parts), draft.evidenceIds, JSON.stringify(draft.productRefs),
     JSON.stringify(draft.tools), JSON.stringify(draft.guardActions), JSON.stringify(draft.usage), JSON.stringify(draft.timings),
     draft.retryUsed, draft.errorCode, draft.handoffReason ?? null, draft.intent ?? null, draft.intentSource ?? null, draft.intentConfidence ?? null,
-    draft.handoffOffered ?? false,
+    draft.handoffOffered ?? false, draft.staffConsentKind ?? null,
   ]);
   return result.rowCount === 1;
 }

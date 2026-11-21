@@ -21,6 +21,7 @@ import { assignConversation } from '../team/service';
 import { fallbacks } from './fallbacks';
 import * as turnRepo from './repo';
 import { aiReplyJobHandler, generateReply, getTurnTrace } from './service';
+import { staffConsentCopy } from './staffConsent';
 import { runTool } from './tools';
 import { runAiTurn } from './turn';
 
@@ -76,6 +77,17 @@ function execute(inbound: SaveMessageResult) {
   return aiReplyJobHandler(job);
 }
 
+async function confirmStaffRequest(text: string, language: 'th' | 'en' = 'en'): Promise<SaveMessageResult> {
+  const first = await incoming(text);
+  vi.mocked(channels.sendToCustomer).mockImplementationOnce(originalSend);
+  await execute(first);
+  await drainJobs({ type: 'core.deliver' });
+  expect((await replies(first.conversation.id))[0].text).toBe(staffConsentCopy(language, 'customer_request'));
+  expect(await trace(first.message.id)).toMatchObject({ state: 'completed', escalated: false });
+  vi.mocked(channels.sendToCustomer).mockClear();
+  return incoming(language === 'th' ? 'คุยกับพนักงานค่ะ' : 'Talk to a person.', first);
+}
+
 function trace(messageId: string) {
   return db.one<TraceRow>("SELECT * FROM ai_turns WHERE business_id = $1 AND inbound_message_id = $2 AND mode = 'reply'", [businessId, messageId]);
 }
@@ -83,6 +95,11 @@ function trace(messageId: string) {
 async function replies(conversationId: string): Promise<MessageRecord[]> {
   const page = await getHistory(conversationId, { businessId });
   return page.items.filter(({ author }) => author === 'ai').sort((left, right) => left.seq - right.seq);
+}
+
+async function afterConsentPrompt(conversationId: string): Promise<MessageRecord[]> {
+  const prompts = [staffConsentCopy('en', 'customer_request'), staffConsentCopy('th', 'customer_request')];
+  return (await replies(conversationId)).filter((message) => !prompts.includes(message.text));
 }
 
 function waitableChat() {
@@ -659,7 +676,7 @@ describe('F10 S2 tools loop', { timeout: 15_000 }, () => {
 
 describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
   it('G9 and G19 acknowledge Thai once, stay silent for staff and resume after handback', async () => {
-    const inbound = await incoming('ขอคุยกับพนักงานหน่อยครับ');
+    const inbound = await confirmStaffRequest('ขอคุยกับพนักงานหน่อยครับ', 'th');
     const chat = vi.spyOn(model, 'chat');
     const assignment = vi.spyOn(team, 'applyAiHandoff');
     const writes = vi.spyOn(inbox, 'saveMessage');
@@ -669,7 +686,7 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     const next = await incoming('A-GAME-01 ราคาเท่าไหร่', inbound);
     await execute(next);
 
-    const stored = await replies(inbound.conversation.id);
+    const stored = await afterConsentPrompt(inbound.conversation.id);
     const turn = await trace(inbound.message.id);
     expect(stored.map(({ text }) => text)).toEqual([fallbacks.escalation_ack.th]);
     expect(turn).toMatchObject({ state: 'handoff', reply_language: 'th', intent: 'ESCALATION', intent_source: 'regex', escalated: true,
@@ -696,22 +713,22 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
 
   it('G15 uses the English acknowledgement for an explicit human request', async () => {
     const chat = vi.spyOn(model, 'chat');
-    const inbound = await incoming('Can I talk to a real person please?');
+    const inbound = await confirmStaffRequest('Can I talk to a real person please?');
     await execute(inbound);
-    expect((await replies(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.escalation_ack.en]);
+    expect((await afterConsentPrompt(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.escalation_ack.en]);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', reply_language: 'en', intent_source: 'regex' });
     expect(chat).not.toHaveBeenCalled();
   });
 
   it('G22 uses the closed-shop acknowledgement instead of promising an immediate answer', async () => {
     vi.spyOn(settings, 'getBusinessOpenState').mockImplementationOnce((id) => originalOpenState(id, '2026-11-21T21:00:00+07:00'));
-    const inbound = await incoming('ขอคุยกับพนักงานค่ะ');
+    const inbound = await confirmStaffRequest('ขอคุยกับพนักงานค่ะ', 'th');
     await execute(inbound);
-    expect((await replies(inbound.conversation.id))[0].text).toBe(fallbacks.escalation_ack_closed.th);
+    expect((await afterConsentPrompt(inbound.conversation.id))[0].text).toBe(fallbacks.escalation_ack_closed.th);
   });
 
   it('retries delivery using the same saved acknowledgement and the same successful F11 version', async () => {
-    const inbound = await incoming('Can I speak to a human?');
+    const inbound = await confirmStaffRequest('Can I speak to a human?');
     const assignment = vi.spyOn(team, 'applyAiHandoff');
     const writes = vi.spyOn(inbox, 'saveMessage');
     const sends = vi.spyOn(channels, 'sendToCustomer')
@@ -726,12 +743,12 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     expect(sends.mock.calls.map(([, , opts]) => opts?.messageId)).toEqual([first.reply_message_id, first.reply_message_id]);
     expect(writes.mock.calls.filter(([input]) => input.author === 'ai').map(([input]) => input.providerMeta))
       .toEqual([{ nlessHandoffAckVersion: first.handoff_assignment_version }]);
-    expect((await replies(inbound.conversation.id))).toHaveLength(1);
+    expect((await afterConsentPrompt(inbound.conversation.id))).toHaveLength(1);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', reply_message_id: first.reply_message_id, attempts: 2 });
   });
 
   it('drops the acknowledgement when AI is disabled before its save', async () => {
-    const inbound = await incoming('Can I speak to a human?');
+    const inbound = await confirmStaffRequest('Can I speak to a human?');
     const handoff = team.applyAiHandoff;
     let enabled = true;
     vi.spyOn(settings, 'getBusinessSettings').mockImplementation(async (id) => ({ ...(await originalSettings(id)), aiEnabled: enabled }));
@@ -742,12 +759,12 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     });
     await execute(inbound);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'ai_off_during_generation' });
-    expect(await replies(inbound.conversation.id)).toEqual([]);
+    expect(await afterConsentPrompt(inbound.conversation.id)).toEqual([]);
     expect(channels.sendToCustomer).not.toHaveBeenCalled();
   });
 
   it('does not acknowledge a manual assignment that raced with the F11 handoff', async () => {
-    const inbound = await incoming('Can I speak to a human?');
+    const inbound = await confirmStaffRequest('Can I speak to a human?');
     const handoff = team.applyAiHandoff;
     vi.spyOn(team, 'applyAiHandoff').mockImplementationOnce(async (...input) => {
       await assignConversation(inbound.conversation.id, seedId('staff_a'), { businessId });
@@ -755,36 +772,36 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     });
     await execute(inbound);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'takeover_during_generation', handoff_assignment_version: null });
-    expect(await replies(inbound.conversation.id)).toEqual([]);
+    expect(await afterConsentPrompt(inbound.conversation.id)).toEqual([]);
     expect(channels.sendToCustomer).not.toHaveBeenCalled();
   });
 
   it('sends the queued acknowledgement only at its original F11 assignment version', async () => {
     vi.spyOn(channels, 'sendToCustomer').mockImplementation(originalSend);
-    const current = await incoming('Can I talk to a real person please?');
-    const claimed = await incoming('Can I speak to a human?');
-    const returned = await incoming('Can I speak to a real person?');
+    const current = await confirmStaffRequest('Can I talk to a real person please?');
+    const claimed = await confirmStaffRequest('Can I speak to a human?');
+    const returned = await confirmStaffRequest('Can I speak to a real person?');
     await execute(current);
     await execute(claimed);
     await execute(returned);
-    expect((await replies(current.conversation.id))[0].delivery.state).toBe('pending');
-    expect((await replies(claimed.conversation.id))[0].delivery.state).toBe('pending');
-    const [queued] = await replies(returned.conversation.id);
+    expect((await afterConsentPrompt(current.conversation.id))[0].delivery.state).toBe('pending');
+    expect((await afterConsentPrompt(claimed.conversation.id))[0].delivery.state).toBe('pending');
+    const [queued] = await afterConsentPrompt(returned.conversation.id);
     expect(queued.delivery.state).toBe('pending');
 
     await assignConversation(claimed.conversation.id, seedId('staff_a'), { businessId });
     await assignConversation(returned.conversation.id, null, { businessId });
     expect(await inbox.getConversation(returned.conversation.id, { businessId })).toMatchObject({ handler: 'ai' });
     await drainJobs({ type: 'core.deliver' });
-    expect((await replies(current.conversation.id))[0].delivery.state).toBe('sent');
-    expect((await replies(claimed.conversation.id))[0].delivery).toMatchObject({ state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' });
-    expect(await replies(returned.conversation.id)).toEqual([
+    expect((await afterConsentPrompt(current.conversation.id))[0].delivery.state).toBe('sent');
+    expect((await afterConsentPrompt(claimed.conversation.id))[0].delivery).toMatchObject({ state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' });
+    expect(await afterConsentPrompt(returned.conversation.id)).toEqual([
       expect.objectContaining({ id: queued.id, delivery: expect.objectContaining({ state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' }) }),
     ]);
   });
 
   it('opens a scoped fallback wait and sends no version marker when F11 throws', async () => {
-    const inbound = await incoming('ขอคุยกับพนักงานค่ะ');
+    const inbound = await confirmStaffRequest('ขอคุยกับพนักงานค่ะ', 'th');
     const notify = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
     vi.spyOn(team, 'applyAiHandoff').mockRejectedValueOnce(new AppError('SERVICE_NOT_READY'));
     const writes = vi.spyOn(inbox, 'saveMessage');
@@ -855,7 +872,7 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
 
 describe('F10 F11 receipt recovery', { timeout: 20_000 }, () => {
   it('recovers after assignment commits and before the F10 checkpoint, then sends one ACK', async () => {
-    const inbound = await incoming('ขอคุยกับพนักงานหน่อยค่ะ');
+    const inbound = await confirmStaffRequest('ขอคุยกับพนักงานหน่อยค่ะ', 'th');
     const { id: conversationId, version: expectedVersion } = inbound.conversation;
     const apply = vi.spyOn(team, 'applyAiHandoff');
     const checkpoint = vi.spyOn(turnRepo, 'recordHandoff').mockRejectedValueOnce(new Error('Synthetic worker exit before F10 checkpoint'));
@@ -872,17 +889,17 @@ describe('F10 F11 receipt recovery', { timeout: 20_000 }, () => {
     });
     const intent = { businessId, conversationId, turnId: prepared.id, reason: 'customer_request', expectedVersion };
     expect(await team.getAiHandoffReceipt(intent)).toEqual({ ...intent, committedVersion: expectedVersion + 1 });
-    expect(await replies(conversationId)).toEqual([]);
+    expect(await afterConsentPrompt(conversationId)).toEqual([]);
     expect(await generateReply(conversationId, { triggerMessageId: inbound.message.id })).toMatchObject({ state: 'pending' });
 
     await execute(inbound);
     await execute(inbound);
     await drainJobs({ type: 'core.deliver' });
 
-    const [reply] = await replies(conversationId);
+    const [reply] = await afterConsentPrompt(conversationId);
     const history = (await getHistory(conversationId, { businessId })).items;
     expect(history.filter(({ author }) => author === 'system')).toHaveLength(1);
-    expect(history.filter(({ author }) => author === 'ai')).toHaveLength(1);
+    expect(history.filter(({ author }) => author === 'ai')).toHaveLength(2);
     expect(reply).toMatchObject({ text: fallbacks.escalation_ack.th, delivery: { state: 'sent' } });
     expect(await trace(inbound.message.id)).toMatchObject({
       id: prepared.id, state: 'handoff', handoff_assignment_version: expectedVersion + 1, reply_message_id: reply.id, attempts: 2,
@@ -901,7 +918,7 @@ describe('F10 F11 receipt recovery', { timeout: 20_000 }, () => {
   });
 
   it('reconciles a lost F11 apply acknowledgement instead of opening a fallback', async () => {
-    const inbound = await incoming('Can I speak to a human?');
+    const inbound = await confirmStaffRequest('Can I speak to a human?');
     const realApply = team.applyAiHandoff;
     const notify = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
     const apply = vi.spyOn(team, 'applyAiHandoff').mockImplementationOnce(async (intent) => {
@@ -913,7 +930,7 @@ describe('F10 F11 receipt recovery', { timeout: 20_000 }, () => {
     await execute(inbound);
     const finished = await trace(inbound.message.id);
     expect(finished).toMatchObject({ state: 'handoff', handoff_assignment_version: inbound.conversation.version + 1, attempts: 1 });
-    expect((await replies(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.escalation_ack.en]);
+    expect((await afterConsentPrompt(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.escalation_ack.en]);
     expect(save.mock.calls.filter(([input]) => input.author === 'ai').map(([input]) => input.providerMeta)).toEqual([
       { nlessHandoffAckVersion: finished.handoff_assignment_version },
     ]);
@@ -922,7 +939,7 @@ describe('F10 F11 receipt recovery', { timeout: 20_000 }, () => {
   });
 
   it.each(['staff claim', 'handback and requeue', 'AI off'] as const)('suppresses a recovered ACK after %s', async (change) => {
-    const inbound = await incoming('Can I speak to a human?');
+    const inbound = await confirmStaffRequest('Can I speak to a human?');
     const { id: conversationId } = inbound.conversation;
     const apply = vi.spyOn(team, 'applyAiHandoff');
     const requeue = team.requestHumanHandoff;
@@ -941,7 +958,7 @@ describe('F10 F11 receipt recovery', { timeout: 20_000 }, () => {
 
     await execute(inbound);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'skipped', reply_message_id: null, handoff_assignment_version: null });
-    expect(await replies(conversationId)).toEqual([]);
+    expect(await afterConsentPrompt(conversationId)).toEqual([]);
     expect(channels.sendToCustomer).not.toHaveBeenCalled();
     expect(apply).toHaveBeenCalledTimes(1);
     expect(notification).toHaveBeenCalledTimes(notificationsBeforeRecovery);
@@ -970,7 +987,9 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
       : originalChat({ ...input, fake: { text: 'I can check what happened.' } }));
     const handoff = vi.spyOn(team, 'applyAiHandoff');
     const first = await incoming('I need more help with this.');
+    vi.mocked(channels.sendToCustomer).mockImplementationOnce(originalSend);
     await execute(first);
+    await drainJobs({ type: 'core.deliver' });
     expect((await replies(first.conversation.id))[0].parts.at(-1)).toEqual({ type: 'text', text: fallbacks.handoff_offer.en });
     expect(await trace(first.message.id)).toMatchObject({ intent: 'ESCALATION', intent_source: 'classifier', handoff_offered: true });
     expect(handoff).not.toHaveBeenCalled();
@@ -983,7 +1002,7 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
     expect(chat.mock.calls.map(([input]) => input.usage.purpose)).toEqual(['reply', 'classify']);
   });
 
-  it('cancels an outstanding main reply once the classifier finds a confident request', async () => {
+  it('cancels the model reply and offers staff confirmation when the classifier finds a confident request', async () => {
     let replySignal: AbortSignal | undefined;
     vi.spyOn(model, 'chat').mockImplementation((input) => {
       if (input.usage.purpose === 'classify') return classifyAs(input, 'ESCALATION', 0.93);
@@ -994,9 +1013,9 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
     const inbound = await incoming('Can a member of your team help me directly?');
     await execute(inbound);
     expect(replySignal?.aborted).toBe(true);
-    expect(handoff).toHaveBeenCalledTimes(1);
-    expect((await replies(inbound.conversation.id))[0].text).toBe(fallbacks.escalation_ack.en);
-    expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', intent_source: 'classifier', evidence_ids: [], tools: [] });
+    expect(handoff).not.toHaveBeenCalled();
+    expect((await replies(inbound.conversation.id))[0].text).toBe(staffConsentCopy('en', 'staff_offer'));
+    expect(await trace(inbound.message.id)).toMatchObject({ state: 'completed', intent_source: 'classifier', evidence_ids: [], tools: [] });
   });
 
   it('never treats the model tool as consent and suppresses a second offer after a decline', async () => {
@@ -1048,6 +1067,73 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
     expect(await trace(returns.message.id)).toMatchObject({ intent: 'QUESTION', handoff_offered: true, evidence_ids: [] });
   });
 });
+
+describe('F10 confirmed LINE staff transfer', { timeout: 25_000 }, () => {
+  function lineInbound(text: string, prior?: SaveMessageResult) {
+    return saveMessage({
+      businessId, conversationId: prior?.conversation.id,
+      customer: prior ? undefined : { channel: 'line', externalId: 'f10-consent-real-test-' + randomUUID() },
+      direction: 'inbound', author: 'customer', origin: 'live', triggerAi: false, parts: [{ type: 'text', text }],
+    });
+  }
+
+  beforeEach(() => {
+    channels.registerChannelSender('line', { channel: 'line', mode: 'real', async send(delivery) {
+      return { state: 'sent', mode: 'real', externalRef: 'test-' + delivery.messageId };
+    } });
+    vi.mocked(channels.sendToCustomer).mockImplementation(originalSend);
+  });
+
+  afterEach(() => {
+    channels.registerChannelSender('line', { channel: 'line', mode: 'sandbox', async send(delivery) {
+      return { state: 'sent', mode: 'sandbox', simulatedRef: 'sandbox-' + delivery.messageId };
+    } });
+  });
+
+  it.each([
+    ['Can I speak to a person?', 'Talk to a person.', 'customer_asked', 'customer_request', 'en'],
+    ['ต้องการความช่วยเหลือเรื่องนี้ค่ะ', 'ใช่ค่ะ', 'accepted_staff_offer', 'staff_offer', 'th'],
+  ] as const)('accepts only a sent prompt for %s and records %s', async (request, affirmative, evidence, kind, language) => {
+    if (kind === 'staff_offer') {
+      vi.spyOn(model, 'chat').mockImplementation((request) => request.usage.purpose === 'classify'
+        ? classifyAs(request, 'ESCALATION', 0.94) : originalChat({ ...request, fake: { text: 'ขอตรวจสอบให้นะคะ' } }));
+    }
+    const apply = vi.spyOn(team, 'applyAiHandoff');
+    const first = await lineInbound(request);
+    await execute(first);
+    await drainJobs({ type: 'core.deliver' });
+    expect((await replies(first.conversation.id)).map(({ text }) => text)).toEqual([staffConsentCopy(language, kind)]);
+    expect(apply).not.toHaveBeenCalled();
+    expect(await getConversationHandler(first.conversation.id)).toBe('ai');
+
+    const confirm = await lineInbound(affirmative, first);
+    await execute(confirm);
+    await execute(confirm);
+    await drainJobs({ type: 'core.deliver' });
+    expect(apply).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ explicitRequestEvidence: evidence }));
+    expect(await getConversationHandler(first.conversation.id)).toBe('human');
+    expect((await replies(first.conversation.id)).at(-1)).toMatchObject({ text: fallbacks.escalation_ack[language], delivery: { state: 'sent' } });
+  });
+
+  it('keeps voice consent and direct preview separate from a staff transfer', async () => {
+    const apply = vi.spyOn(team, 'applyAiHandoff');
+    const first = await lineInbound('ขอคุยทางโทรศัพท์ค่ะ');
+    const preview = await generateReply(first.conversation.id, { triggerMessageId: first.message.id });
+    expect(preview.reply.parts).toEqual([{ type: 'text', text: staffConsentCopy('th', 'voice_unavailable') }]);
+    expect(await replies(first.conversation.id)).toEqual([]);
+    await execute(first);
+    await drainJobs({ type: 'core.deliver' });
+    const confirm = await lineInbound('ใช่ค่ะ', first);
+    await execute(confirm);
+    await drainJobs({ type: 'core.deliver' });
+    expect(apply).not.toHaveBeenCalled();
+    expect(await getConversationHandler(first.conversation.id)).toBe('ai');
+  });
+});
+
+async function getConversationHandler(conversationId: string) {
+  return (await inbox.getConversation(conversationId, { businessId }))?.handler;
+}
 
 describe('F10 current reply language', { timeout: 20_000 }, () => {
   it('answers the first English SKU after a Thai AI-off inbound and switches back to Thai', async () => {
@@ -1235,7 +1321,7 @@ describe('F10 catalog reference scope', { timeout: 20_000 }, () => {
   });
 
   it('keeps a takeover-held SKU out of the first new AI price after handback', async () => {
-    const handoff = await incoming('Can I speak to a human?');
+    const handoff = await confirmStaffRequest('Can I speak to a human?');
     await execute(handoff);
     const held = await incoming('A-GAME-01 ราคาเท่าไหร่คะ', handoff);
     await execute(held);
