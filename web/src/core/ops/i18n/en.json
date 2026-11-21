@@ -64,7 +64,7 @@
   "state.failed": "Stopped",
   "state.dead": "Dead",
   "state.cancelled": "Cancelled",
-  "deliveries.intro": "The outcome of these outbound deliveries is uncertain. Check the external channel before choosing a resolution. Resending requires your confirmation.",
+  "deliveries.intro": "The outcome of these outbound deliveries is uncertain. Check the external channel before choosing a resolution. Manual resend is available for web deliveries and requires confirmation.",
   "deliveries.markSent": "Mark as sent",
   "deliveries.markFailed": "Mark as failed",
   "deliveries.resend": "Resend",
@@ -194,5 +194,6 @@
   "policy.job_running": "The job started or already succeeded.",
   "policy.job_finished": "The job already finished.",
   "policy.not_unknown": "The delivery has already been resolved.",
-  "policy.line_resend_unavailable": "Resend is unavailable for LINE."
+  "policy.line_resend_unavailable": "Resend is unavailable for LINE.",
+  "policy.channel_deferred": "Resend is unavailable for this deferred channel."
 }

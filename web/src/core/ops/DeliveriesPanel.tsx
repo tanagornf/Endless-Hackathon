@@ -37,11 +37,13 @@ export function DeliveriesPanel() {
       { key: 'actions', header: t('common.actions'), render: (row) => row.deliveryState === 'unknown'
         ? <Stack spacing={0.5}>
           <Stack direction="row" spacing={0.5}>
-            {(row.channel === 'line' ? recordOutcomes : allResolutions).map((resolution) =>
+            {(row.channel === 'web' ? allResolutions : recordOutcomes).map((resolution) =>
               <Button key={resolution} sx={actionSize} color={resolution === 'resend' ? 'error' : 'primary'}
                 onClick={() => { setNote(''); setAction({ row, resolution }); }}>{t(`deliveries.${resolutions[resolution]}`)}</Button>)}
           </Stack>
-          {row.channel === 'line' && <Typography variant="caption" color="text.secondary">{t('policy.line_resend_unavailable')}</Typography>}
+          {row.channel !== 'web' && <Typography variant="caption" color="text.secondary">
+            {t(row.channel === 'line' ? 'policy.line_resend_unavailable' : 'policy.channel_deferred')}
+          </Typography>}
         </Stack> : null },
     ]} />
     <Pagination cursor={cursor} nextCursor={query.data?.nextCursor} onChange={setCursor} />

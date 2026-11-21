@@ -173,8 +173,8 @@ describe('operations console', () => {
     expect(request.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   });
 
-  it('confirms resending an uncertain delivery and sends only the resolution and note', async () => {
-    const row = { messageId: 'msg-fixture', deliveryState: 'unknown', channel: 'facebook', businessId: 'shop-fixture', createdAt: job.createdAt };
+  it('confirms resending an uncertain web delivery and sends only the resolution and note', async () => {
+    const row = { messageId: 'msg-fixture', deliveryState: 'unknown', channel: 'web', businessId: 'shop-fixture', createdAt: job.createdAt };
     const request = vi.fn(async (_path: string, init?: RequestInit) => init?.method === 'POST'
       ? response({ ...row, deliveryState: 'pending' }) : response({
         items: [row, { ...row, messageId: 'msg-failed', deliveryState: 'failed' }], nextCursor: null,
@@ -215,9 +215,38 @@ describe('operations console', () => {
     expect(screen.getByText('ยังส่งข้อความ LINE ซ้ำจากหน้านี้ไม่ได้')).toBeTruthy();
   });
 
-  it('explains and refreshes after the API rejects a stale resend as LINE', async () => {
+
+  it.each(['facebook', 'instagram'])('keeps outcome controls and explains why %s resend is unavailable', async (channel) => {
     const row = {
-      messageId: 'stale-fixture', deliveryState: 'unknown', channel: 'facebook', businessId: 'shop-fixture', createdAt: job.createdAt,
+      messageId: 'historical-fixture', deliveryState: 'unknown', channel, businessId: 'shop-fixture', createdAt: job.createdAt,
+    };
+    const request = vi.fn(async (_path: string, init?: RequestInit) => init?.method === 'POST'
+      ? response({ ...row, deliveryState: 'sent' }) : response({ items: [row], nextCursor: null }));
+    vi.stubGlobal('fetch', request);
+    show('deliveries');
+    const markSent = await screen.findByRole<HTMLButtonElement>('button', { name: 'Mark as sent' });
+    expect(markSent.disabled).toBe(false);
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Mark as failed' }).disabled).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Resend' })).toBeNull();
+    expect(screen.getByText('Resend is unavailable for this deferred channel.')).toBeTruthy();
+    fireEvent.click(markSent);
+    const dialog = screen.getByRole('dialog');
+    expect(request.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mark as sent' }));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/api/v1/ops/deliveries/historical-fixture/resolve', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ resolution: 'sent' }),
+    })));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await act(async () => { await i18n.changeLanguage('th'); });
+    expect(screen.getByText('ยังส่งข้อความซ้ำไม่ได้ เนื่องจากช่องทางนี้ถูกเลื่อนออกจากรุ่นนี้')).toBeTruthy();
+  });
+
+  it.each([
+    ['line', 'line_resend_unavailable', 'Resend is unavailable for LINE.'],
+    ['facebook', 'channel_deferred', 'Resend is unavailable for this deferred channel.'],
+  ])('explains and refreshes after the API rejects a stale resend as %s', async (channel, reason, message) => {
+    const row = {
+      messageId: 'stale-fixture', deliveryState: 'unknown', channel: 'web', businessId: 'shop-fixture', createdAt: job.createdAt,
     };
     let refused = false;
     const request = vi.fn(async (_path: string, init?: RequestInit) => {
@@ -225,12 +254,12 @@ describe('operations console', () => {
         refused = true;
         return Response.json({
           error: { code: 'POLICY_BLOCKED', message: 'Synthetic policy block', retryable: false, details: {
-            reason: 'line_resend_unavailable',
+            reason,
           } },
           meta: { requestId: 'fixture' },
         }, { status: 422 });
       }
-      return response({ items: [{ ...row, channel: refused ? 'line' : row.channel }], nextCursor: null });
+      return response({ items: [{ ...row, channel: refused ? channel : row.channel }], nextCursor: null });
     });
     vi.stubGlobal('fetch', request);
     show('deliveries');
@@ -241,8 +270,9 @@ describe('operations console', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
       expect(screen.queryByRole('button', { name: 'Resend' })).toBeNull();
-      expect(screen.getByRole('row', { name: /line.*Resend is unavailable for LINE\./i })).toBeTruthy();
-      expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes('Resend is unavailable for LINE.'))).toBe(true);
+      const row = screen.getByRole('cell', { name: channel }).closest('tr')!;
+      expect(within(row).getByText(message)).toBeTruthy();
+      expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes(message))).toBe(true);
     });
     expect(request.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   });

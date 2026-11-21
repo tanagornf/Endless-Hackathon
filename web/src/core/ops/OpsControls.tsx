@@ -46,7 +46,10 @@ export function reportUnavailableAction(error: unknown, t: TFunction<'ops'>, toa
     toast.error(t('policy.notFound'));
     return true;
   }
-  if (failure?.code === 'POLICY_BLOCKED' && (reason === 'job_running' || reason === 'job_finished' || reason === 'not_unknown' || reason === 'line_resend_unavailable')) {
+  if (failure?.code === 'POLICY_BLOCKED' && (
+    reason === 'job_running' || reason === 'job_finished' || reason === 'not_unknown'
+    || reason === 'line_resend_unavailable' || reason === 'channel_deferred'
+  )) {
     toast.error(t('policy.' + reason));
     return true;
   }

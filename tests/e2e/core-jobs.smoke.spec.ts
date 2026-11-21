@@ -21,6 +21,20 @@ const summary = {
   scheduler: { enabled: true, holdsLock: true }, deliveriesNeedingAttention: 0, demoResetting: false,
 };
 
+const shippedSchedules = [
+  ['core.sessions.purge', 'F01', 3600],
+  ['core.jobs.purge', 'F35', 3600],
+  ['line.maintenance', 'F17', 600],
+] as const;
+
+async function expectShippedSchedules(page: Page) {
+  const table = page.getByRole('table');
+  for (const [name] of shippedSchedules) {
+    const row = table.getByRole('row').filter({ has: page.getByRole('cell', { name, exact: true }) });
+    await expect(row.getByRole('cell', { name: 'Registered', exact: true })).toBeVisible();
+  }
+}
+
 async function fixture(page: Page, admin: boolean) {
   const writes: { path: string; method: string; body: string | null; requestedWith?: string }[] = [];
   const opsReads: string[] = [];
@@ -60,6 +74,15 @@ async function fixture(page: Page, admin: boolean) {
       opsReads.push(path);
       if (!admin) return route.fulfill({ status: 403, json: { error: { code: 'PERMISSION_DENIED' } } });
       if (path === '/api/v1/ops/summary') return data(summary);
+      if (path === '/api/v1/ops/schedules') {
+        const history = { lastSlot: null, lastState: null, lastFinishedAt: null, lastError: null };
+        return data({ items: [
+          ...shippedSchedules.map(([name, ownerFeature, everySeconds]) => ({
+            ...history, name, ownerFeature, everySeconds, source: 'registered', status: 'declared',
+          })),
+          { ...history, name: 'comments.reconcile', ownerFeature: 'F21', everySeconds: 300, source: 'expected_missing', status: 'declared' },
+        ] });
+      }
       if (path === '/api/v1/ops/jobs') {
         await firstJobs;
         const rows = queued && url.searchParams.get('state') === 'dead' ? [] : [{ ...job, state: queued ? 'queued' : 'dead' }];
@@ -108,6 +131,17 @@ test.describe('F35 operations browser smoke against synthetic fixtures', () => {
     await page.getByTestId('lang-switch').getByRole('button', { name: 'TH' }).click();
     await expect(page.getByRole('heading', { name: 'เครื่องมือผู้ดูแลระบบ' })).toBeVisible();
     await expect(page.getByText('ไม่มีงานตามตัวกรอง')).toBeVisible();
+  });
+
+  test('checks shipped schedule rows while showing a deferred missing row', async ({ page }) => {
+    const data = await fixture(page, true);
+    data.release();
+    await setUiLanguage(page, 'en');
+    await page.goto(host + '/ops?tab=schedules');
+    await expectShippedSchedules(page);
+    const deferred = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'comments.reconcile', exact: true }) });
+    await expect(deferred.getByText('Declared in the spec but not registered')).toBeVisible();
+    expect(data.writes).toEqual([]);
   });
 
   test('signed-in non-admin sees Not Found and no ops navigation', async ({ page }) => {
@@ -165,7 +199,7 @@ test.describe('F35 read-only live operations smoke', () => {
       await expect(page.getByRole('table')).toHaveAttribute('aria-busy', 'false');
       await page.getByRole('tab', { name: 'Schedules' }).click();
       await expect(page.getByRole('table')).toHaveAttribute('aria-busy', 'false');
-      await expect(page.getByText('Declared in the spec but not registered')).toHaveCount(0);
+      await expectShippedSchedules(page);
       const { sha } = await (await context.request.get('/build-info')).json();
       await page.getByRole('tab', { name: 'System' }).click();
       await expect(page.getByText(sha, { exact: false })).toBeVisible();
