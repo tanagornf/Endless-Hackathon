@@ -53,6 +53,11 @@ async function checkContactEdits(page: Page, api: APIRequestContext, panel: Loca
         });
         expect(cleanup.status()).toBe(200);
       }
+      const restored = await read();
+      for (const field of touched) {
+        const value = field === 'note' ? restored.note : restored.contact[field];
+        expect((value ?? '') === original[field], 'restored ' + field).toBe(true);
+      }
     }
   }
 }
