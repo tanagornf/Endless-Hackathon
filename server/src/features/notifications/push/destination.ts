@@ -80,9 +80,10 @@ export async function pendingNoticeDestination(notice: PhoneNotice): Promise<str
   const { businessId, purpose } = notice;
   try {
     if (purpose.kind === 'staff-offer') {
-      const { getConversationTeamState } = await import('../../team/service');
-      const current = await getConversationTeamState(purpose.conversationId, businessId, false);
-      return current.isQueued && current.version === purpose.version
+      const { getExplicitStaffRequestForNotification } = await import('../../team/service');
+      const key = 'handoff:' + purpose.conversationId + ':v' + purpose.version;
+      const receipt = await getExplicitStaffRequestForNotification(businessId, key);
+      return receipt?.conversationId === purpose.conversationId && receipt.committedVersion === purpose.version
         ? '/chat?' + new URLSearchParams({ c: purpose.conversationId })
         : null;
     }

@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ownerConsultDestination, registerOwnerConsultLookup, resolvePhoneNotice } from './destination';
 
-const { readNotice, readTeamState } = vi.hoisted(() => ({ readNotice: vi.fn(), readTeamState: vi.fn() }));
+const { readNotice, readStaffReceipt } = vi.hoisted(() => ({ readNotice: vi.fn(), readStaffReceipt: vi.fn() }));
 vi.mock('../../../core', () => ({
   db: { maybeOne: readNotice },
   AppError: class extends Error {
     constructor(readonly code: string, message: string) { super(message); }
   },
 }));
-vi.mock('../../team/service', () => ({ getConversationTeamState: readTeamState }));
+vi.mock('../../team/service', () => ({ getExplicitStaffRequestForNotification: readStaffReceipt }));
 
 const id = '6f4f637d-4909-4d33-8a25-78e5748a4e14';
 const user = '99bb9603-452f-4ae9-8a9c-01a1c76dc4f5';
@@ -32,7 +32,7 @@ const ownerNotice = {
 describe('authenticated phone notification destination', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    readTeamState.mockResolvedValue({ isQueued: true, version: 12 });
+    readStaffReceipt.mockResolvedValue({ conversationId: target, committedVersion: 12 });
     pending.mockResolvedValue(true);
   });
 
@@ -40,8 +40,8 @@ describe('authenticated phone notification destination', () => {
     readNotice.mockResolvedValue(staffNotice);
     await expect(resolvePhoneNotice(user, id)).resolves.toEqual({ businessId, link: '/chat?c=' + target });
     expect(readNotice).toHaveBeenCalledWith(expect.stringContaining('n.user_id = $2'), [id, user, null]);
-    expect(readTeamState).toHaveBeenCalledWith(target, businessId, false);
-    readTeamState.mockResolvedValue({ isQueued: true, version: 13 });
+    expect(readStaffReceipt).toHaveBeenCalledWith(businessId, 'handoff:' + target + ':v12');
+    readStaffReceipt.mockResolvedValue({ conversationId: target, committedVersion: 13 });
     await expect(resolvePhoneNotice(user, id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
@@ -49,8 +49,8 @@ describe('authenticated phone notification destination', () => {
     readNotice.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...staffNotice, permissions: ['chat.read'] }).mockResolvedValue(staffNotice);
     await expect(resolvePhoneNotice(user, id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await expect(resolvePhoneNotice(user, id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    expect(readTeamState).not.toHaveBeenCalled();
-    readTeamState.mockResolvedValue({ isQueued: false, version: 12 });
+    expect(readStaffReceipt).not.toHaveBeenCalled();
+    readStaffReceipt.mockResolvedValue(null);
     await expect(resolvePhoneNotice(user, id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
