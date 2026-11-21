@@ -74,6 +74,7 @@ export default function Login() {
             </InputAdornment> },
           }} />
         <Button type="submit" variant="contained" data-testid="login-submit" loading={busy}>{t('login.submit')}</Button>
+        <Link component={RouterLink} to="/forgot-password" sx={{ alignSelf: 'flex-start', py: 1 }}>{t('login.forgot')}</Link>
         <Link component={RouterLink} to={signupPath} sx={{ alignSelf: 'flex-start', py: 1 }}>{t('login.noAccount')}</Link>
       </Stack>
     </Paper>

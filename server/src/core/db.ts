@@ -42,7 +42,7 @@ export async function closeDb(): Promise<void> {
   await current?.end();
 }
 
-type Runner = pg.Pool | pg.PoolClient;
+type Runner = pg.Pool | pg.Client;
 function executor(runner: () => Runner): DbExecutor {
   const query: DbExecutor['query'] = async <T>(sql: string, params?: readonly unknown[]): Promise<QueryResult<T>> => {
     const result = await runner().query(sql, params ? [...params] : undefined);
@@ -61,6 +61,8 @@ function executor(runner: () => Runner): DbExecutor {
     },
   };
 }
+
+export const databaseExecutor = (client: pg.Client): DbExecutor => executor(() => client);
 
 export const db: DbClient = {
   ...executor(dbPool),
