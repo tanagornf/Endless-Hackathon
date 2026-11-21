@@ -25,6 +25,7 @@ const allow: EffectiveAnswerRules = {
 const businessId = seedId('biz_demo_a');
 const originalChat = model.chat.bind(model);
 const originalSettings = settings.getBusinessSettings;
+const originalOpenState = settings.getBusinessOpenState;
 const originalSend = channels.sendToCustomer;
 
 type TraceRow = {
@@ -591,10 +592,7 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
   });
 
   it('G22 uses the closed-shop acknowledgement instead of promising an immediate answer', async () => {
-    vi.spyOn(settings, 'getBusinessOpenState').mockResolvedValue({
-      open: false, reason: 'outside_hours', timezone: 'Asia/Bangkok', nextOpenAt: null, closure: null,
-      localDate: '2026-11-21', localTime: '21:00',
-    });
+    vi.spyOn(settings, 'getBusinessOpenState').mockImplementationOnce((id) => originalOpenState(id, '2026-11-21T21:00:00+07:00'));
     const inbound = await incoming('ขอคุยกับพนักงานค่ะ');
     await execute(inbound);
     expect((await replies(inbound.conversation.id))[0].text).toBe(fallbacks.escalation_ack_closed.th);
