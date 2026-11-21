@@ -1,11 +1,10 @@
-import { AppError } from '../../core';
 import { runAiTurn } from './turn';
-import type { AiTurnMetrics, AiTurnTopic, GenerateReplyOptions } from '@nless/shared/features/ai-agent/types';
-import type { ChatTurnResult, MetricsRange } from '@nless/shared/core/types';
+import type { GenerateReplyOptions } from '@nless/shared/features/ai-agent/types';
+import type { ChatTurnResult } from '@nless/shared/core/types';
 import type { JobHandler } from '../../core';
 import type { AiReplyJobPayload } from '@nless/shared/features/inbox/types';
 
-export { readTurnTrace as getTurnTrace } from './trace';
+export { readTurnTrace as getTurnTrace, listTurns, getAiTurnMetrics, listAiTurnTopics } from './trace';
 
 /**
  * @owner F10 ai-agent · B2 · consumers: B2 ai.reply handler, A1 (suggest), B2 voice
@@ -52,13 +51,3 @@ export const aiReplyJobHandler: JobHandler<AiReplyJobPayload> = async (job) => {
   });
   return turn.retryAt ? { retryAt: turn.retryAt } : undefined;
 };
-
-
-export async function getAiTurnMetrics(businessId: string, range: MetricsRange): Promise<AiTurnMetrics> {
-  throw new AppError("SERVICE_NOT_READY", "getAiTurnMetrics is not implemented");
-}
-
-
-export async function listAiTurnTopics(businessId: string, opts: { finishedFrom: string; finishedTo: string; limit?: number }): Promise<AiTurnTopic[]> {
-  throw new AppError("SERVICE_NOT_READY", "listAiTurnTopics is not implemented");
-}
