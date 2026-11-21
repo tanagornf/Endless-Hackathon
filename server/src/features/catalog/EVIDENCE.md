@@ -4,10 +4,12 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F08 | catalog | B1 | DOING | R | A | None | | B1 migration passed. 22 catalog tests plus registry and bilingual key checks passed (54 total). | 2026-11-21 12:07 | S2a catalog create and edit UI, production smoke. |
+| F08 | catalog | B1 | DOING | R | A | None | | B1 migration passed. Catalog 25/25 and combined catalog, registry and i18n checks 57/57. | 2026-11-21 12:30 | Production smoke and S2b–S3 remain pending. |
 
 ## Log
 
 - S1 implements database-backed getProduct, getPrice, listCatalogItems and getCatalogItemDetails, the staff read route, seed rows and integer satang parsing.
-- Tests cover the canonical seed prices, variant and stock fallback, normalization, bilingual lookup, list filters, tenant boundaries, cursor paging and read permissions.
-- The bilingual catalog list shows the staff read route. Create and edit follow in S2a. Import, stock adjustment, image management and production smoke remain pending.
+- S2a adds Thai and English create and edit screens, SQL price and stock history, tenant-scoped CRUD reads and version-checked writes. Staff without product.write can read the editor.
+- Integration checks cover canonical price changes, stale and competing writes, SKU normalization and conflicts, request validation, tenant scope and staff permissions.
+- Playwright discovers the English create and reprice smoke. It turns off its synthetic listing when done. Production execution is pending.
+- Delete, SKU checking and other catalog routes remain in S2b. Variant management, stock adjustment, images and import remain in S3.

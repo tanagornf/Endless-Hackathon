@@ -20,5 +20,52 @@
     "soldOut": "Sold out",
     "untracked": "Untracked",
     "status": "Status"
+  },
+  "actions": {
+    "add": "Add product or service",
+    "save": "Save",
+    "back": "Back to catalog",
+    "reload": "Load latest version",
+    "leave": "Leave page"
+  },
+  "form": {
+    "name": "Name",
+    "nameEn": "English name",
+    "nameEnHelp": "Helps customers find this item by its English name.",
+    "sku": "SKU",
+    "kind": "Type",
+    "stock": "Stock",
+    "stockHelp": "Leave blank for untracked stock.",
+    "price": "Price (baht)",
+    "duration": "Duration (minutes)",
+    "active": "On sale"
+  },
+  "kind": {
+    "product": "Product",
+    "service": "Service"
+  },
+  "editor": {
+    "details": "Item details",
+    "version": "Version {{version}}",
+    "priceChanged": "Price last changed {{at}}"
+  },
+  "error": {
+    "required": "Enter a name and SKU.",
+    "price": "Enter a price with up to two decimal places.",
+    "stock": "Enter a whole stock count from 0 to 1,000,000.",
+    "duration": "Enter a service duration from 5 to 1,440 minutes.",
+    "save": "Could not save this item.",
+    "skuTaken": "This SKU is already in use.",
+    "conflict": "This item has changed. Load the latest version before saving again."
+  },
+  "confirm": {
+    "priceTitle": "Save the new price?",
+    "priceMessage": "Open quotes will check the new price when the customer confirms.",
+    "leaveTitle": "Leave without saving?",
+    "leaveMessage": "Your unsaved changes will be lost."
+  },
+  "toast": {
+    "created": "Item added",
+    "saved": "Saved"
   }
 }

@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { AppError, db } from '../../core';
+import type { DbExecutor } from '../../core';
 import type { Page } from '@nless/shared/core/types';
 import type {
-  CatalogImage, CatalogItem, CatalogItemDetail, CatalogItemRow, CatalogVariant,
+  CatalogImage, CatalogItem, CatalogItemAdminDetail, CatalogItemDetail, CatalogItemRow, CatalogVariant,
 } from '@nless/shared/features/catalog/types';
 import type { ListQuery } from './schema';
 import { catalogKey, literalContains } from './sku';
@@ -200,4 +201,35 @@ export async function listItems(businessId: string, query: ListQuery): Promise<P
       };
     }),
   };
+}
+
+
+export async function findItemRow(executor: DbExecutor, businessId: string, itemId: string, forUpdate = false): Promise<ItemRow> {
+  if (!isItemId(itemId)) throw new AppError('NOT_FOUND', 'Catalog item not found');
+  const row = await executor.maybeOne<ItemRow>(selectItems +
+    ' FROM catalog_items i WHERE i.business_id=$1 AND i.id=$2 AND i.deleted_at IS NULL' + (forUpdate ? ' FOR UPDATE OF i' : ''),
+    [businessId, itemId]);
+  if (!row) throw new AppError('NOT_FOUND', 'Catalog item not found');
+  return row;
+}
+
+export function adminView(row: ItemRow): CatalogItemAdminDetail {
+  const item = itemView(row);
+  return {
+    ...item, description: row.description, category: row.category, unit: row.unit,
+    images: row.images.map((image) => ({
+      ...image, url: '/api/v1/businesses/' + row.business_id + '/catalog/items/' + row.id + '/images/' + image.id + '/file',
+    })),
+    source: row.source, sourceRef: row.source_ref, priceChangedAt: row.price_changed_at.toISOString(),
+    createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
+    variants: row.variants.map((variant) => ({
+      ...variantView(variant), active: variant.active, position: variant.position,
+      effectivePriceMinor: variant.priceMinor === null ? item.priceMinor : minorAmount(variant.priceMinor),
+      effectiveStock: variant.stock ?? item.stock,
+    })),
+  };
+}
+
+export async function getItemAdmin(businessId: string, itemId: string): Promise<CatalogItemAdminDetail> {
+  return adminView(await findItemRow(db, businessId, itemId));
 }
