@@ -33,3 +33,9 @@
 
 - An authenticated WebSocket received chat events after its staff member's chat grant was cleared. A real socket regression now verifies fresh authorization for chat events, continued delivery of unrelated events to the active member, and policy close code 1008 following removal of the membership.
 - Local typecheck and focused realtime, auth and core loop tests passed. Production verification is pending.
+
+### F35 outbox checkpoint
+
+- A C1 database test first observed a reclaimed in-flight delivery call the sender again. It also found that an exhausted final attempt left the message pending.
+- The worker now checkpoints before dispatch, retries only explicit definite failures, and records uncertain sends as unknown with a delivery audit. Exhausted expired jobs and their in-flight message are updated in one database statement.
+- Local typecheck and 22 focused tests passed across six files. Production verification and operator review and resend controls are pending.

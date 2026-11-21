@@ -1,11 +1,11 @@
-import type { Channel, DeliveryMode, MessageAuthor, MessagePart } from '@nless/shared/core/types';
+import type { Channel, MessageAuthor, MessagePart } from '@nless/shared/core/types';
 import { getConversation, saveMessage } from '../features/inbox/service';
 import { db } from './db';
 import { AppError } from './errors';
 import { jobs, registerJob } from './jobs';
 import { log } from './log';
-import { publish } from './realtime';
-import type { ChannelSender, DeliveryResult, OutboundDelivery, SendReceipt, SendToCustomerOptions } from './types';
+import { attemptDelivery, deliveryErrorCode, markInflight, resolveAmbiguous, settleDelivery } from './outbox';
+import type { ChannelSender, OutboundDelivery, SendReceipt, SendToCustomerOptions } from './types';
 
 const senders = new Map<Channel, ChannelSender>();
 export function registerChannelSender(channel: Channel, sender: ChannelSender): void {
@@ -24,9 +24,7 @@ for (const channel of ['web', 'line', 'facebook', 'instagram'] as const) {
   });
 }
 
-export class ChannelSendError extends Error {
-  constructor(message: string, readonly options: { code: string; definitelyNotSent: boolean; retryable: boolean; providerStatus?: number }) { super(message); }
-}
+export { ChannelSendError } from './outbox';
 
 export async function sendToCustomer(conversationId: string, parts: MessagePart[], opts?: SendToCustomerOptions): Promise<SendReceipt> {
   const conversation = await getConversation(conversationId, { businessId: opts?.businessId });
@@ -42,8 +40,19 @@ export async function sendToCustomer(conversationId: string, parts: MessagePart[
     delivery_state=CASE WHEN delivery_state='not_required' THEN 'pending' ELSE delivery_state END
     WHERE id=$1 AND conversation_id=$2 AND business_id=$3 AND direction='outbound'`, [messageId, conversationId, businessId, sender.mode]);
   if (!stored.rowCount) throw new AppError('NOT_FOUND', 'Outbound message not found');
-  const job = await jobs.enqueue('core.deliver', { messageId }, { businessId, dedupKey: 'deliver:' + messageId, lockKey: 'conversation:' + conversationId });
+  const job = await jobs.enqueue('core.deliver', { messageId }, {
+    businessId, dedupKey: 'deliver:' + messageId, lockKey: 'conversation:' + conversationId, maxAttempts: 5,
+  });
   return { messageId, conversationId, channel, jobId: job.jobId, delivery: { mode: sender.mode, state: 'pending' } };
+}
+
+async function aiDeliveryAllowed(delivery: Pick<OutboundDelivery, 'businessId' | 'conversationId'>, handoffAckVersion: unknown) {
+  const { getBusinessSettings } = await import('../features/business-settings/service.js');
+  if (!(await getBusinessSettings(delivery.businessId)).aiEnabled) return false;
+  const conversation = await getConversation(delivery.conversationId, { businessId: delivery.businessId });
+  // F10's code-authored acknowledgement may follow its own handoff, at that exact assignment version.
+  const currentHandoffAck = typeof handoffAckVersion === 'number' && conversation?.version === handoffAckVersion;
+  return conversation?.status === 'open' && (conversation.handler === 'ai' || currentHandoffAck);
 }
 
 registerJob('core.deliver', async ({ payload, businessId, attempt, maxAttempts, signal }) => {
@@ -63,41 +72,32 @@ registerJob('core.deliver', async ({ payload, businessId, attempt, maxAttempts, 
   const { author, handoffAckVersion, ...delivery } = row;
   const sender = senders.get(delivery.channel);
   if (!sender) throw new AppError('CHANNEL_NOT_CONNECTED', 'Channel is unavailable');
+  const key = { messageId, businessId: delivery.businessId };
   signal.throwIfAborted();
-  if (author === 'ai') {
-    const { getBusinessSettings } = await import('../features/business-settings/service.js');
-    const settings = await getBusinessSettings(delivery.businessId);
-    const conversation = settings.aiEnabled
-      ? await getConversation(delivery.conversationId, { businessId: delivery.businessId })
-      : null;
-    signal.throwIfAborted();
+  const checkpoint = await markInflight(key, attempt);
+  if (!checkpoint) return resolveAmbiguous(key);
 
-    // F10's code-authored acknowledgement may follow its own handoff, at that exact assignment version.
-    const currentHandoffAck = typeof handoffAckVersion === 'number' && conversation?.version === handoffAckVersion;
-    if (conversation?.status !== 'open' || (conversation.handler !== 'ai' && !currentHandoffAck)) {
-      const failed = await db.maybeOne<{ mode: DeliveryMode | null }>(`
-        UPDATE messages SET delivery_state='failed',delivery_error='AI_DELIVERY_SUPPRESSED'
-        WHERE id=$1 AND business_id=$2 AND delivery_state='pending'
-        RETURNING delivery_mode AS mode`, [messageId, delivery.businessId]);
-      if (failed) publish(delivery.businessId, {
-        type: 'message.updated', conversationId: delivery.conversationId, messageId,
-        delivery: { state: 'failed', mode: failed.mode },
-      });
-      return;
-    }
-  }
-  let result: DeliveryResult;
+  let allowed: boolean;
   try {
-    result = await sender.send({ ...delivery, messageId, attempt });
+    allowed = author !== 'ai' || await aiDeliveryAllowed(delivery, handoffAckVersion);
   } catch (error) {
-    if (error instanceof ChannelSendError && error.options.retryable && error.options.definitelyNotSent && attempt < maxAttempts) {
-      throw new AppError('PROVIDER_UNAVAILABLE', 'Channel requested a retry', { retryable: true });
-    }
-    result = { state: error instanceof ChannelSendError && error.options.definitelyNotSent ? 'failed' : 'unknown', mode: sender.mode, error: 'CHANNEL_DELIVERY_ERROR' };
+    const retryable = attempt < maxAttempts && (!(error instanceof AppError) || error.retryable);
+    await settleDelivery(key, checkpoint, retryable
+      ? { state: 'pending', error: 'retry:PREFLIGHT_UNAVAILABLE' }
+      : { state: 'failed', error: 'PREFLIGHT_UNAVAILABLE' });
+    throw error;
   }
-  if (result.state === 'failed' && result.retryable && attempt < maxAttempts) throw new AppError('PROVIDER_UNAVAILABLE', 'Channel requested a retry', { retryable: true });
-  await db.query(`UPDATE messages SET delivery_state=$3,delivery_mode=$4,delivery_external_ref=$5,delivery_error=$6
-    WHERE id=$1 AND business_id=$2 AND delivery_state='pending'`, [messageId, row.businessId, result.state,
-    result.mode, result.externalRef ?? result.simulatedRef ?? null, result.error ? 'CHANNEL_DELIVERY_ERROR' : null]);
-  publish(row.businessId, { type: 'message.updated', conversationId: row.conversationId, messageId, delivery: { state: result.state, mode: result.mode } });
+  signal.throwIfAborted();
+  if (!allowed) return settleDelivery(key, checkpoint, { state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' });
+
+  const result = await attemptDelivery(sender, { ...delivery, messageId, attempt });
+  signal.throwIfAborted();
+  const error = result.state === 'sent' ? null : deliveryErrorCode(result.error);
+  if (result.state === 'failed' && result.retryable && attempt < maxAttempts) {
+    await settleDelivery(key, checkpoint, { state: 'pending', mode: result.mode, error: 'retry:' + error });
+    throw new AppError('PROVIDER_UNAVAILABLE', 'Channel requested a retry', { retryable: true });
+  }
+  await settleDelivery(key, checkpoint, {
+    state: result.state, mode: result.mode, error, externalRef: result.externalRef ?? result.simulatedRef ?? null,
+  });
 });

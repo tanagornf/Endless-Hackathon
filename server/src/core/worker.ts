@@ -9,6 +9,8 @@ import {
   JOBS_MAX_RESCHEDULES, JOBS_POLL_MS, JOBS_RESULT_MAX_BYTES, JOBS_SHUTDOWN_GRACE_MS,
 } from './jobs-config';
 import { jobContext, log } from './log';
+import { INTERRUPTED_DELIVERY, publishDeliveryChange } from './outbox';
+import type { DeliveryChange } from './outbox';
 import { redactObject, redactText } from './redact';
 
 interface JobIdentity { id: string; type: string; business_id: string | null; attempts: number }
@@ -48,13 +50,25 @@ async function onDead(job: JobIdentity, lastError: string) {
   }).catch(() => log.warn({ jobId: job.id, type: job.type }, 'Dead job audit could not be written'));
 }
 async function reap(type?: string): Promise<number> {
-  const { rows } = await db.query<JobIdentity>(
-    "UPDATE jobs SET state='dead',dead_at=now(),finished_at=now(),updated_at=now(),claim_token=NULL, " +
-    "locked_until=NULL,locked_by=NULL,last_error=$2 WHERE state='running' AND locked_until<now() " +
-    "AND attempts>=max_attempts AND ($1::text IS NULL OR type=$1) RETURNING id,type,business_id,attempts",
-    [type ?? null, exhausted],
-  );
-  for (const row of rows) await onDead(row, exhausted);
+  // Settle an exhausted delivery in the same statement that makes its job unrecoverable.
+  const { rows } = await db.query<JobIdentity & { delivery: DeliveryChange | null }>(`
+    WITH expired AS (
+      UPDATE jobs SET state='dead',dead_at=now(),finished_at=now(),updated_at=now(),claim_token=NULL,
+        locked_until=NULL,locked_by=NULL,last_error=$2 WHERE state='running' AND locked_until<now()
+        AND attempts>=max_attempts AND ($1::text IS NULL OR type=$1) RETURNING id,type,business_id,attempts,payload
+    ), interrupted AS (
+      UPDATE messages m SET delivery_state='unknown',delivery_error=$3 FROM expired j
+      WHERE j.type='core.deliver' AND m.business_id=j.business_id AND m.id::text=j.payload->>'messageId'
+        AND m.direction='outbound' AND m.delivery_state='pending' AND m.delivery_error LIKE 'inflight:%'
+      RETURNING j.id AS "jobId", m.id AS "messageId", m.business_id AS "businessId",
+        m.conversation_id AS "conversationId", m.channel, m.delivery_state AS state, m.delivery_mode AS mode, m.delivery_error AS error
+    )
+    SELECT j.id,j.type,j.business_id,j.attempts,to_jsonb(i) AS delivery FROM expired j
+      LEFT JOIN interrupted i ON i."jobId"=j.id`, [type ?? null, exhausted, INTERRUPTED_DELIVERY]);
+  for (const row of rows) {
+    if (row.delivery) await publishDeliveryChange(row.delivery);
+    await onDead(row, exhausted);
+  }
   return rows.length;
 }
 
