@@ -64,6 +64,7 @@ export function mountMeta(app: Application, features: () => number) {
     res.json({ status: 'ready', worker, scheduler, migrations: migrations.status === 'fulfilled' ? migrations.value : null, uploadDir: 'ok' });
   });
   app.get('/build-info', async (_req, res) => {
-    res.json({ ...(await getBuildMetadata()), featuresLoaded: features() });
+    const { providerModesScope, providerModes, ...metadata } = await getBuildMetadata();
+    res.json({ ...metadata, featuresLoaded: features(), providerModesScope, providerModes });
   });
 }
