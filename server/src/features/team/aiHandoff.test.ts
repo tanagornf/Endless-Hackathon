@@ -164,3 +164,65 @@ test('a mismatched shop cannot mutate a still eligible conversation', async () =
   expect(await counts(intent)).toEqual({ notes: 0, receipts: 0, audits: 0 });
   expect(await applyAiHandoff(intent)).toEqual({ ...intent, committedVersion: intent.expectedVersion + 1 });
 });
+
+function latch() {
+  let open!: () => void;
+  const wait = new Promise<void>((resolve) => { open = resolve; });
+  return { wait, open };
+}
+
+test('staff claim during notification preparation suppresses the obsolete notification', async () => {
+  const intent = await newIntent();
+  const preparing = latch();
+  const resume = latch();
+  const readSettings = settings.getBusinessSettings;
+  vi.spyOn(settings, 'getBusinessSettings').mockImplementationOnce(async (id) => {
+    preparing.open();
+    await resume.wait;
+    return readSettings(id);
+  });
+  const notified = vi.spyOn(notifications, 'notify');
+  const applying = applyAiHandoff(intent);
+  try {
+    await preparing.wait;
+    await assignConversation(intent.conversationId, staff, { businessId });
+  } finally { resume.open(); }
+  await applying;
+  expect(notified).not.toHaveBeenCalled();
+  expect(await core.db.one(`SELECT notification_result FROM team_ai_handoff_receipts
+    WHERE business_id=$1 AND conversation_id=$2 AND turn_id=$3`, [businessId, intent.conversationId, intent.turnId]))
+    .toEqual({ notification_result: 'obsolete' });
+});
+
+test('an expired worker cannot complete a receipt held by the replacement worker', async () => {
+  const intent = await newIntent();
+  const firstDispatch = latch();
+  const finishFirst = latch();
+  const secondDispatch = latch();
+  const finishSecond = latch();
+  const notified = vi.spyOn(notifications, 'notify')
+    .mockImplementationOnce(async () => { firstDispatch.open(); await finishFirst.wait; return { notificationIds: [], mode: 'real' }; })
+    .mockImplementationOnce(async () => { secondDispatch.open(); await finishSecond.wait; return { notificationIds: [], mode: 'sandbox' }; });
+  const applying = applyAiHandoff(intent);
+  let sweeping: Promise<void> | undefined;
+  const params = [businessId, intent.conversationId, intent.turnId];
+  const result = () => core.db.one(`SELECT notification_result FROM team_ai_handoff_receipts
+    WHERE business_id=$1 AND conversation_id=$2 AND turn_id=$3`, params);
+  try {
+    await firstDispatch.wait;
+    await core.db.query(`UPDATE team_ai_handoff_receipts SET notification_due_at=now()
+      WHERE business_id=$1 AND conversation_id=$2 AND turn_id=$3`, params);
+    sweeping = retryDueAiHandoffNotifications();
+    await secondDispatch.wait;
+    finishFirst.open();
+    await applying;
+    expect(await result()).toEqual({ notification_result: null });
+  } finally {
+    finishFirst.open();
+    finishSecond.open();
+    await Promise.all([applying, sweeping]);
+  }
+  expect(await result()).toEqual({ notification_result: 'sandbox' });
+  expect(notified).toHaveBeenCalledTimes(2);
+  expect(notified.mock.calls[0][0].dedupKey).toBe(notified.mock.calls[1][0].dedupKey);
+});
