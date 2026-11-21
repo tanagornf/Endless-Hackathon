@@ -166,6 +166,11 @@ describe('team routes', () => {
     const foreign = await newChat(otherBusinessId);
     const agent = await createTestAgent();
     await loginAs(agent, 'staff.a@example.test');
+    const wrongScope = '?businessId=' + otherBusinessId;
+    expect((await agent.get(chatPath(chat.id) + '/team' + wrongScope)).status).toBe(404);
+    for (const action of ['takeover', 'release']) {
+      expect((await agent.post(chatPath(chat.id) + '/' + action + wrongScope).set(csrf, 'nless').send({})).status).toBe(404);
+    }
     for (const base of [chatPath(foreign.id), chatPath('invalid')]) {
       expect((await agent.get(base + '/team')).status).toBe(404);
       expect((await agent.post(base + '/takeover').set(csrf, 'nless').send({})).status).toBe(404);
