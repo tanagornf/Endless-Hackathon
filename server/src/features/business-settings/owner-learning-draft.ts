@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { KnowledgeDraftInput, KnowledgeDraftResult } from '@nless/shared/features/knowledge/types';
+import type { OwnerConsultKnowledgeDraftInput, KnowledgeDraftResult } from '@nless/shared/features/knowledge/types';
 import { AppError, db, redactText } from '../../core';
 import type { ModelChatInput, UsageAttribution } from '../../core';
-import { createKnowledgeDraft, getKnowledgeRevision } from '../knowledge/service';
+import { createOwnerConsultKnowledgeDraft, getKnowledgeRevision } from '../knowledge/service';
 
 const purpose = 'learning.owner-correction';
 const textLimit = 3000;
@@ -44,7 +44,7 @@ export interface OwnerLearningDraftPorts {
   analyze(input: OwnerLearningAnalysisInput): Promise<unknown>;
   signal?: AbortSignal;
   readReceipt?(key: OwnerLearningDraftInput): Promise<OwnerLearningDraftReceipt | null>;
-  createDraft?(input: KnowledgeDraftInput): Promise<KnowledgeDraftResult>;
+  createDraft?(input: OwnerConsultKnowledgeDraftInput): Promise<KnowledgeDraftResult | null>;
   readDraftRevision?(businessId: string, itemId: string, revision: number): Promise<{ title: string; body: string } | null>;
 }
 
@@ -63,14 +63,30 @@ const candidateSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 }).strict();
 
+function localizedDraftFormat(language: string) {
+  return {
+    type: ['string', 'null'],
+    description: language + ' reusable shop FAQ. Write a short topic heading on line one, then a standalone answer on the next line. Generalize both independently. Omit names, references to this buyer, contact or order details and one-time exceptions. If no reusable shop fact is supported, choose no_change.',
+  };
+}
+
+function splitDraft(text: string | null) {
+  if (!text || /\[(?:redacted[^\]]*|link|phone|line-id|order-ref|email)\]/iu.test(text)) return null;
+  const [heading, ...lines] = text.split(/\r?\n/u);
+  const title = heading.trim();
+  const body = lines.join('\n').trim();
+  if (!title || title.length > 120 || !body || ![title, ...lines].every(candidateTextIsSafe)) return null;
+  return { title, body };
+}
+
 function responseFormat(key: OwnerLearningDraftInput): OwnerLearningAnalysisInput['responseFormat'] {
   const properties = {
     action: { type: 'string', enum: candidateActions },
     caseId: { type: 'string', enum: [key.caseId] },
     targetId: { type: 'null' },
     expectedVersion: { type: 'integer', enum: [key.expectedVersion] },
-    textTh: { type: ['string', 'null'] },
-    textEn: { type: ['string', 'null'] },
+    textTh: localizedDraftFormat('Thai'),
+    textEn: localizedDraftFormat('English'),
     reason: { type: 'string' },
   };
   return {
@@ -93,7 +109,7 @@ function readAuthoritativeReceipt(key: OwnerLearningDraftInput): Promise<OwnerLe
                        AND m.role = 'owner' AND m.status = 'active'
      JOIN users u ON u.id = m.user_id AND u.status = 'active'
      WHERE s.business_id = $1 AND s.case_id = $2 AND s.action_step_id = $3
-       AND s.answer_receipt_id = $4 AND s.state = 'answered'
+       AND s.answer_receipt_id = $4 AND s.state = 'answered' AND s.customer_ready_at IS NOT NULL
        AND NOT EXISTS (
          SELECT 1 FROM owner_consult_steps newer
          WHERE (newer.business_id,newer.case_id) = (s.business_id,s.case_id)
@@ -117,6 +133,7 @@ function blockedReceipt(receipt: OwnerLearningDraftReceipt, key: OwnerLearningDr
 function scrub(text: string, limit: number): string {
   const normalized = text.normalize('NFKC')
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, '')
+    .replace(/\b(?:[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}|NL-\d{2}[A-Z]{3}\d{2}-[A-Z0-9]{4}-[A-Z0-9]{4})\b/giu, '[order-ref]')
     .replace(/https?:\/\/[^\s<>"']+/giu, '[link]')
     .replace(/\b[UCR][0-9a-f]{32}\b/giu, '[line-id]')
     .replace(/(?<![\p{L}\d])(?:\+66|0066)(?:[ .()-]*\d){8,9}(?!\d)/gu, '[phone]');
@@ -145,7 +162,7 @@ export async function prepareOwnerLearningDraft(
   const { businessId, caseId, actionStepId, answerReceiptId, expectedVersion } = key.data;
   const { signal } = ports;
   const readReceipt = ports.readReceipt ?? readAuthoritativeReceipt;
-  const createDraft = ports.createDraft ?? createKnowledgeDraft;
+  const createDraft = ports.createDraft ?? createOwnerConsultKnowledgeDraft;
   signal?.throwIfAborted();
   const receipt = await readReceipt(key.data);
   if (!receipt) return skipped('receipt_unavailable');
@@ -169,9 +186,12 @@ export async function prepareOwnerLearningDraft(
   const { action, textTh, textEn } = candidate.data;
   if (action === 'no_change') return skipped(textTh === null && textEn === null ? 'no_change' : 'invalid_candidate');
 
-  const thai = /\p{Script=Thai}/u;
-  if (!textTh || !textEn || !thai.test(textTh) || thai.test(textEn) || !/[a-z]/i.test(textEn) ||
-      !candidateTextIsSafe(textTh) || !candidateTextIsSafe(textEn)) return skipped('invalid_candidate');
+  const th = splitDraft(textTh);
+  const en = splitDraft(textEn);
+  if (!th || !en || ![th.title, th.body].every(value => /\p{Script=Thai}/u.test(value)) ||
+      ![en.title, en.body].every(value => /[a-z]/i.test(value) && !/\p{Script=Thai}/u.test(value))) {
+    return skipped('invalid_candidate');
+  }
 
   const current = await readReceipt(key.data);
   if (!current) return skipped('receipt_unavailable');
@@ -180,18 +200,13 @@ export async function prepareOwnerLearningDraft(
   if (current.answer !== receipt.answer || current.question !== receipt.question ||
       current.actorUserId !== receipt.actorUserId || current.language !== receipt.language) return skipped('stale_version');
 
-  const requestId = 'ai-owner-review:' + businessId + ':' + caseId + ':' + actionStepId;
-  const draft: KnowledgeDraftInput = {
-    businessId,
-    actorUserId: current.actorUserId,
-    kind: 'faq',
-    title: scrub(current.question, 255),
-    body: 'ไทย\n' + textTh + '\n\nEnglish\n' + textEn,
-    sourceRef: requestId + ':receipt:' + answerReceiptId,
-    clientRequestId: requestId,
-  };
   signal?.throwIfAborted();
-  const item = await createDraft(draft);
+  const item = await createDraft({
+    businessId, caseId, actionStepId, answerReceiptId,
+    title: th.title + ' / ' + en.title,
+    body: 'ไทย\n' + th.body + '\n\nEnglish\n' + en.body,
+  });
+  if (!item) return skipped('receipt_unavailable');
   const saved = await (ports.readDraftRevision ?? getKnowledgeRevision)(businessId, item.itemId, item.revision);
   if (!saved) throw new AppError('SERVICE_NOT_READY', 'Owner draft revision unavailable', { retryable: true });
   return { kind: 'draft', ...item, candidateDigest: digestOwnerLearningDraft(saved) };
