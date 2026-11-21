@@ -188,6 +188,19 @@ it('prevalidates bulk feature flags and records one audit per feature plus the b
   }
 });
 
+it.each(['F18', 'F21'])('rejects a mixed bulk batch that tries to show %s without changing flags or auditing', async (restricted) => {
+  const ids = ['F12', 'F13', restricted];
+  const flagQuery = 'SELECT * FROM feature_flags WHERE feature_id=ANY($1::text[]) ORDER BY feature_id';
+  const before = await db.query(flagQuery, [ids]);
+  const reason = 'ops release scope test ' + randomUUID();
+
+  const denied = await admin.post(base + '/features/bulk').set('X-Requested-With', 'nless')
+    .send({ hide: ['F12'], show: ['F13', restricted], reason }).expect(422);
+  expect(denied.body.error).toMatchObject({ code: 'POLICY_BLOCKED', details: { reason: 'release_scope' } });
+  expect((await db.query(flagQuery, [ids])).rows).toEqual(before.rows);
+  expect((await db.query("SELECT action FROM audit_events WHERE details->>'reason'=$1", [reason])).rows).toEqual([]);
+});
+
 it('resolves ambiguous deliveries atomically and redacts the response and audit', async () => {
   const conversationId = SEED.conversations[0].id;
   const id = newDeliveryFixtureId();
