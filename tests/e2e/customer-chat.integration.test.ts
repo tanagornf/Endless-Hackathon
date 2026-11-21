@@ -45,13 +45,13 @@ afterAll(closeDb);
 test('a buyer sees a sourced product fact and the next buyer sees the merchant correction without another web call', async () => {
   const owner = await ownerSession();
   const search = vi.spyOn(model, 'searchWeb');
-  const url = 'https://publisher.example/manuals/demo-cards';
-  const provisional = 'The cards are made of glossy cardstock.';
-  const corrected = 'The cards are made of linen-finished paper.';
+  const url = 'https://standards.example/manuals/usb-type-c';
+  const provisional = 'USB-C has a reversible plug.';
+  const corrected = 'The USB-C connector fits in either orientation.';
   search.mockImplementation(async ({ signal }) => {
     // Match the observed 8.78 s provider latency and honor the actual turn's cancellation signal.
     await wait(8780, undefined, { signal });
-    return { answer: provisional, citations: [{ title: 'Demo Cards material guide', url }], usageId: randomUUID() };
+    return { answer: provisional, citations: [{ title: 'Synthetic USB Type-C guide', url }], usageId: randomUUID() };
   });
 
   async function drafts() {
@@ -59,12 +59,12 @@ test('a buyer sees a sourced product fact and the next buyer sees the merchant c
     return list.body.data.items as KnowledgeItemRow[];
   }
   const before = new Set((await drafts()).map(item => item.id));
-  const question = 'What is A-CARD-01 made of?';
+  const question = 'What is USB-C?';
   const firstStartedAt = performance.now();
   const first = await ask(question);
   console.info('Sourced answer round trip', Math.round(performance.now() - firstStartedAt), 'ms');
   expect(search).toHaveBeenCalledTimes(1);
-  expect(textOf(first.reply)).toContain('glossy cardstock');
+  expect(textOf(first.reply)).toContain(provisional);
   expect(JSON.stringify(first.reply.parts)).toContain(url);
   const added = (await drafts()).filter(item => !before.has(item.id));
   expect(added).toHaveLength(1);
@@ -82,8 +82,8 @@ test('a buyer sees a sourced product fact and the next buyer sees the merchant c
     expect(approval.body.data.status).toBe('active');
     const repeat = await ask(question);
     expect(repeat.conversationId).not.toBe(first.conversationId);
-    expect(textOf(repeat.reply)).toContain('linen-finished paper');
-    expect(textOf(repeat.reply)).not.toContain('glossy cardstock');
+    expect(textOf(repeat.reply)).toContain(corrected);
+    expect(textOf(repeat.reply)).not.toContain(provisional);
     expect(search).toHaveBeenCalledTimes(1);
   } finally {
     await owner.delete(detail).set(writeHeader).expect(200);
@@ -160,3 +160,11 @@ test.each([
     expect([200, 204]).toContain(removed.status);
   }
 }, 30000);
+
+test('a product without a stored picture returns a text explanation without an attachment or web search', async () => {
+  const search = vi.spyOn(model, 'searchWeb');
+  const { reply } = await ask('Show me a picture of A-CARD-01.');
+  expect(textOf(reply)).toMatch(/could not find a shop photo/i);
+  expect(reply.parts.every(part => part.type === 'text')).toBe(true);
+  expect(search).not.toHaveBeenCalled();
+}, 20000);
