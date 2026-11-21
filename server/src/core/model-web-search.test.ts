@@ -32,11 +32,11 @@ const search: OpenAI.Responses.ResponseOutputItem = {
   type: 'web_search_call', id: 'ws_test', status: 'completed', action: { type: 'search' },
 };
 
-function message(urls: string[]): OpenAI.Responses.ResponseOutputItem {
+function message(urls: string[], text = 'Product specification'): OpenAI.Responses.ResponseOutputMessage {
   return {
     type: 'message', id: 'msg_test', role: 'assistant', status: 'completed',
     content: [{
-      type: 'output_text', text: 'Product specification',
+      type: 'output_text', text,
       annotations: urls.map((url) => ({ type: 'url_citation', url, title: ' Product manual ', start_index: 0, end_index: 21 })),
     }],
   };
@@ -50,6 +50,18 @@ test('uses citation annotations and deduplicates valid public links after a comp
   expect(mapWebSearchResponse(response([search, message([
     'https://example.com/manual', 'https://EXAMPLE.COM/manual', 'javascript:alert(1)', 'https://user@example.com/manual',
   ])]))).toEqual({ answer: 'Product specification', citations: [{ url: 'https://example.com/manual', title: 'Product manual' }] });
+});
+
+test('retains only text parts with their own HTTPS citation, including parts that reuse a source', () => {
+  const cited = message(['https://example.com/manual']);
+  expect(mapWebSearchResponse(response([search, { ...cited, content: [
+    ...message([], 'Uncited claim').content,
+    ...cited.content,
+    ...message(['http://example.com/insecure'], 'HTTP citation only').content,
+    ...message(['https://example.com/manual'], 'Another cited detail').content,
+  ] }]))).toEqual({
+    answer: 'Product specification\nAnother cited detail', citations: [{ url: 'https://example.com/manual', title: 'Product manual' }],
+  });
 });
 
 test('discards incomplete, uncited and unsearched text', () => {

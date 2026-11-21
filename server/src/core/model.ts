@@ -232,15 +232,16 @@ export function mapWebSearchResponse(response: OpenAI.Responses.Response): Pick<
   const citations = new Map<string, string>();
   const answer = parts.flatMap((part) => {
     if (part.type !== 'output_text' || !part.text.trim()) return [];
+    let cited = false;
     for (const annotation of part.annotations) {
       if (annotation.type !== 'url_citation') continue;
       const url = URL.parse(annotation.url);
-      if (!url || !['https:', 'http:'].includes(url.protocol) || url.username || url.password) continue;
+      if (!url || url.protocol !== 'https:' || url.username || url.password) continue;
+      cited = true;
       if (!citations.has(url.href)) citations.set(url.href, annotation.title.trim() || url.hostname);
     }
-    return [part.text];
+    return cited ? [part.text] : [];
   }).join('\n').trim();
-  if (!citations.size) return { answer: '', citations: [] };
   return { answer, citations: [...citations].map(([url, title]) => ({ url, title })) };
 }
 function fnv(text: string): number {

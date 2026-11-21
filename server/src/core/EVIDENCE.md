@@ -60,6 +60,7 @@
 
 ### F01 public product web search
 
-- Ten focused tests passed for keyword validation, completed search detection, citation filtering and fake usage attribution. Typecheck and lane path checks passed.
+- Eleven focused tests passed for keyword validation, completed search detection, HTTPS and mixed-output citation filtering, and fake usage attribution. Typecheck and lane path checks passed.
 - A real `app-dev` OpenAI request through `model.searchWeb` returned one cited result for a public headphone specification query in 8.78 seconds. The usage write was captured in memory and estimated $0.031556 in model and tool charges.
+- After citation hardening, a real `app-dev` Responses request for `Qi2` completed the native search and returned two validated HTTPS citations in 6.13 seconds through the core request and response mapping.
 - Native C1 review and the F10 integration and production smoke are pending.
