@@ -89,9 +89,9 @@ const path = '/api/v1/businesses/' + a + '/channels/line';
     expect(await findDeliveryBatch(key)).toMatchObject({ state: 'accepted', sent_ids: ['fixture-reply'] });
 
     const pushed = { ...key, index: 1, retryKey: randomUUID() };
-    const reserved = await reservePushBatch(pushed);
-    expect(reserved).toMatchObject({ retry_key: pushed.retryKey });
-    expect(await reservePushBatch({ ...pushed, retryKey: randomUUID() })).toEqual(reserved);
+    const reserved = await reservePushBatch(pushed, 'a'.repeat(64));
+    expect(reserved).toMatchObject({ retry_key: pushed.retryKey, request_digest: 'a'.repeat(64) });
+    expect(await reservePushBatch({ ...pushed, retryKey: randomUUID() }, 'b'.repeat(64))).toEqual(reserved);
     expect(await findDeliveryBatch(pushed)).toMatchObject({ state: 'pending' });
     const stats = await db.one<{ calls: number }>('SELECT COALESCE(sum(push_calls), 0)::int AS calls FROM line_push_usage WHERE business_id = $1', [a]);
     const pushResult = { state: 'accepted' as const, sent_ids: ['fixture-push'], request_id: null };

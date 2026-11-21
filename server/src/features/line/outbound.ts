@@ -1,8 +1,10 @@
 import type { MessagePart } from '@nless/shared/core/types';
-import { db, type OutboundDelivery } from '../../core';
+import { config, db, type OutboundDelivery } from '../../core';
 import { getCustomerLanguage } from '../inbox/service';
+import { mintLineAction } from './actionTokens';
+import { formatLineFlexDelivery, type LineFlexMessage, type LineQuickReply } from './flex';
 import { TEXT_CHUNK } from './config';
-import { lineLabels } from './labels';
+import { lineLabels, type LineLanguage } from './labels';
 import { signedMediaUrl, validMediaFileId } from './media';
 
 export interface LineText {
@@ -14,7 +16,8 @@ export interface LineImage {
   originalContentUrl: string;
   previewImageUrl: string;
 }
-export type LineMessage = LineText | LineImage;
+type PlainLineMessage = LineText | LineImage;
+export type LineMessage = (PlainLineMessage | LineFlexMessage) & { quickReply?: LineQuickReply };
 
 export function splitLineText(text: string): string[] {
   const input = text.trim();
@@ -43,45 +46,67 @@ function asText(text: string): LineText[] {
   return splitLineText(text).map((chunk) => ({ type: 'text', text: chunk }));
 }
 
-async function loadUpload(delivery: OutboundDelivery, part: Extract<MessagePart, { type: 'file' | 'image' }>) {
-  if (!validMediaFileId(part.fileId)) return null;
+async function loadUpload(delivery: OutboundDelivery, fileId: string, kind: 'file' | 'image') {
+  if (!validMediaFileId(fileId)) return null;
   return db.maybeOne<{ original_name: string; created_at: Date }>(
-    "SELECT f.original_name, m.created_at FROM files f JOIN messages m ON m.id = $4 AND m.business_id = f.business_id WHERE f.id = $1 AND f.business_id = $2 AND ($3::text <> 'image' OR f.mime_type IN ('image/jpeg', 'image/png', 'image/gif', 'image/webp'))",
-    [part.fileId, delivery.businessId, part.type, delivery.messageId],
+    "SELECT f.original_name, m.created_at FROM files f JOIN messages m ON m.id = $4 AND m.business_id = f.business_id AND m.conversation_id = $5 " +
+      "WHERE f.id = $1 AND f.business_id = $2 AND m.direction = 'outbound' AND ($3::text <> 'image' OR f.mime_type IN ('image/jpeg', 'image/png', 'image/gif', 'image/webp'))",
+    [fileId, delivery.businessId, kind, delivery.messageId, delivery.conversationId],
   );
 }
 
+type PlainPart = Extract<MessagePart, { type: 'text' | 'image' | 'file' }>;
+function isPlainPart(part: MessagePart): part is PlainPart {
+  return part.type === 'text' || part.type === 'image' || part.type === 'file';
+}
+
 export async function toLineMessages(delivery: OutboundDelivery): Promise<LineMessage[]> {
-  const messages: LineMessage[] = [];
-  for (const part of delivery.parts) {
-    switch (part.type) {
-      case 'text':
-        messages.push(...asText(part.text));
-        break;
-      case 'product_card':
-        messages.push(...asText(part.altText));
-        break;
-      case 'image':
-      case 'file': {
-        const file = await loadUpload(delivery, part);
-        if (!file) {
-          const language = await getCustomerLanguage(delivery.conversationId, { businessId: delivery.businessId });
-          messages.push(...asText(part.type === 'image' ? lineLabels[language].picture : lineLabels[language].unavailable));
-          break;
-        }
-        if (part.type === 'image') {
-          messages.push({
-            type: 'image',
-            originalContentUrl: signedMediaUrl(part.fileId, { variant: 'original', ttlSeconds: 3_600 }, file.created_at.getTime()),
-            previewImageUrl: signedMediaUrl(part.fileId, { variant: 'preview', ttlSeconds: 3_600 }, file.created_at.getTime()),
-          });
-        } else {
-          const name = Array.from(file.original_name).slice(0, 120).join('');
-          messages.push(...asText(name + '\n' + signedMediaUrl(part.fileId, { variant: 'original', ttlSeconds: 604_800 }, file.created_at.getTime())));
-        }
-        break;
-      }
+  const { businessId, conversationId, messageId, parts } = delivery;
+  let language: Promise<LineLanguage> | undefined;
+  const customerLanguage = () => language ??= getCustomerLanguage(conversationId, { businessId });
+
+  async function formatPlainPart(part: PlainPart): Promise<PlainLineMessage[]> {
+    if (part.type === 'text') return asText(part.text);
+    const file = await loadUpload(delivery, part.fileId, part.type);
+    if (!file) {
+      const labels = lineLabels[await customerLanguage()];
+      return asText(part.type === 'image' ? labels.picture : labels.unavailable);
     }
+    const issuedAt = file.created_at.getTime();
+    if (part.type === 'image') {
+      return [{
+        type: 'image',
+        originalContentUrl: signedMediaUrl(part.fileId, { variant: 'original', ttlSeconds: 3_600 }, issuedAt),
+        previewImageUrl: signedMediaUrl(part.fileId, { variant: 'preview', ttlSeconds: 3_600 }, issuedAt),
+      }];
+    }
+    const name = Array.from(file.original_name).slice(0, 120).join('');
+    return asText(name + '\n' + signedMediaUrl(part.fileId, { variant: 'original', ttlSeconds: 604_800 }, issuedAt));
   }
-  return messages;
+
+  if (parts.every(isPlainPart)) return (await Promise.all(parts.map(formatPlainPart))).flat();
+
+  let outboundTimestamp: Promise<{ created_at: Date } | null> | undefined;
+  return formatLineFlexDelivery(parts, {
+    language: await customerLanguage(),
+    async resolveSquareImage(fileId) {
+      if (!config.PUBLIC_BASE_URL?.startsWith('https://')) return null;
+      const file = await loadUpload(delivery, fileId, 'image');
+      return file ? signedMediaUrl(fileId, { variant: 'square', ttlSeconds: 3_600 }, file.created_at.getTime()) : null;
+    },
+    async resolveActionData(request) {
+      if (request.source === 'review') return mintLineAction(delivery, request);
+
+      outboundTimestamp ??= db.maybeOne<{ created_at: Date }>(
+        "SELECT created_at FROM messages WHERE id = $1 AND business_id = $2 AND conversation_id = $3 AND direction = 'outbound'",
+        [messageId, businessId, conversationId],
+      );
+      const row = await outboundTimestamp;
+      if (!row) return null;
+      const kind = /^(booking|appointment)([:_-]|$)/i.test(request.proposalId) ? 'booking' : 'order';
+      // The owner service enforces the proposal's own expiry. Generic buttons have no expiry in the shared contract.
+      const expiresAt = new Date(row.created_at.getTime() + 120 * 60 * 1_000).toISOString();
+      return mintLineAction(delivery, { ...request, kind, expiresAt });
+    },
+  }, formatPlainPart);
 }

@@ -54,7 +54,7 @@ describe('LINE channel sender', () => {
     mocks.batch.mockResolvedValue(null);
     mocks.token.mockResolvedValue('test-access-token');
     mocks.reserve.mockResolvedValue(true);
-    mocks.reservePush.mockImplementation(async (key: { retryKey: string }) => ({ retry_key: key.retryKey, created_at: new Date(now) }));
+    mocks.reservePush.mockImplementation(async (key: { retryKey: string }, digest: string) => ({ retry_key: key.retryKey, created_at: new Date(now), request_digest: digest }));
     mocks.request.mockResolvedValue(response(200, { sentMessages: [{ id: '1234567' }] }));
   });
 
@@ -118,10 +118,10 @@ describe('LINE channel sender', () => {
   });
 
   it('keeps a 5xx Push on the same provider retry key even if a fresh reply token arrives', async () => {
-    let pending: { state: 'pending'; retry_key: string; created_at: Date } | null = null;
+    let pending: { state: 'pending'; retry_key: string; created_at: Date; request_digest: string } | null = null;
     mocks.batch.mockImplementation(async () => pending);
-    mocks.reservePush.mockImplementation(async (key: { retryKey: string }) => {
-      pending ??= { state: 'pending', retry_key: key.retryKey, created_at: new Date(now) };
+    mocks.reservePush.mockImplementation(async (key: { retryKey: string }, digest: string) => {
+      pending ??= { state: 'pending', retry_key: key.retryKey, created_at: new Date(now), request_digest: digest };
       return pending;
     });
     mocks.request.mockResolvedValueOnce(response(503))
@@ -135,10 +135,26 @@ describe('LINE channel sender', () => {
     expect(mocks.request.mock.calls[1][1].retryKey).toBe(mocks.request.mock.calls[0][1].retryKey);
   });
 
+  it('never sends a stored Push again when the formatted batch or recipient has changed', async () => {
+    let reservation: { state: 'pending'; retry_key: string; created_at: Date; request_digest: string } | null = null;
+    mocks.batch.mockImplementation(async () => reservation);
+    mocks.reservePush.mockImplementation(async (key: { retryKey: string }, digest: string) => {
+      reservation ??= { state: 'pending', retry_key: key.retryKey, created_at: new Date(now), request_digest: digest };
+      return reservation;
+    });
+    mocks.request.mockResolvedValueOnce(response(503));
+
+    await sender.send(delivery(51_000));
+    expect(await sender.send({ ...delivery(), parts: [{ type: 'text', text: 'Different payload' }] })).toMatchObject({ state: 'unknown' });
+    expect(await sender.send({ ...delivery(), customerExternalId: 'Uanother-recipient' })).toMatchObject({ state: 'unknown' });
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).not.toHaveBeenCalled();
+  });
+
   it('does not resend a pending Push after its provider retry key expires', async () => {
     const expired = { state: 'pending', retry_key: 'older-key', created_at: new Date(now - 86_400_000) };
     mocks.batch.mockResolvedValueOnce(expired);
-    mocks.reservePush.mockResolvedValueOnce(expired);
+    mocks.reservePush.mockImplementationOnce(async (_key: unknown, digest: string) => ({ ...expired, request_digest: digest }));
 
     expect(await sender.send(delivery(1000))).toMatchObject({ state: 'unknown' });
     expect(mocks.reserve).not.toHaveBeenCalled();

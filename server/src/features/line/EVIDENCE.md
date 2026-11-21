@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F17 | line | C2 | DOING | R | S | LINE test OA pending | 97abc662e2abbde145c6e019bcd4ba102bce03be | F17 tests 44/44, typecheck, check:paths, 3 Playwright checks discovered | 2026-11-21 13:03:42 +07:00 | NLess Demo activation and on-device receipt, bilingual production smoke, LINE device evidence, Flex |
+| F17 | line | C2 | DOING | R | S | LINE test OA pending | b1341c3b79e5fd9969868101305008091d17776a | F17 tests 59/59, typecheck, check:paths, 3 Playwright checks discovered | 2026-11-21 13:08:24 +07:00 | NLess Demo activation and on-device receipt, bilingual production smoke and LINE device evidence |
 
 ## Log
 
@@ -16,3 +16,17 @@
 - The Reply safety regression reproduced a 502 followed by replay. The sender now keeps the uncertain reservation, with exactly one Reply request and zero Push requests in the regression test.
 - The settings slice wires the bilingual channels page to the existing connection and event APIs. Tests exercise both languages and the staff read-only view.
 - Media tests cover signed tenant-scoped reads, expiration, variants, provider download limits, file signature checks and external URL handling. The checked postback tests cover order and booking confirmation ownership, expiry, replay and unavailable service behavior.
+
+- The Flex delivery tests cover Thai and English cards, surrogate-pair-safe text, confirmation tokens encrypted in PostgreSQL, stable action IDs across replay, batch size, and refusing to reuse a Push retry key when the recipient, OA, or formatted body changes. The combined scoped suite passed 59/59 before release.
+
+## Production verification
+
+| Check | Result |
+|---|---|
+| A team test account sent a message to NLess Demo, it appeared in Shop A inbox, and LINE received the answer | Pending a configured test OA and device observation |
+| Reply older than 50 seconds delivered by Push | Pending provider evidence. The cutoff and retry behavior passed fake-provider tests |
+| Image and sticker persisted in the inbox | Pending device evidence. Local file and normalization tests passed |
+| Product and review cards displayed with working buttons | Pending device evidence. Formatting and database token integration passed |
+| Confirming a review created an order when F13 was available | Pending the real F13 and configured test OA |
+| Disconnect stopped delivery and reconnect restored it | Pending device evidence. The local sandbox or API checks passed |
+| Production Playwright connection and both page languages | Pending the public production deployment and test OA |
