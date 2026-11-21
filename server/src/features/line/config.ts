@@ -1,0 +1,9 @@
+export const LINE_API = 'https://api.line.me';
+export const CHANNEL_ID = /^[0-9]{5,20}$/;
+export const REPLY_TOKEN_TTL_MS = 50_000;
+export const EVENT_MAX_AGE_MS = 172_800_000;
+export const MAX_MESSAGES_PER_CALL = 5;
+export const MAX_MESSAGES_PER_DELIVERY = 15;
+export const TEXT_CHUNK = 4_800;
+export const PROFILE_TTL_MS = 7 * 86_400_000;
+export const LINE_EVENT_JOB = 'line.event';
