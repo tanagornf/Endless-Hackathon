@@ -1,12 +1,11 @@
 import { defineFeaturePages } from '../../core';
 
 export default defineFeaturePages({
-  featureId: "F11",
-  slug: "team",
-  routes: [
-    { path: "/team", permission: "chat.read", load: () => import("./Placeholder") },
-  ],
-  menu: [
-    { path: "/team", group: "settings", labelKey: "team:menu.title", icon: "BadgeOutlined", order: 100, permission: "chat.read" },
+  featureId: 'F11',
+  slug: 'team',
+  routes: [{ path: '/team', permission: 'chat.read', load: () => import('./TeamRedirect') }],
+  slots: [
+    { slot: 'chatSidePanels', id: 'team.panel', order: 10, permission: 'chat.read', load: () => import('./ConversationPanel') },
+    { slot: 'chatComposerActions', id: 'team.quick', order: 10, permission: 'chat.read', load: () => import('./QuickActions') },
   ],
 });

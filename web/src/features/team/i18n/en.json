@@ -3,6 +3,38 @@
     "title": "Team"
   },
   "page": {
-    "title": "Team"
+    "title": "Team and schedule"
+  },
+  "panel": {
+    "title": "Chat handling",
+    "handlerAi": "AI replying",
+    "handlerHuman": "Staff replying",
+    "heldBy": "Handled by {{name}}",
+    "queued": "Waiting for staff",
+    "closed": "Chat closed",
+    "waitingForNext": "The AI will reply when the customer sends their next message.",
+    "loading": "Loading chat status…",
+    "unavailable": "Chat status is unavailable."
+  },
+  "actions": {
+    "takeover": "Take over",
+    "takeoverFrom": "Take over from {{name}}",
+    "release": "Hand back to AI"
+  },
+  "toast": {
+    "takenOver": "You took over. The AI stops replying here.",
+    "released": "Handed back to AI.",
+    "stale": "The chat changed. Check its current status and try again."
+  },
+  "conflict": {
+    "title": "Take over?",
+    "message": "{{name}} is handling this chat. Take over?"
+  },
+  "audit": {
+    "takeover": "{{name}} took over",
+    "takeoverFrom": "{{name}} took over from {{from}}",
+    "release": "{{name}} handed back to AI",
+    "assign": "{{name}} assigned the chat to {{to}}",
+    "handoff": "Staff requested ({{reason}})"
   }
 }
