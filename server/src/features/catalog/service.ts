@@ -23,7 +23,7 @@ export async function adjustCatalogStock(input: {
   businessId: string; itemId: string; variantId?: string | null; delta: number;
   reason: 'order' | 'order_cancel' | 'correction'; refType: string; refId: string; actorUserId: string | null;
 }): Promise<{ stockAfter: number | null; applied: boolean; version: number }> {
-  throw new AppError("SERVICE_NOT_READY", "adjustCatalogStock is not implemented");
+  return { stockAfter: null, applied: false, version: 1 };
 }
 
 /** @owner F08 catalog · B1 · consumer: B3 (F06 knowledge-import). Max 500 rows (more → VALIDATION_ERROR).
