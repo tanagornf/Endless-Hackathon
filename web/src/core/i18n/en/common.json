@@ -116,6 +116,10 @@
   },
   "workspace": {
     "title": "Shop workspace",
+    "openInbox": "Open inbox",
+    "testChat": "Test customer chat",
+    "manageCatalog": "Manage catalog",
+    "allTools": "All tools",
     "search": "Find a page",
     "clear": "Clear search",
     "skip": "Skip to content",
