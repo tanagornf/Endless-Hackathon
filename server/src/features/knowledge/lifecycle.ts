@@ -1,15 +1,22 @@
-import { AppError, audit, db, log, publish } from '../../core';
+import { AppError, audit, auditInTransaction, db, log, publish } from '../../core';
+import type { DbExecutor } from '../../core';
+import type { AuthScope } from '@nless/shared/core/types';
 import type { KnowledgeItemDetail } from '@nless/shared/features/knowledge/types';
 import { contentHash, normalizeContent } from './hash';
 import { getIndexStates, indexKnowledgeRevision, setItemFolder, setSearchable } from './index-port';
 import { assertFolder, itemDetail, requireItem, snapshot } from './repo';
 import type { Item } from './repo';
 import type { ActivateBody, CreateBody, PatchBody } from './schema';
+import { confirmOwnerConsultReuse } from './owner-consult-drafts';
 
-export type Actor = { userId: string | null };
+export type Actor = { userId: string | null; scope?: AuthScope | null };
 type Status = Item['status'];
 const mutableStatuses: Status[] = ['draft', 'reviewed', 'active', 'inactive'];
-const editableWebStatuses: Status[] = ['draft', 'reviewed', 'inactive'];
+const editableApprovalStatuses: Status[] = ['draft', 'reviewed', 'inactive'];
+
+function usesExplicitApproval(item: Item): boolean {
+  return item.source === 'web' || item.source === 'owner-consult';
+}
 
 function policy(reason: string): AppError {
   return new AppError('POLICY_BLOCKED', 'Knowledge transition is unavailable', { details: { reason } });
@@ -85,8 +92,9 @@ export function patchKnowledgeItem(businessId: string, actor: Actor, id: string,
     if (normalizeContent(text) !== normalizeContent(item.body)) changed.add('body');
     if (kind !== item.kind) changed.add('kind');
     const contentChanged = changed.size > 0;
-    const allowed = contentChanged && item.source === 'web' ? editableWebStatuses : mutableStatuses;
-    if (allowed === editableWebStatuses) assertTransition(item, body.expectedRevision, allowed, 'deactivate_web_before_editing');
+    const allowed = contentChanged && usesExplicitApproval(item) ? editableApprovalStatuses : mutableStatuses;
+    if (allowed === editableApprovalStatuses) assertTransition(item, body.expectedRevision, allowed,
+      item.source === 'web' ? 'deactivate_web_before_editing' : 'owner_consult_deactivate_before_editing');
     if (folderId !== item.folder_id) changed.add('folderId');
     const storedFiles = new Map(item.files.map((file) => [file.fileId, file]));
     const files = body.files?.map((tag) => {
@@ -118,7 +126,7 @@ export function patchKnowledgeItem(businessId: string, actor: Actor, id: string,
       return updated;
     });
     if (changed.has('folderId')) await setItemFolder({ businessId, itemId: id, folderId });
-    if (contentChanged && saved.status !== 'draft') await queueIndex(saved);
+    if (contentChanged && saved.status !== 'draft' && saved.source !== 'owner-consult') await queueIndex(saved);
     await auditItem('update', actor, saved, { fields: [...changed] });
     return itemDetail(saved);
   });
@@ -129,15 +137,21 @@ const transitionDates: Partial<Record<Status, string>> = {
   deleted: 'deleted_at=now(),deleted_by=$2',
 };
 
-async function changeStatus(item: Item, actor: Actor, status: Status): Promise<Item> {
+async function changeStatus(item: Item, actor: Actor, status: Status, approvedReceipt?: string): Promise<Item> {
   const date = transitionDates[status];
-  const saved = await db.maybeOne<Item>(
-    'UPDATE knowledge_items SET status=$1,updated_by=$2,updated_at=now(),' + date +
-    ' WHERE business_id=$3 AND id=$4 AND revision=$5 AND status=$6 RETURNING id',
-    [status, actor.userId, item.business_id, item.id, item.revision, item.status],
-  );
-  if (!saved) throw new AppError('VERSION_CONFLICT', 'Knowledge revision changed');
-  return requireItem(item.business_id, item.id);
+  async function save(executor: DbExecutor) {
+    const saved = await executor.maybeOne<{ id: string }>(
+      'UPDATE knowledge_items SET status=$1,updated_by=$2,updated_at=now(),' + date +
+      ' WHERE business_id=$3 AND id=$4 AND revision=$5 AND status=$6 RETURNING id',
+      [status, actor.userId, item.business_id, item.id, item.revision, item.status],
+    );
+    if (!saved) throw new AppError('VERSION_CONFLICT', 'Knowledge revision changed');
+    if (approvedReceipt) await auditInTransaction(executor, [{ action: 'knowledge.item.approve_owner_consult',
+      actorUserId: actor.userId, businessId: item.business_id, targetType: 'knowledge_item', targetId: item.id,
+      details: { revision: item.revision, answerReceiptId: approvedReceipt } }]);
+    return requireItem(item.business_id, item.id, executor);
+  }
+  return approvedReceipt ? db.tx(save) : save(db);
 }
 
 async function restoreStatus(previous: Item, changed: Item): Promise<void> {
@@ -156,7 +170,7 @@ async function updateSearchability(previous: Item, changed: Item, revision: numb
     else await setSearchable(input);
     return true;
   } catch (cause) {
-    if (changed.source === 'web' && revision !== null && cause instanceof AppError && cause.code === 'KNOWLEDGE_NOT_READY') {
+    if (usesExplicitApproval(changed) && revision !== null && cause instanceof AppError && cause.code === 'KNOWLEDGE_NOT_READY') {
       await queueIndex(changed);
       return false;
     }
@@ -175,6 +189,7 @@ function assertContent(item: Item): void {
 export function submitKnowledgeItem(businessId: string, actor: Actor, id: string, expected: number): Promise<KnowledgeItemDetail> {
   return withItemLock(businessId, id, async (item) => {
     assertTransition(item, expected, ['draft'], 'not_draft');
+    if (item.source === 'owner-consult') throw policy('owner_consult_approval_required');
     assertContent(item);
     const saved = await changeStatus(item, actor, 'reviewed');
     await queueIndex(saved);
@@ -185,10 +200,15 @@ export function submitKnowledgeItem(businessId: string, actor: Actor, id: string
 
 export function activateKnowledgeItem(businessId: string, actor: Actor, id: string, body: ActivateBody): Promise<KnowledgeItemDetail> {
   return withItemLock(businessId, id, async (item) => {
-    const webSuggestion = item.source === 'web';
-    assertTransition(item, body.expectedRevision, webSuggestion ? editableWebStatuses : ['reviewed', 'inactive'],
+    const ownerConsult = item.source === 'owner-consult';
+    if (ownerConsult && (actor.scope?.role !== 'owner' || actor.scope.businessId?.toLowerCase() !== businessId ||
+        actor.scope.userId !== actor.userId || !actor.userId)) throw new AppError('PERMISSION_DENIED', 'Shop owner approval required');
+    const explicitApproval = usesExplicitApproval(item);
+    const allowed: Status[] = ownerConsult ? [...editableApprovalStatuses, 'active']
+      : explicitApproval ? editableApprovalStatuses : ['reviewed', 'inactive'];
+    assertTransition(item, body.expectedRevision, allowed,
       item.status === 'draft' ? 'submit_first' : 'not_reviewed');
-    if (webSuggestion) assertContent(item);
+    if (explicitApproval) assertContent(item);
     else {
       const index = (await getIndexStates(businessId, [id]))[id];
       if (index?.state !== 'ready' || index.revision !== item.revision) {
@@ -197,9 +217,11 @@ export function activateKnowledgeItem(businessId: string, actor: Actor, id: stri
       }
     }
     if (item.moderation?.status === 'flagged' && !body.acknowledgeModeration) throw policy('moderation_flagged');
-    const saved = await changeStatus(item, actor, 'active');
+    const receiptId = ownerConsult ? await confirmOwnerConsultReuse(businessId, item.source_ref) : undefined;
+    if (ownerConsult && item.status === 'active') return itemDetail(item);
+    const saved = await changeStatus(item, actor, 'active', receiptId);
     const ready = await updateSearchability(item, saved, item.revision);
-    await auditItem('activate', actor, saved);
+    if (!ownerConsult) await auditItem('activate', actor, saved);
     if (ready) publish(businessId, { type: 'knowledge.status', knowledgeItemId: id, indexState: 'ready' });
     return itemDetail(saved);
   });
@@ -240,6 +262,7 @@ export function rejectWebKnowledgeDraft(businessId: string, actor: Actor, id: st
 
 export function reindexKnowledgeItem(businessId: string, _actor: Actor, id: string): Promise<KnowledgeItemDetail> {
   return withItemLock(businessId, id, async (item) => {
+    if (item.source === 'owner-consult' && item.status !== 'active') throw policy('owner_consult_approval_required');
     assertTransition(item, item.revision, ['reviewed', 'active', 'inactive'], 'submit_first');
     await queueIndex(item, true);
     return itemDetail(item);

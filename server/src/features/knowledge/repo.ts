@@ -23,6 +23,7 @@ export interface Item {
   folder_name?: string | null;
   files: FileTag[];
   source: KnowledgeItemRow['source'];
+  source_ref: string | null;
   web_suggestion: WebKnowledgeSuggestion | null;
   content_hash: string;
   moderation: KnowledgeModeration | null;
