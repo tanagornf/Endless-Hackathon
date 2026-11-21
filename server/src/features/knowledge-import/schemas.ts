@@ -48,3 +48,18 @@ export const UploadBody = z.object({
     return z.NEVER;
   }),
 }).strict();
+
+export const TextImportBody = z.object({
+  label: z.string().trim().min(1).max(100).refine(value => !/[\r\n]/u.test(value)).default('ข้อความที่วาง'),
+  text: z.string().min(20).max(200_000).refine(value => value.trim().length >= 20),
+  options: ImportOptionsInput.optional(),
+}).strict();
+
+export const CommitBody = z.object({ allowReimport: z.boolean().default(false) }).strict();
+export const PatchRowBody = z.object({
+  excluded: z.boolean().optional(),
+  question: z.string().trim().min(5).max(200).optional(),
+  answer: z.string().trim().min(5).max(1000).optional(),
+  title: z.string().trim().min(1).max(255).optional(),
+  body: z.string().trim().min(1).max(20_000).optional(),
+}).strict().refine(value => Object.keys(value).length > 0);

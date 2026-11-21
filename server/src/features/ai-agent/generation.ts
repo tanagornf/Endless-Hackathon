@@ -17,6 +17,7 @@ import { explicitlyRequestsStaff, replyToStaffOffer } from './intents';
 import { runModelLoop } from './loop';
 import { arabicDigits, maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
+import { currentAvailabilityReply, currentPhotoRequest, getReplyProductImages } from './productMedia';
 import { repairPrompt } from './prompt';
 import { customerInboundsHeldByStaff, priorSavedReply } from './repo';
 import type { TurnDraft } from './repo';
@@ -276,6 +277,10 @@ export async function generateDraft(
     )) {
       text = fallbacks.product_not_found[language];
     }
+    const oneCatalogQuestion = context.unanswered.length === 1 && !isPriceQuestion(context) &&
+      !/\b(?:and|also)\b|และ|อีกอย่าง/iu.test(context.unanswered[0]);
+    const availability = currentAvailabilityReply(context);
+    if (availability && (oneCatalogQuestion || text === fallbacks.no_answer[language])) text = availability;
     const receipt = receiptText(context, text);
     Object.assign(draft, usedEvidence(text, context, receipt));
     draft.parts = shapeReply(text);
@@ -287,6 +292,30 @@ export async function generateDraft(
       appendHandoffOffer(draft);
     }
     draft.timings.guardMs = elapsed(guardStart);
+    const photo = mode === 'reply' ? currentPhotoRequest(context) : null;
+    const directPhoto = photo && oneCatalogQuestion && !availability;
+    if (mode === 'reply' && (draft.productRefs.length || photo)) {
+      const photoRef = photo && { itemId: photo.quote.itemId, sku: photo.quote.sku, name: photo.name };
+      const mediaSignal = AbortSignal.any([signal, AbortSignal.timeout(1200)]);
+      const images = await withinDeadline(getReplyProductImages(conversation.businessId, context, {
+        productRefs: photoRef ? [photoRef] : draft.productRefs,
+        parts: directPhoto ? [] : draft.parts,
+      }, mediaSignal), mediaSignal)
+        .catch(() => []);
+      if (directPhoto && photo && photoRef) {
+        const caption = language === 'th'
+          ? images.length ? 'นี่คือ ' + photo.name + ' ค่ะ' : 'ยังไม่พบรูปสินค้าของ ' + photo.name + ' ค่ะ'
+          : images.length ? 'This is ' + photo.name + '.' : 'I could not find a shop photo for ' + photo.name + '.';
+        draft.parts = shapeReply(caption);
+        draft.evidenceIds = [photo.id];
+        draft.productRefs = [photoRef];
+        draft.handoffOffered = false;
+      } else if (images.length && photo && photoRef && !draft.productRefs.some(({ itemId }) => itemId === photoRef.itemId)) {
+        draft.evidenceIds = [...new Set([...draft.evidenceIds, photo.id])];
+        draft.productRefs.push(photoRef);
+      }
+      draft.parts.push(...images);
+    }
     return { state: 'completed', draft };
   } catch (error) {
     const timedOut = signal.aborted && !cancellation.aborted;

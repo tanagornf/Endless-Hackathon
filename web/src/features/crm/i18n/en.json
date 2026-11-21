@@ -1,8 +1,78 @@
 {
+  "total": "{{count}} customers",
+  "phone": "Phone",
+  "seen": "Last seen",
+  "ruleCount": "Rules",
   "menu": {
     "title": "Customers"
   },
   "page": {
     "title": "Customers"
+  },
+  "panel": {
+    "title": "Customer profile"
+  },
+  "customer": "Customer",
+  "allCustomers": "Customers",
+  "firstSeen": "First seen {{date}}",
+  "lastSeen": "Last seen {{date}}",
+  "addTag": "Add a tag",
+  "noTags": "No tags available",
+  "createNamed": "Create “{{name}}”",
+  "openProfile": "View full profile",
+  "retry": "Try again",
+  "loading": "Loading customer details",
+  "loadError": "Couldn’t load customer information",
+  "attest": "I confirm the customer agreed to receive marketing messages.",
+  "changeConsent": "Change marketing consent",
+  "consent": "Marketing consent",
+  "grantRequirements": "Confirm the customer’s consent and record how they gave it.",
+  "reason": "Reason",
+  "openTags": "Show tags",
+  "closeTags": "Hide tags",
+  "clear": "Clear",
+  "tags": "Tags",
+  "createTag": "Create tag",
+  "editTag": "Edit tag",
+  "tagName": "Tag name",
+  "customerCount": "Customers with tag",
+  "actions": "Actions",
+  "edit": "Edit",
+  "remove": "Delete",
+  "nameRequired": "Enter a tag name",
+  "description": "Description",
+  "color": "Color",
+  "removePrompt": "Delete “{{name}}” from this shop and its customers?",
+  "all": "All",
+  "search": "Search name, phone or email",
+  "channel": "Channel",
+  "empty": "No customers match these filters",
+  "previous": "Previous",
+  "next": "Next",
+  "channels": {
+    "line": "LINE",
+    "web": "Web chat",
+    "facebook": "Messenger",
+    "instagram": "Instagram"
+  },
+  "consents": {
+    "granted": "Opted in",
+    "revoked": "Opted out",
+    "unknown": "Consent unknown"
+  },
+  "sources": {
+    "manual": "Added by staff",
+    "inferred": "Inferred",
+    "automation": "Added by a rule"
+  },
+  "colors": {
+    "grey": "Grey",
+    "red": "Red",
+    "orange": "Orange",
+    "amber": "Amber",
+    "green": "Green",
+    "teal": "Teal",
+    "blue": "Blue",
+    "purple": "Purple"
   }
 }

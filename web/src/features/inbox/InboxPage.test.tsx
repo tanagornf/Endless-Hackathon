@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { SlotContribution } from '@nless/shared/core/loader';
-import type { ConversationDetail } from '@nless/shared/features/inbox/types';
+import type { ConversationDetail, MessageRecord } from '@nless/shared/features/inbox/types';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import i18n, { i18nReady } from '../../core/i18n';
@@ -8,6 +8,7 @@ import InboxPage from './InboxPage';
 
 const fixtures = vi.hoisted(() => ({
   slots: [] as SlotContribution[],
+  history: undefined as { items: MessageRecord[]; nextCursor: null } | undefined,
   refresh: vi.fn(),
   run: vi.fn(async () => ({ unreadCount: 0 })),
   detail: {
@@ -27,7 +28,8 @@ vi.mock('../../core', async () => ({
   ...await import('../../core/layout/PageHeader'),
   ...await import('../../core/format'),
   useApiQuery: (path: string | null) => ({
-    data: path === '/conversations/conversation-1' ? fixtures.detail : undefined,
+    data: path === '/conversations/conversation-1' ? fixtures.detail
+      : path === '/conversations/conversation-1/messages' ? fixtures.history : undefined,
     error: null, loading: false, reload: fixtures.refresh,
   }),
   useApiMutation: () => ({ run: fixtures.run, running: false, error: null }),
@@ -52,11 +54,27 @@ beforeEach(async () => {
   await i18nReady;
   await i18n.changeLanguage('en');
   fixtures.slots = [panel('team.panel', 'Desktop team panel')];
+  fixtures.history = undefined;
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+test('the staff inbox exposes the same outgoing source as a keyboard-accessible link', async () => {
+  const url = 'https://example.org/rules?lang=th&version=2';
+  fixtures.history = { items: [{
+    id: 'ai-source', businessId: 'shop-1', conversationId: 'conversation-1', seq: 1,
+    direction: 'outbound', author: 'ai', authorUserId: null, parts: [{ type: 'text', text: 'Source: ' + url }],
+    text: 'Source: ' + url, channel: 'web', origin: 'demo', externalId: null, groupId: null,
+    delivery: { mode: null, state: 'sent', externalRef: null, error: null }, createdAt: '2026-11-21T05:00:00Z',
+  }], nextCursor: null };
+  openThread();
+  const link = await screen.findByRole('link', { name: url });
+  expect(link.getAttribute('href')).toBe(url);
+  link.focus();
+  expect(document.activeElement).toBe(link);
 });
 
 test('mobile omits Details when only the desktop Team panel is registered', async () => {

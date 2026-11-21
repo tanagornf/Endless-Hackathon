@@ -105,7 +105,9 @@ describe('team service', () => {
     expect(first).toEqual({ conversationId: chat.id, assigneeUserId: null, handler: 'human', version: chat.version + 1 });
     expect(second).toEqual(first);
     expect(await isHumanTakeover(chat.id)).toBe(true);
-    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.calls.filter(([, event]) => event.type === 'conversation.updated')).toEqual([
+      [businessId, { type: 'conversation.updated', ...first, status: 'open' }],
+    ]);
     expect(notify).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       businessId, to: { permission: 'chat.takeover' }, type: 'chat.handoff', link: '/chat?c=' + chat.id,
       dedupKey: 'handoff:' + chat.id + ':v' + first.version,
