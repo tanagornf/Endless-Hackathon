@@ -1,5 +1,5 @@
 {
-  "sourceSha256": "7d49a31f963cf4338e9f9b97a2f7eb3e7259aa5d83f1ed33ef5aea3f846b306b",
+  "sourceSha256": "f8ca64425cdc961bcea1f4295002668320d107234f78f1a7bae0c647864db74a",
   "memberships": [
     {
       "businessId": "00000001-0000-4000-8000-000000000001",
@@ -146,7 +146,7 @@
       "receipt": {
         "notificationType": "system",
         "selector": "owners",
-        "key": "consult:00000001-0000-4000-8000-000000000001:00000015-0000-4000-8000-000000000007:needs-owner:initial",
+        "key": "ai-owner-review:00000001-0000-4000-8000-000000000001:00000015-0000-4000-8000-000000000007:initial",
         "link": "/bot-settings?consult=00000015-0000-4000-8000-000000000007"
       },
       "replayKey": null,
@@ -207,7 +207,7 @@
       "businessId": "00000001-0000-4000-8000-000000000001",
       "action": "suppress_duplicate",
       "receipt": null,
-      "replayKey": "consult:00000001-0000-4000-8000-000000000001:00000015-0000-4000-8000-000000000007:needs-owner:initial",
+      "replayKey": "ai-owner-review:00000001-0000-4000-8000-000000000001:00000015-0000-4000-8000-000000000007:initial",
       "bellUserIds": [],
       "pushUserIds": []
     },
@@ -236,7 +236,7 @@
       "receipt": {
         "notificationType": "system",
         "selector": "owners",
-        "key": "consult:00000001-0000-4000-8000-000000000002:00000016-0000-4000-8000-000000000007:needs-owner:initial",
+        "key": "ai-owner-review:00000001-0000-4000-8000-000000000002:00000016-0000-4000-8000-000000000007:initial",
         "link": "/bot-settings?consult=00000016-0000-4000-8000-000000000007"
       },
       "replayKey": null,
@@ -265,7 +265,7 @@
       "receipt": {
         "notificationType": "system",
         "selector": "owners",
-        "key": "consult:00000001-0000-4000-8000-000000000001:00000015-0000-4000-8000-000000000012:needs-owner:initial",
+        "key": "ai-owner-review:00000001-0000-4000-8000-000000000001:00000015-0000-4000-8000-000000000012:initial",
         "link": "/bot-settings?consult=00000015-0000-4000-8000-000000000012"
       },
       "replayKey": null,
