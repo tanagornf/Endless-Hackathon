@@ -59,10 +59,8 @@ export default function ResetPassword() {
           {t(mismatch ? 'reset.error.mismatch' : resetError ? errorKey(resetError) : 'reset.error.notFound')}
         </Alert>}
         {!done && !tokenError && <Stack component="form" spacing={2} noValidate onSubmit={(event) => void submit(event)}>
-          <TextField name="newPassword" type="password" label={t('reset.new')} autoComplete="new-password" required
-            slotProps={{ htmlInput: { maxLength: 128 } }} />
-          <TextField name="confirmPassword" type="password" label={t('reset.confirm')} autoComplete="new-password" required
-            slotProps={{ htmlInput: { maxLength: 128 } }} />
+          <TextField name="newPassword" type="password" label={t('reset.new')} autoComplete="new-password" required />
+          <TextField name="confirmPassword" type="password" label={t('reset.confirm')} autoComplete="new-password" required />
           <Button type="submit" variant="contained" loading={reset.running} sx={{ minHeight: 44 }}>{t('reset.submit')}</Button>
         </Stack>}
         <Link component={RouterLink} to={tokenError ? '/forgot-password' : '/login'} sx={{ alignSelf: 'flex-start', py: 1 }}>

@@ -31,11 +31,11 @@ describe('password recovery', () => {
     await expect(forgotPassword(req, { email: 'another@example.test' }, ports)).resolves.toEqual({ ok: true });
   });
 
-  it('rejects a weak replacement within the same transaction before changing credentials', async () => {
+  it('rejects a short replacement within the same transaction before changing credentials', async () => {
     ports.consumeToken.mockResolvedValue('example-user-id');
-    vi.mocked(tx.one).mockResolvedValue({ email: 'known@example.test', display_name: 'Test User', status: 'active' });
-    await expect(resetPassword(req, { token: 'x'.repeat(43), newPassword: 'password123' }, ports))
-      .rejects.toMatchObject({ code: 'VALIDATION_ERROR', details: { issues: [{ path: 'newPassword', code: 'common' }] } });
+    vi.mocked(tx.one).mockResolvedValue({ email_normalized: 'known@example.test', status: 'active' });
+    await expect(resetPassword(req, { token: 'x'.repeat(43), newPassword: '1234567' }, ports))
+      .rejects.toMatchObject({ code: 'VALIDATION_ERROR', details: { issues: [{ path: 'newPassword', code: 'too_short' }] } });
     expect(ports.consumeToken).toHaveBeenCalledWith('x'.repeat(43), 'reset_password', tx);
     expect(tx.query).not.toHaveBeenCalled();
   });
