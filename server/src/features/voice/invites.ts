@@ -1,3 +1,4 @@
+import { isVoicePilotAllowed } from './pilot';
 import { createHash, randomBytes } from 'node:crypto';
 import { AppError, config, db } from '../../core';
 import { getConversation } from '../inbox/service';
@@ -30,6 +31,7 @@ export interface InviteScope {
 }
 
 export async function createVoiceInvite(input: CreateVoiceInviteInput) {
+  if (!isVoicePilotAllowed(input)) throw new AppError('NOT_FOUND');
   const base = config.PUBLIC_BASE_URL;
   if (!base || new URL(base).protocol !== 'https:') throw new AppError('PROVIDER_UNAVAILABLE', 'Voice needs a public HTTPS URL');
   const conversation = await getConversation(input.conversationId, { businessId: input.businessId });
@@ -67,6 +69,7 @@ export async function createVoiceChallenge(inviteId: string) {
 }
 
 export async function verifyLineVoiceChallenge(input: VerifiedLineSender & { command: string }): Promise<boolean> {
+  if (!isVoicePilotAllowed(input)) return false;
   if (!/^ENDLESS-VOICE:[A-Za-z0-9_-]{16}$/.test(input.command)) return false;
   const result = await db.query(`
     UPDATE voice_invite_challenges AS challenge SET verified_at = coalesce(verified_at, now())

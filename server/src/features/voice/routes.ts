@@ -12,8 +12,8 @@ const consent = z.object({
   offerSdp: z.string().max(65_536).regex(/^v=0\r?\n/),
 }).strict();
 
-async function protect(ctx: Pick<RouteContext, 'req' | 'res'>, bucket: string, limit: number) {
-  if (await isFeatureHidden('F30')) throw new AppError('NOT_FOUND');
+async function protect(ctx: Pick<RouteContext, 'req' | 'res'>, bucket: string, limit: number, closing = false) {
+  if (!closing && await isFeatureHidden('F30')) throw new AppError('NOT_FOUND');
   ctx.res.setHeader('Cache-Control', 'no-store');
   assertRateLimit({ key: 'voice:' + bucket + ':' + ctx.req.ip, limit, windowSeconds: 60 });
   return ctx.req.get('X-Voice-Proof');
@@ -45,7 +45,7 @@ export default defineFeatureRoutes({
       return getVoiceHistory(id.parse(ctx.params.sessionId), proof);
     });
     api.post('/voice/sessions/:sessionId/end', { auth: 'none', summary: 'End a consented LINE voice call' }, async (ctx) => {
-      const proof = await protect(ctx, 'end', 30);
+      const proof = await protect(ctx, 'end', 30, true);
       return endVoiceCall(id.parse(ctx.params.sessionId), proof);
     });
   },

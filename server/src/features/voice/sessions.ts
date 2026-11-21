@@ -1,3 +1,4 @@
+import { isVoicePilotAllowed } from './pilot';
 import type { VoiceLiveStartResponse } from '@nless/shared/features/voice/types';
 import { AppError, auditInTransaction, config, db, model, type ModelLiveVoiceSession } from '../../core';
 import { getBusinessProfile } from '../business-settings/service';
@@ -20,6 +21,8 @@ export async function startVoiceCall(
   if (!validProof(proof)) throw new AppError('NOT_FOUND');
   const proofDigest = digest(proof!);
   const invite = await db.one<InviteScope>('SELECT invite.* ' + eligibleInvite, [inviteId, proofDigest]);
+  const pilot = { businessId: invite.business_id, lineBot: invite.line_bot, lineUser: invite.line_user };
+  if (!isVoicePilotAllowed(pilot)) throw new AppError('NOT_FOUND');
   const conversation = await getConversation(invite.conversation_id, { businessId: invite.business_id });
   if (!conversation || conversation.channel !== 'line' || conversation.status !== 'open' ||
       conversation.customerId !== invite.customer_id || conversation.customer.externalId !== invite.line_user ||
@@ -56,7 +59,7 @@ export async function startVoiceCall(
       getBusinessProfile(invite.business_id), getRecentVoiceHistory(invite.business_id, invite.customer_id),
     ]);
     const remainingMs = reserved.expires_at.getTime() - Date.now();
-    if (remainingMs <= 0 || !(await isLineVoiceConnectionActive(invite.business_id, invite.line_bot))) throw new AppError('NOT_FOUND');
+    if (remainingMs <= 0 || !isVoicePilotAllowed(pilot) || !(await isLineVoiceConnectionActive(invite.business_id, invite.line_bot))) throw new AppError('NOT_FOUND');
     live = await model.createLiveVoiceSession({
       usage, customerId: invite.customer_id, offerSdp,
       signal: AbortSignal.timeout(Math.max(1, Math.min(remainingMs, config.MODEL_TIMEOUT_MS))),

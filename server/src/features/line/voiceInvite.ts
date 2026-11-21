@@ -1,7 +1,7 @@
 import type { SaveMessageInput } from '@nless/shared/features/inbox/types';
 import { config, isFeatureHidden, sendToCustomer } from '../../core';
 import { saveMessage } from '../inbox/service';
-import { createVoiceInvite, verifyLineVoiceChallenge, voiceCommandPrefix } from '../voice/service';
+import { createVoiceInvite, isVoicePilotAllowed, verifyLineVoiceChallenge, voiceCommandPrefix } from '../voice/service';
 
 type Customer = NonNullable<SaveMessageInput['customer']>;
 interface LineVoiceIntent {
@@ -28,7 +28,7 @@ export async function handleLineVoiceIntent(input: LineVoiceIntent): Promise<boo
   }
   const normalized = text.toLowerCase().replace(/\s+/g, ' ');
   const language = thai.test(normalized.replaceAll(' ', '')) ? 'th' : english.test(normalized) ? 'en' : null;
-  if (!language) return false;
+  if (!language || !isVoicePilotAllowed(sender) || await isFeatureHidden('F30')) return false;
 
   const saved = await saveMessage({
     businessId: input.businessId, direction: 'inbound', author: 'customer', origin: 'live',
@@ -37,7 +37,7 @@ export async function handleLineVoiceIntent(input: LineVoiceIntent): Promise<boo
     parts: [{ type: 'text', text }],
   });
   const base = config.PUBLIC_BASE_URL;
-  const enabled = !(await isFeatureHidden('F30')) && base && new URL(base).protocol === 'https:';
+  const enabled = base && new URL(base).protocol === 'https:';
   const parts: Parameters<typeof sendToCustomer>[1] = [];
   if (enabled) {
     const invite = await createVoiceInvite({

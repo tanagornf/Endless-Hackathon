@@ -23,7 +23,7 @@ vi.mock('./connection', () => ({ getAccessToken: vi.fn().mockResolvedValue('test
 vi.mock('../inbox/service', () => ({ saveMessage: mocks.save, getCustomerLanguage: async () => 'en' }));
 vi.mock('./inboundMedia', () => ({ inboundAttachment: mocks.attachment, lineAttachmentTypes: new Set(['image', 'audio']) }));
 vi.mock('../voice/service', () => ({
-  createVoiceInvite: mocks.createVoice, verifyLineVoiceChallenge: mocks.verifyVoice, voiceCommandPrefix: 'ENDLESS-VOICE:',
+  createVoiceInvite: mocks.createVoice, isVoicePilotAllowed: () => true, verifyLineVoiceChallenge: mocks.verifyVoice, voiceCommandPrefix: 'ENDLESS-VOICE:',
 }));
 vi.mock('./actions', () => ({ consumeLinePostback: mocks.postback }));
 vi.mock('../team/service', () => ({ isHumanTakeover: mocks.takeover }));
