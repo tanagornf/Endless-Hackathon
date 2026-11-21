@@ -30,6 +30,10 @@ export const fallbacks = {
     th: 'สอบถามราคากับร้านโดยตรงนะคะ',
     en: 'Please ask the shop directly for the price.',
   },
+  product_not_found: {
+    th: 'ยังไม่พบสินค้านี้ในรายการสินค้าของร้านค่ะ',
+    en: "I couldn't find that product in this shop's catalog.",
+  },
   contact_hidden: {
     th: 'สอบถามร้านโดยตรงนะคะ',
     en: 'Please contact the shop directly.',

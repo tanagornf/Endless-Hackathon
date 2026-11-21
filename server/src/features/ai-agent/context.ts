@@ -1,4 +1,3 @@
-import { formatMoneyText } from '@nless/shared/core/language';
 import type { CustomerLanguage } from '@nless/shared/core/language';
 import type { AiToolTrace } from '@nless/shared/features/ai-agent/types';
 import type { BusinessSettings, EffectiveAnswerRules } from '@nless/shared/features/business-settings/types';
@@ -7,17 +6,19 @@ import type { ConversationRecord, MessageRecord } from '@nless/shared/features/i
 import { db } from '../../core';
 import type { ModelMessage } from '../../core';
 import { getBusinessOpenState, getBusinessProfile, getEffectiveAnswerRules } from '../business-settings/service';
-import { getPrice, getProduct } from '../catalog/service';
 import { searchKnowledge } from '../knowledge-search/service';
 import { detectReplyLanguage } from './fallbacks';
 import { arabicDigits, maskCardNumbers } from './mask';
-import { moneyInWords, moneyMentions, skuPattern } from './money';
+import { skuPattern } from './money';
 import { contextPrompt, developerPrompt } from './prompt';
+import { asKnowledgeEvidence, lookupQuote, quoteForModel } from './tools';
+import type { TotalEvidence } from './tools';
 
 export interface PriceEvidence {
   id: string;
   quote: PriceQuote;
   name: string;
+  variant: string | null;
   names: string[];
 }
 
@@ -25,6 +26,7 @@ export interface KnowledgeEvidence {
   id: string;
   title: string;
   snippet: string;
+  score: number;
 }
 
 export interface ReplyContext {
@@ -33,6 +35,7 @@ export interface ReplyContext {
   rules: EffectiveAnswerRules;
   knowledge: KnowledgeEvidence[];
   prices: PriceEvidence[];
+  totals: TotalEvidence[];
   tools: AiToolTrace[];
   messages: ModelMessage[];
   contact: string;
@@ -72,34 +75,18 @@ function quantityFor(text: string): number {
 
 async function prefetch(businessId: string, sku: string, quantity: number, language: CustomerLanguage) {
   const start = performance.now();
-  let evidence: PriceEvidence | null = null;
   try {
-    const item = await getProduct(businessId, { sku });
-    if (item) {
-      const variant = item.variants.find((candidate) => candidate.sku?.toUpperCase() === sku);
-      const quote = await getPrice(businessId, { itemId: item.id, variantId: variant?.id, quantity });
-      const name = (language === 'en' ? item.nameEn : item.name) || item.name;
-      evidence = {
-        id: 'catalog:' + quote.itemId + ':v' + quote.version, quote, name,
-        names: [...new Set([item.name, item.nameEn, variant?.name, quote.name].filter((value): value is string => Boolean(value)))],
-      };
-    }
+    const found = await lookupQuote(businessId, language, { sku, name: null, variant_name: null, quantity });
+    const evidence = 'evidence' in found ? found.evidence : null;
+    const tool: AiToolTrace = {
+      name: 'get_price', ok: Boolean(evidence), prefetch: true, ms: Math.round(performance.now() - start),
+      ...('error' in found ? { error: found.error.error } : {}),
+    };
+    return { evidence, tool };
   } catch {
     const tool: AiToolTrace = { name: 'get_price', ok: false, prefetch: true, ms: Math.round(performance.now() - start), error: 'LOOKUP_FAILED' };
-    return { evidence, tool };
+    return { evidence: null, tool };
   }
-  const tool: AiToolTrace = { name: 'get_price', ok: Boolean(evidence), prefetch: true, ms: Math.round(performance.now() - start) };
-  return { evidence, tool };
-}
-
-function quoteForPrompt(evidence: PriceEvidence, language: CustomerLanguage, rules: EffectiveAnswerRules) {
-  const { quote, name } = evidence;
-  return {
-    ok: true, itemId: quote.itemId, variantId: quote.variantId, sku: quote.sku, name, quantity: quote.quantity,
-    unitPriceMinor: quote.unitPriceMinor, subtotalMinor: quote.subtotalMinor, currency: quote.currency,
-    unitPrice: formatMoneyText(quote.unitPriceMinor, language), subtotal: formatMoneyText(quote.subtotalMinor, language),
-    soldOut: quote.soldOut, ...(rules.stock === 'always' ? { available: quote.available } : {}),
-  };
 }
 
 function directivesOf(rules: EffectiveAnswerRules): string {
@@ -148,8 +135,8 @@ export async function buildReplyContext(
   ]);
   signal.throwIfAborted();
   const knowledge = (knowledgeSearch?.hits ?? []).flatMap((hit) => {
-    if (rules.price !== 'always' && [hit.title, hit.snippet].some((text) => moneyMentions(text).length || moneyInWords.test(text))) return [];
-    return [{ id: 'knowledge:' + hit.knowledgeItemId + ':r' + hit.revision, title: hit.title, snippet: hit.snippet }];
+    const item = asKnowledgeEvidence(hit, rules);
+    return item ? [item] : [];
   });
   const prices = quotes.flatMap(({ evidence }) => evidence ? [evidence] : []);
   const contact = profile
@@ -174,7 +161,7 @@ export async function buildReplyContext(
     directives: directivesOf(rules),
     handoffState: 'none',
     knowledgeBlock: knowledge.map((item, index) => '[K' + (index + 1) + '] id=' + item.id + ' | ' + item.title + '\n' + item.snippet).join('\n\n') || 'No knowledge excerpt matched this question.',
-    prefetchBlock: prices.map((item) => JSON.stringify({ tool: 'get_price', result: quoteForPrompt(item, language, rules) })).join('\n') || 'none',
+    prefetchBlock: prices.map((item) => JSON.stringify({ tool: 'get_price', result: quoteForModel(item, language, rules) })).join('\n') || 'none',
   };
   const messages: ModelMessage[] = [
     { role: 'developer', content: developerPrompt },
@@ -189,5 +176,5 @@ export async function buildReplyContext(
     remaining -= content.length;
   }
   messages.push(...chat);
-  return { language, unanswered, rules, knowledge, prices, tools: quotes.map(({ tool }) => tool), messages, contact, cardMasked: contextRows.some((row) => row.text !== row.masked) };
+  return { language, unanswered, rules, knowledge, prices, totals: [], tools: quotes.map(({ tool }) => tool), messages, contact, cardMasked: contextRows.some((row) => row.text !== row.masked) };
 }
