@@ -1,0 +1,49 @@
+{
+  "name": "nless-hack",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "tsx watch --clear-screen=false server/src/core/server.ts",
+    "dev:web": "vite --config web/vite.config.ts",
+    "start": "tsx server/src/core/server.ts",
+    "typecheck": "tsc -p shared && tsc -p server && tsc -p web",
+    "build": "npm run typecheck && vite build --config web/vite.config.ts",
+    "test": "vitest run",
+    "db:create": "tsx scripts/db.ts create",
+    "db:migrate": "tsx scripts/db.ts migrate",
+    "db:seed": "tsx scripts/db.ts seed",
+    "db:reset": "tsx scripts/db.ts reset",
+    "migrate": "npm run db:migrate",
+    "seed": "npm run db:seed",
+    "lane:init": "tsx scripts/lane-init.ts",
+    "check:paths": "tsx scripts/check-paths.ts",
+    "scaffold": "tsx scripts/scaffold-features.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "smoke:openai": "tsx scripts/smoke-openai.ts",
+    "e2e": "playwright test",
+    "evals": "tsx server/src/features/evals/run.ts",
+    "demo:reset": "tsx scripts/db.ts demo-reset",
+    "check": "npm run typecheck && npm run check:paths && npm test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.12.4",
+    "@types/supertest": "7.2.1",
+    "@vitejs/plugin-react": "6.0.2",
+    "concurrently": "10.0.6",
+    "supertest": "7.3.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vite": "8.0.16",
+    "vitest": "4.1.10"
+  }
+}
