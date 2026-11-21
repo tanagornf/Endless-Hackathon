@@ -1,7 +1,7 @@
 import { Box, ButtonBase, LinearProgress, Paper, Stack, Typography } from '@mui/material';
 import ArrowForwardOutlined from '@mui/icons-material/ArrowForwardOutlined';
 import AllInclusiveOutlined from '@mui/icons-material/AllInclusiveOutlined';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '../layout/AppShell';
 import { groups } from '../layout/Navigation';
@@ -13,9 +13,7 @@ export default function WorkspaceHome() {
   const { t } = useTranslation('common');
   const { entries, flags, error } = useNavigation();
   const { currentBusiness } = useSession();
-  const [params] = useSearchParams();
   if (!flags && !error) return <LinearProgress aria-label={t('pages.loading')} />;
-  if (params.get('view') !== 'workspace' && entries.length) return <Navigate replace to={entries[0].path} />;
   return <Stack spacing={3}>
     <Box sx={{ position: 'relative', isolation: 'isolate', overflow: 'hidden', borderRadius: '18px', color: 'white', bgcolor: '#104D48',
       backgroundImage: 'radial-gradient(ellipse at 85% 110%, #24776A, transparent 58%)', px: { xs: 2.5, md: 4 }, py: { xs: 3, md: 4 } }}>

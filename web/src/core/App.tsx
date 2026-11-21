@@ -1,4 +1,4 @@
-import { Alert, Box, LinearProgress, Switch } from '@mui/material';
+import { Alert, Box, LinearProgress, Switch, Typography } from '@mui/material';
 import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
@@ -73,6 +73,13 @@ function Ops() {
   </>;
 }
 const OpsScreen = import.meta.env.VITE_UI_PREVIEW === '1' ? lazy(() => import('../integration/PreparedPage')) : Ops;
+function Home() {
+  const { search } = useLocation();
+  const { t } = useTranslation('common');
+  if (new URLSearchParams(search).get('view') === 'workspace') return <WorkspaceHome />;
+  return <><PageHeader title={t('pages.home')} /><Typography>{t('pages.welcome')}</Typography></>;
+}
+
 function SessionHome({ children }: { children: ReactNode }) {
   return <Guard auth="user"><AppShell>{children}</AppShell></Guard>;
 }
@@ -84,7 +91,7 @@ export default function App() {
     {import.meta.env.DEV && registryErrors.length > 0 && <Alert severity="error">{registryErrors.join(' · ')}</Alert>}
     <Suspense fallback={<LinearProgress />}>
       <Routes>
-        <Route path="/" element={<SessionHome><WorkspaceHome /></SessionHome>} />
+        <Route path="/" element={<SessionHome><Home /></SessionHome>} />
         <Route path="/account" element={<SessionHome><Account /></SessionHome>} />
         <Route path="/ops" element={<SessionHome><Guard auth="platform_admin"><OpsScreen /></Guard></SessionHome>} />
         <Route path="/oauth/callback" element={<SessionHome><OAuthCallback /></SessionHome>} />
