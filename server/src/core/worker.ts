@@ -2,6 +2,7 @@ import type { JobState } from '@nless/shared/core/types';
 import { audit } from './audit';
 import { config } from './config';
 import { db, dbPool } from './db';
+import { DEMO_BUSINESS_IDS, DEMO_RESET_LOCK } from './demo-scope';
 import { AppError } from './errors';
 import { getJobHandler, publishJob, subscribeJobWake } from './jobs';
 import {
@@ -70,10 +71,12 @@ function claimOne(type?: string): Promise<JobClaim | null> {
     "started_at=now(),updated_at=now(),locked_until=now()+make_interval(secs=>$2::double precision) WHERE id=(" +
     "SELECT j.id FROM jobs j WHERE ((j.state='queued' AND j.run_at<=now()) OR " +
     "(j.state='running' AND j.locked_until<now() AND j.attempts<j.max_attempts)) " +
-    "AND ($3::text IS NULL OR j.type=$3) AND (j.lock_key IS NULL OR NOT EXISTS (" +
+    "AND ($3::text IS NULL OR j.type=$3) " +
+    "AND CASE WHEN j.business_id=ANY($4::uuid[]) THEN pg_try_advisory_xact_lock_shared(hashtext($5)) ELSE true END " +
+    "AND (j.lock_key IS NULL OR NOT EXISTS (" +
     "SELECT 1 FROM jobs r WHERE r.lock_key=j.lock_key AND r.id<>j.id AND r.state='running' AND r.locked_until>=now())) " +
     "ORDER BY j.run_at,j.created_at,j.id LIMIT 1 FOR UPDATE OF j SKIP LOCKED) RETURNING *",
-    [instanceId, JOBS_LEASE_SECONDS, type ?? null],
+    [instanceId, JOBS_LEASE_SECONDS, type ?? null, DEMO_BUSINESS_IDS, DEMO_RESET_LOCK],
   );
 }
 
