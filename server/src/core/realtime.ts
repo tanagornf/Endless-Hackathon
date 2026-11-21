@@ -58,9 +58,15 @@ export function attachRealtime(server: Server) {
     }
   }, 25000);
   timer.unref();
-  return () => {
+  return (code?: number) => {
     clearInterval(timer);
-    for (const client of websocket.clients) client.terminate();
+    for (const client of websocket.clients) {
+      if (code) client.close(code);
+      else client.terminate();
+    }
+    if (code) setTimeout(() => {
+      for (const client of websocket.clients) client.terminate();
+    }, 2000).unref();
     websocket.close();
   };
 }

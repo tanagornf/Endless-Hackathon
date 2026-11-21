@@ -13,6 +13,8 @@ function buildSha(): string {
   } catch { return 'unknown'; }
 }
 const sha = buildSha();
+let draining = false;
+export function markDraining(): void { draining = true; }
 
 export function mountMeta(app: Application, features: () => number) {
   app.get(['/healthz', '/health/live'], async (_req, res) => {
@@ -21,6 +23,7 @@ export function mountMeta(app: Application, features: () => number) {
     res.json({ status: 'ok', db: 'ok' });
   });
   app.get(['/readyz', '/health/ready'], async (_req, res) => {
+    if (draining) { res.status(503).json({ status: "draining" }); return; }
     try {
       if (features() < 2 || (await migrationStatus()).pending > 0) throw Error('Application unavailable');
       await checkStorage();

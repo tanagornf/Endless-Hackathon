@@ -3,7 +3,7 @@ import { createApp } from './app';
 import type { ApiResult } from '@nless/shared/core/types';
 import type { SaveMessageResult } from '@nless/shared/features/inbox/types';
 
-export { drainJobs } from './jobs';
+export { drainJobs } from './worker';
 export async function createTestAgent() {
   return request.agent(await createApp());
 }
@@ -19,4 +19,10 @@ export async function simulateInbound(agent: Agent, businessId: string, text: st
     .send({ businessId, text, customerExternalId: externalId });
   if (response.status !== 200) throw new Error('Test inbound returned HTTP ' + response.status);
   return (response.body as ApiResult<SaveMessageResult>).data;
+}
+
+export function testGate() {
+  let open!: () => void;
+  const promise = new Promise<void>((resolve) => { open = resolve; });
+  return { promise, resolve: open };
 }
