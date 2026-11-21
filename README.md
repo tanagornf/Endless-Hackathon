@@ -18,9 +18,13 @@ Endless is a bilingual sales assistant for Thai shops that sell through chat. Th
 
 **How the shop improves its answers.** A missing fact is a reason to bring in a person. The merchant can check the product, approve a product-specific FAQ and make that knowledge available for retrieval. The pitch uses an English rulebook as an illustrative example. The production clips above show the price, hours and staff controls.
 
+**Prepare an order for dispatch.** In the demo shop, staff open the packing sheet, review a shipment deadline and open its shipping details. Recipient fields are masked.
+
+[![Packing and dispatch recording](docs/pitch/recordings/previews/packing.gif)](docs/pitch/recordings/packing.mp4)
+
 ## Feature viewing guide
 
-Use the recordings below to follow the release snapshot feature by feature. The two product recordings above show the running application. Each **evidence walkthrough** below shows the feature’s repository record and its documented scope. For an unimplemented feature, the walkthrough covers the design only. The release ledger below gives the recorded mode for every entry.
+Use the recordings below to follow the release snapshot feature by feature. The product recordings above show the running application. Each **evidence walkthrough** below shows the feature’s repository record and its documented scope. For an unimplemented feature, the walkthrough covers the design only. The release ledger below gives the recorded mode for every entry.
 
 | Feature | Walkthrough | Source |
 |---|---|---|
