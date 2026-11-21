@@ -109,11 +109,19 @@ describe('F09 public Demo Chat', { timeout: 30000 }, () => {
       'UPDATE messages SET delivery_state=$3 WHERE business_id=$1 AND id=$2', [bizA, id, state]);
 
     const reply = await attempt('Delivered reply');
-    expect((await poll(cursor)).body.data).toMatchObject({ items: [], cursor });
+    expect((await poll(cursor)).body.data).toMatchObject({ items: [] });
     await setState(reply.id, 'pending');
-    expect((await poll(cursor)).body.data).toMatchObject({ items: [], cursor });
+    expect((await poll(cursor)).body.data).toMatchObject({ items: [] });
+    const staff = await saveMessage({ businessId: bizA, conversationId, direction: 'outbound', author: 'staff',
+      parts: [{ type: 'text', text: 'Staff can still reply' }] });
+    const handback = await attempt('Sent after handback');
+    await setState(handback.id, 'sent');
+    const held = (await poll(cursor)).body.data;
+    expect(held.items.map((row: { id: string }) => row.id)).toEqual([staff.message.id, handback.id]);
+    const recovered = await poll(held.cursor);
+    expect(recovered.body.data.items).not.toContainEqual(expect.objectContaining({ id: reply.id }));
     await setState(reply.id, 'sent');
-    const delivered = (await poll(cursor)).body.data;
+    const delivered = (await poll(recovered.body.data.cursor)).body.data;
     expect(delivered.items.map((row: { id: string }) => row.id)).toEqual([reply.id]);
 
     const suppressed = await attempt('Suppressed reply');
@@ -128,6 +136,25 @@ describe('F09 public Demo Chat', { timeout: 30000 }, () => {
     expect((await getHistory(conversationId, { businessId: bizA })).items.map((row) => row.id))
       .toContain(suppressed.id);
   });
+
+  it('returns later visible messages without long-polling through an entire hidden page', async () => {
+    const agent = await createTestAgent();
+    const token = freshToken();
+    const response = await agent.post(demoA + '/messages').set('X-Demo-Visitor', token).send(input('Long history'));
+    expect(response.status).toBe(200);
+    const { conversationId, message } = response.body.data;
+    for (let batch = 0; batch < 4; batch++) {
+      await Promise.all(Array.from({ length: 8 }, () => saveMessage({ businessId: bizA, conversationId,
+        direction: 'outbound', author: 'system', parts: [{ type: 'text', text: 'Hidden fixture' }] })));
+    }
+    const next = await saveMessage({ businessId: bizA, conversationId, direction: 'outbound', author: 'staff',
+      parts: [{ type: 'text', text: 'Visible after hidden rows' }] });
+    const cursor = Buffer.from(String(message.seq)).toString('base64url');
+    const start = Date.now();
+    const poll = await agent.get(demoA + '/poll').set('X-Demo-Visitor', token).query({ after: cursor, waitMs: 7000 });
+    expect(poll.body.data.items.map((row: { id: string }) => row.id)).toContain(next.message.id);
+    expect(Date.now() - start).toBeLessThan(6500);
+  }, 45000);
 
   it('rejects an extra visitor before creating a message when the shop cap is reached', async () => {
     const agent = await createTestAgent();

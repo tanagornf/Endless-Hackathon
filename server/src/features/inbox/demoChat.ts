@@ -1,10 +1,10 @@
-import type { Page } from '@nless/shared/core/types';
 import type { DemoChatMessage, DemoChatPoll, DemoChatSendResult, DemoChatShopView, MessageRecord } from '@nless/shared/features/inbox/types';
 import { AppError, assertRateLimit, db, log, model } from '../../core';
 import { getBusinessSettings } from '../business-settings/service';
 import { messageColumns, formatMessage } from './mappers';
 import type { DbMessage } from './mappers';
-import { getHistory, saveMessage } from './service';
+import { saveMessage } from './service';
+import { readDemoHistory } from './demoHistory';
 import { waitForDemoUpdate } from './demoSignal';
 
 const settingsColumns = `s.business_id AS "businessId", s.public_slug AS "publicSlug", s.enabled,
@@ -229,29 +229,24 @@ async function pending(identity: DemoIdentity, conversationId: string): Promise<
 }
 
 async function readPoll(identity: DemoIdentity, conversation: { id: string; status: 'open' | 'closed' }, after?: string): Promise<DemoChatPoll> {
-  const scoped = { businessId: identity.businessId, after, limit: 30 };
   const [history, ai] = await Promise.all([
-    getHistory(conversation.id, scoped) satisfies Promise<Page<MessageRecord>>,
-    pending(identity, conversation.id),
+    readDemoHistory(identity.businessId, conversation.id, after), pending(identity, conversation.id),
   ]);
-  // saveMessage commits before the delivery worker can decide whether the customer may see the AI reply.
-  const waiting = history.items.findIndex((row) => row.direction === 'outbound' && row.author === 'ai'
-    && (row.delivery.state === 'not_required' || row.delivery.state === 'pending'));
-  const ready = waiting < 0 ? history.items : history.items.slice(0, waiting);
-  const last = ready.at(-1);
-  return {
-    conversationId: conversation.id, items: ready.flatMap((message) => customerMessage(message) ?? []),
-    cursor: last ? Buffer.from(String(last.seq)).toString('base64url') : after ?? null,
-    pending: waiting < 0 ? ai : { since: history.items[waiting]!.createdAt, state: 'typing' },
+  const { waiting } = history;
+  const recentWait = waiting && Date.now() - waiting.createdAt.getTime() < pendingAge;
+  const page: DemoChatPoll = {
+    conversationId: conversation.id, items: history.items.flatMap((message) => customerMessage(message) ?? []),
+    cursor: history.cursor, pending: recentWait ? { since: waiting.createdAt.toISOString(), state: 'typing' } : ai,
     closed: conversation.status === 'closed',
   };
+  return page;
 }
 
 export async function demoPoll(identity: DemoIdentity, after: string | undefined, waitMs: number): Promise<DemoChatPoll> {
   const conversation = await conversationFor(identity);
   if (!conversation) return { conversationId: null, items: [], cursor: null, pending: null, closed: false };
   const first = await readPoll(identity, conversation, after);
-  if (first.items.length || first.pending?.state === 'failed' || first.closed || waitMs === 0) return first;
+  if (first.items.length || first.cursor !== (after ?? null) || first.pending?.state === 'failed' || first.closed || waitMs === 0) return first;
   // Delivery updates are published to staff WebSockets. Public visitors also recheck the DB while typing.
   await waitForDemoUpdate(identity.businessId + ':' + identity.externalId, conversation.id, first.pending ? Math.min(waitMs, 1000) : waitMs);
   const current = await conversationFor(identity);

@@ -43,7 +43,8 @@
 
 ### Customer-visible AI delivery
 
-- The public and tester polls show AI replies only after the web delivery worker records a successful send. The cursor waits at an in-flight reply and moves past terminal failed or unknown attempts. Staff can still inspect attempted replies in the inbox. Visitor attachment and card action reads apply the same visibility rule.
-- The delivery regression covers the interval between message persistence and queuing, pending to sent, and failed or unknown attempts followed by a successful reply. Deployed takeover smoke remains pending.
+- The public and tester polls show AI replies only after the web delivery worker records a successful send. New messages advance on their own cursor. The visitor rechecks in-flight AI replies in bounded pages. Failed and unknown attempts stay hidden. Staff can still inspect attempted replies in the inbox. Visitor attachment and card action reads apply the same visibility rule.
+- The delivery regression covers the interval between message persistence and queuing, pending to sent, and failed or unknown attempts followed by a successful reply. The first version also held back later staff replies after an orphaned send, and waited through a full page of hidden messages. Both cases failed on c2e7a0e. The corrected queries filter terminal rows before paging and let delivered messages pass an unresolved row. Deployed takeover smoke remains pending.
 
 - Before the evidence-only rebase, the combined F09 and F11 integration suites passed 25/25 in 108.35 seconds with the fake model. Full typecheck and path ownership passed.
+- The corrected F09 and F11 suites passed 30/30 in 140.03 seconds on the A1 test database with the fake model. The visitor received a staff message and a later sent AI message while the earlier AI attempt stayed pending, then received the earlier reply after it became sent. Thirty-two hidden rows did not delay a later staff reply.
