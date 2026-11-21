@@ -1,65 +1,15 @@
 import { AppError } from '../../core';
-import { SEED } from '@nless/shared/core/fixtures';
-const seedId = (alias: string) => SEED.businesses.find((business) => business.alias === alias)?.id;
-import type { CatalogImportResult, CatalogImportRow, CatalogItem, CatalogItemDetail, PriceQuote, ProductRef } from '@nless/shared/features/catalog/types';
-import type { Page } from '@nless/shared/core/types';
+import type { CatalogImportResult, CatalogImportRow, CatalogItem, ProductRef } from '@nless/shared/features/catalog/types';
+import { resolveProduct } from './refs';
+import { itemView } from './repo';
 
-/**
- * @owner F08 catalog · B1 · consumers: B2 (tools, cards), A2 (orders, live codes)
- * Null when not found / inactive / other business (R3).
- * @fake SEED.catalog of that business.
- */
+export { parsePriceToMinor } from '@nless/shared/features/catalog/money';
+export { getPrice } from './price';
+export { getCatalogItemDetails, listCatalogItems, listItems } from './repo';
+
 export async function getProduct(businessId: string, ref: ProductRef): Promise<CatalogItem | null> {
-  const item = SEED.catalog.find((candidate) => seedId(candidate.businessAlias) === businessId && (
-    'itemId' in ref ? candidate.id === ref.itemId :
-    'sku' in ref ? candidate.sku.toLowerCase() === ref.sku.toLowerCase() :
-    [candidate.name, candidate.nameEn].some((name) => name.toLowerCase() === ref.name.toLowerCase())
-  ));
-  return item ? { id: item.id, businessId, sku: item.sku, kind: item.kind, name: item.name, nameEn: item.nameEn,
-    priceMinor: item.priceMinor, currency: item.currency, stock: item.stock, shippable: item.shippable,
-    durationMinutes: item.durationMinutes, variants: [], active: true, version: item.version } : null;
-}
-
-/**
- * @owner F08 catalog · B1. Canonical price from the DB now. quantity default 1, must be a positive integer
- * → else VALIDATION_ERROR. Unknown item/variant → NOT_FOUND. Sold out (stock 0 or < quantity) → soldOut: true
- * (R4, not a throw). subtotalMinor = unit × quantity, integer math. Shipping is NOT included (F13 adds it).
- * @fake SEED.catalog: A-GAME-01 ×2 → subtotal 298000; A-SOLD-01 → soldOut true; services → available null.
- */
-export async function getPrice(
-  businessId: string,
-  input: ProductRef & { variantId?: string | null; quantity?: number },
-): Promise<PriceQuote> {
-  const quantity = input.quantity ?? 1;
-  if (!Number.isSafeInteger(quantity) || quantity < 1) throw new AppError('VALIDATION_ERROR', 'Quantity must be a positive integer');
-  const item = await getProduct(businessId, input);
-  if (!item || input.variantId) throw new AppError('NOT_FOUND', 'Product not found');
-  return { itemId: item.id, variantId: null, sku: item.sku, name: item.name, unitPriceMinor: item.priceMinor,
-    quantity, subtotalMinor: item.priceMinor * quantity, currency: 'THB', available: item.stock,
-    soldOut: item.stock !== null && item.stock < quantity, version: item.version };
-}
-
-/** @owner F08 catalog · B1 · MANDATORY (agreed with B2 F10 list_products, C1 F39 ACP feed + MCP search_catalog, A2 F22)
- *  Customer-facing listing: ONLY active, not-deleted items of THIS business (never inactive, never another tenant).
- *  query   = every whitespace-separated word must match (case-insensitive, NFKC) name, nameEn, an item/variant SKU or category (substring).
- *  category = exact (case-insensitive) match. maxPriceMinor = item price <= max OR any active variant price <= max.
- *  inStockOnly = stock is null OR stock > 0 (services always pass). limit default 20, max 100 (> 100 → 100; < 1 or not an integer → VALIDATION_ERROR).
- *  Sorted by name (case-insensitive) then id. cursor is opaque (from a previous nextCursor); a malformed cursor → VALIDATION_ERROR.
- *  Items carry active variants only. No price visibility policy here: callers (F10) hide prices per answerPolicy.
- *  @fake filters SEED.catalog of that business by name / nameEn / sku substring, maxPriceMinor, inStockOnly (stock === null || stock > 0);
- *        category is ignored (SEED has none); sorted by name; cursor = String(offset); limit as above. */
-export async function listCatalogItems(
-  businessId: string,
-  opts?: { query?: string; category?: string; maxPriceMinor?: number; inStockOnly?: boolean; limit?: number; cursor?: string },
-): Promise<Page<CatalogItem>> {
-  throw new AppError("SERVICE_NOT_READY", "listCatalogItems is not implemented");
-}
-
-/** @owner F08 catalog · B1 · consumers: C1 F39 (feed), A2 F22
- *  Active items only, unknown / other-tenant / inactive ids silently skipped. ≤ 100 ids (more → VALIDATION_ERROR). Order = input order.
- *  @fake SEED.catalog rows by id, description null, category null, unit 'ชิ้น', images []. */
-export async function getCatalogItemDetails(businessId: string, itemIds: string[]): Promise<CatalogItemDetail[]> {
-  throw new AppError("SERVICE_NOT_READY", "getCatalogItemDetails is not implemented");
+  const row = await resolveProduct(businessId, ref);
+  return row ? itemView(row) : null;
 }
 
 /** @owner F08 catalog · B1 · consumer: A2 F13 (decrement on order confirm, give back on cancel). OPTIONAL for A2: if never called, stock stays manual.
@@ -87,11 +37,4 @@ export async function importCatalogItems(input: {
   mode?: 'create_only' | 'update_existing'; onError?: 'abort' | 'skip_row'; dryRun?: boolean;
 }): Promise<CatalogImportResult> {
   throw new AppError("SERVICE_NOT_READY", "importCatalogItems is not implemented");
-}
-
-/** Shared pure helper (shared/features/catalog/money.ts) for CSV / sheet text. Accepts Thai or Arabic digits, "฿", "บาท", "THB", spaces,
- *  thousands commas and at most 2 decimals: '1,490' → 149000 · '฿1,490.50' → 149050 · '๑๔๙๐ บาท' → 149000 · '12.5' → 1250.
- *  Returns null for empty, negative, > 100,000,000 baht, 3+ decimals, or anything else. A number input is treated as BAHT and must have ≤ 2 decimals. */
-export function parsePriceToMinor(input: string | number): number | null {
-  throw new AppError("SERVICE_NOT_READY", "parsePriceToMinor is not implemented");
 }

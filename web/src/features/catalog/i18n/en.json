@@ -4,5 +4,21 @@
   },
   "page": {
     "title": "Catalog"
+  },
+  "list": {
+    "error": "Could not load catalog",
+    "empty": "No products or services yet",
+    "missingNameEn": "{{count}} active items are missing an English name.",
+    "loadMore": "Load more"
+  },
+  "table": {
+    "name": "Name",
+    "sku": "SKU",
+    "price": "Price",
+    "fromPrice": "From {{price}}",
+    "stock": "Stock",
+    "soldOut": "Sold out",
+    "untracked": "Untracked",
+    "status": "Status"
   }
 }
