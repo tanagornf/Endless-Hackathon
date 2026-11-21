@@ -22,14 +22,12 @@ describe('passwords', () => {
     expect(await verifyPassword('correct-horse-battery', 'broken')).toBe(false);
   });
 
-  it('enforces length and rejects common or email-based passwords', () => {
-    const context = { email: 'LongOwnerName@example.test', displayName: 'Owner' };
-
-    expect(validatePassword('a'.repeat(9), context)).toBe('too_short');
-    expect(validatePassword('a'.repeat(129), context)).toBe('too_long');
-    expect(validatePassword('Password123', context)).toBe('common');
-    expect(validatePassword('longownername', context)).toBe('same_as_email');
-    expect(validatePassword('LONGOWNERNAME@example.test', context)).toBe('same_as_email');
-    expect(validatePassword('correct-horse-battery', context)).toBeNull();
+  it('uses length alone and counts Unicode characters', () => {
+    expect(validatePassword('a'.repeat(7))).toBe('too_short');
+    expect(validatePassword('a'.repeat(129))).toBe('too_long');
+    expect(validatePassword('12345678')).toBeNull();
+    expect(validatePassword('password123')).toBeNull();
+    expect(validatePassword('😀'.repeat(7))).toBe('too_short');
+    expect(validatePassword('😀'.repeat(8))).toBeNull();
   });
 });

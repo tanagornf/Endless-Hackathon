@@ -161,6 +161,20 @@ describe('product facts in a real turn', () => {
     expect(mocks.saveDraft).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['ถุงผ้ารุ่น Lumistag ของร้านซักอย่างไร', 'th'],
+    ['เอาถุง Lumistag ของร้านนี้เข้าเครื่องซักได้มั้ยคะ', 'th'],
+    ['Can I put my Lumistag bag in the washing machine?', 'en'],
+    ['How should I wash my Lumistag bag?', 'en'],
+  ] as const)('asks the shop for unsupported washing instructions: %s', async (question, language) => {
+    mocks.product.mockResolvedValue(null);
+    const result = await resolve(context(question, language));
+    expect(result.parts).toEqual([{ type: 'text', text: fallbacks.no_answer[language] }]);
+    expect(result.offerStaff).toBe(true);
+    expect(result.evidenceIds).toEqual([]);
+    expect(mocks.searchWeb).not.toHaveBeenCalled();
+  });
+
   it('keeps arbitrary personal names, unknown store SKUs and unidentified variants out of web search', async () => {
     mocks.product.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     const unknown = await resolve(context('Does SHOP-UNKNOWN-42 support Qi2?'));

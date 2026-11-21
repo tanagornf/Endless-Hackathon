@@ -10,7 +10,7 @@ vi.mock('../../core', async (original) => {
 });
 
 const input = {
-  email: 'new-owner@example.test', password: 'correct-horse-battery', displayName: 'New Owner',
+  email: 'new-owner@example.test', password: '12345678', displayName: 'New Owner',
   businessName: 'New Shop', locale: 'en' as const,
 };
 
@@ -36,12 +36,12 @@ describe('signup transaction', () => {
 
   it('normalizes the email and provisions using the same transaction as the user insert', async () => {
     const result = await createSignupAccount({ ...input, email: ' NEW-OWNER@EXAMPLE.TEST ' }, tenancy);
-    expect(result).toEqual({ userId: 'new-user', businessId: 'new-business', emailVerified: false });
+    expect(result).toEqual({ userId: 'new-user', businessId: 'new-business' });
     expect(query.mock.calls[0][1]).toEqual(['auth-email:new-owner@example.test']);
     const [, params] = one.mock.calls[0];
     expect(params.slice(0, 3)).toEqual(['new-owner@example.test', 'New Owner', 'en']);
     expect(await verifyPassword(input.password, params[3])).toBe(true);
-    expect(params[4]).toBe(false);
+    expect(params).toHaveLength(4);
     expect(tenancy.provisionAccountForUser).toHaveBeenCalledWith('new-user', { businessName: 'New Shop', language: 'en' }, tx);
     expect(tenancy.acceptInvitation).not.toHaveBeenCalled();
   });
@@ -49,8 +49,7 @@ describe('signup transaction', () => {
   it('uses only the invitation contract for invited accounts', async () => {
     const inviteToken = 'x'.repeat(43);
     const result = await createSignupAccount({ ...input, businessName: undefined, inviteToken }, tenancy);
-    expect(result).toEqual({ userId: 'new-user', businessId: 'existing-business', emailVerified: true, inviteToken });
-    expect(one.mock.calls[0][1][4]).toBe(true);
+    expect(result).toEqual({ userId: 'new-user', businessId: 'existing-business', inviteToken });
     expect(tenancy.acceptInvitation).toHaveBeenCalledWith('new-user', inviteToken, tx);
     expect(tenancy.provisionAccountForUser).not.toHaveBeenCalled();
     expect(tenancy.completeInvitationAcceptance).not.toHaveBeenCalled();
@@ -73,10 +72,10 @@ describe('signup transaction', () => {
     await expect(createSignupAccount(input, tenancy)).rejects.toThrow('Provisioning failed');
   });
 
-  it('rejects missing shop names and weak passwords before database writes', async () => {
+  it('rejects missing shop names and passwords below eight characters before writing', async () => {
     await expect(createSignupAccount({ ...input, businessName: undefined }, tenancy)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
-    await expect(createSignupAccount({ ...input, password: 'password123' }, tenancy)).rejects.toMatchObject({
-      code: 'VALIDATION_ERROR', details: { issues: [{ path: 'password', code: 'common' }] },
+    await expect(createSignupAccount({ ...input, password: '1234567' }, tenancy)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR', details: { issues: [{ path: 'password', code: 'too_short' }] },
     });
     expect(db.tx).not.toHaveBeenCalled();
   });

@@ -73,7 +73,7 @@ describe('auth S1 routes', () => {
     const status = await request(app).get('/api/v1/auth/status').set('Cookie', cookie);
     expect(status.body.data).toMatchObject({ userId: owner.id, email: owner.email, emailVerified: true });
     expect((await request(app).get('/api/v1/auth/config')).body.data)
-      .toEqual({ emailMode: 'sandbox', passwordMinLength: 10 });
+      .toEqual({ emailMode: 'sandbox', passwordMinLength: 8 });
   });
 
   it('requires the CSRF header and uses the same error for incorrect and unknown accounts', async () => {

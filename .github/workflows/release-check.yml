@@ -1,0 +1,81 @@
+name: release-check
+on:
+  workflow_dispatch:
+  push:
+    tags: ['release-*']
+permissions:
+  contents: read
+jobs:
+  clean-boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: release-check
+          POSTGRES_DB: nless_hack_c1
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MODEL_MODE: fake
+      OPENAI_API_KEY: ''
+      DATABASE_URL: postgres://postgres:release-check@localhost:5432/nless_hack_c1
+      TEST_DATABASE_URL: postgres://postgres:release-check@localhost:5432/nless_hack_c1_test
+      APP_BASE_URL: http://127.0.0.1:3000
+      NODE_ENV: production
+      PORT: '3000'
+      UPLOAD_DIR: ./var/release-uploads
+      RUN_WORKER: '1'
+      RUN_SCHEDULER: '1'
+      BUILD_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --include=dev --no-audit --no-fund
+      - name: Generate isolated test configuration
+        run: |
+          printf 'SESSION_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          printf 'TOKEN_ENCRYPTION_KEY=%s\n' "$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+      - run: npm run db:create && npm run db:migrate && npm run db:seed -- --demo
+      - run: npm test
+      - run: npm run build
+      - run: npm run release:status:check
+      - name: Start compiled release and check identity and readiness
+        run: |
+          node --import tsx server/src/core/server.ts > /tmp/nless-release-check.log 2>&1 &
+          pid=$!
+          trap 'kill -TERM "$pid" 2>/dev/null || true; wait "$pid" || true' EXIT
+          ready=0
+          for attempt in $(seq 1 40); do
+            if curl --silent --fail http://127.0.0.1:3000/readyz > /tmp/nless-release-ready.json; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = 1
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+          const stamp = JSON.parse(await readFile('/tmp/nless-release-ready.json', 'utf8'));
+          assert.equal(stamp.status, 'ready');
+          assert.equal(stamp.worker.running, true);
+          const health = await fetch('http://127.0.0.1:3000/healthz');
+          assert.equal(health.status, 200);
+          assert.equal((await health.json()).db, 'ok');
+          const response = await fetch('http://127.0.0.1:3000/build-info');
+          assert.equal(response.status, 200);
+          const build = await response.json();
+          assert.equal(build.sha, process.env.BUILD_SHA);
+          assert.equal(build.modelMode, 'fake');
+          assert.equal(build.featuresLoaded, 31);
+          assert.ok(build.schema);
+          assert.equal((await fetch('http://127.0.0.1:3000/api/v1/features')).status, 401);
+          NODE

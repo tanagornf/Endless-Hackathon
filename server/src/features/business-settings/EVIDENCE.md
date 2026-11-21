@@ -4,10 +4,11 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F04 | business-settings | C3 | DOING | R | A | none | | 36 F04 tests passed and 40 with tenancy isolation, typecheck and ownership passed, four Playwright smoke cases discovered | 2026-11-21 13:13 +07:00 | Production smoke and core-loop gate evidence pending |
+| F04 | business-settings | C3 | DOING | R | A | none | | 40 F04 + isolation tests, ownership, and authenticated production business/AI settings reads passed | 2026-11-21 14:14 +07:00 | Synthetic closure/answer-policy write and restoration smoke pending |
 
 ## Log
 
+- Draft PR #123 combines the owner consult, exact-candidate instruction replay and review, and the two factual-reuse files from #119 at e61f8472f7a34daf24c212971d85b7b70cc78a8b. The internal factual-draft service rejects case-only and invalid shop or receipt scope before analysis, rechecks consent before the F05 draft write, and returns a digest of the saved revision. Factual learning, trusted instruction replay, and F10 resume still require runtime callers. Draft preparation leaves publication subject to separate owner approval.
 - S1 adds settings, profile and closure tables, seeds both synthetic settings records, and reads effective AI state from the business and account rows.
 - Owners can toggle AI on /bot-settings in Thai and English. The server versions and audits changes and publishes a settings event. Repeating the same value does not create a second change or audit.
 - The C3 integration suite covers the exact contract, defaults, required permissions, cross-tenant 404s, a malformed request, account and business suspension, and persistence of a toggle. The pre-implementation run had five expected failures. All eight passed after implementation.
@@ -22,3 +23,5 @@
 - S3 adds real idempotent settings initialization, profile and capability reads, tenant-scoped policy patches, and audited versioned locale, profile and capability writes. Both settings pages are available in Thai and English. The business tab host passes its scoped business ID to registered extensions.
 - Rebased verification passed 40 F04 plus F03-isolation tests across five files. The matrix covered 20 distinct GET paths and 60 cross-tenant requests. Web-only verification passed 32 tests, including locale key parity and the contributed tab regression. Playwright discovery identified four smoke cases. No production smoke has run for S3.
 - Opening calculations use the saved business timezone. Until the shared formatter accepts a timezone, the next-opening display explicitly labels Bangkok time for other zones.
+- S4 prepares the documented synthetic closure and price-policy production smoke cases with an explicit write-slot opt-in and exact before/after API assertions. Typecheck and four-test Playwright discovery passed. Both mutation cases skipped with opt-in off. The C3 F04 and tenant isolation regression passed all 40 tests in 52.21 seconds. The owner production run awaits the assigned slot.
+- C0 confirmed a signed-in Shop A owner read-only on production build 5aa261520d7b09a1b9479730c9d97a5d87e67e26. Business showed the Demo Boardgame Shop profile and Monday hours 10:00–20:00. Bot settings showed the AI switch enabled and the content policy and shop capability switches rendered. No setting or shop data changed. C3's separate mutation preflight stopped before login because the approved Playwright fixture was unconfigured and public readiness returned 502.

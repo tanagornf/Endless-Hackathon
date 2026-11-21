@@ -1,9 +1,12 @@
 import type { AuthScope, AuthUser, BusinessRecord, Channel, DeliveryMode, JobState, JsonSchema, MessageAuthor, MessageOrigin, MessagePart } from '@nless/shared/core/types';
 import type { MembershipRole, PermissionKey } from '@nless/shared/core/permissions';
+import type { FeatureFlagView } from '@nless/shared/core/types';
 import type { FeatureId, FolderSlug, MigrationOwner } from '@nless/shared/core/features';
 import type { SeedData } from '@nless/shared/core/fixtures';
 import type { Application, Request, Response } from 'express';
 import type { ZodType } from 'zod';
+import type { ShopCorrectionAnalysisInput } from './shop-correction-analysis';
+export type { ShopCorrectionAnalysisInput } from './shop-correction-analysis';
 
 /** Result of getBusiness(): the business, the verified scope, and the user. */
 export interface BusinessContext {
@@ -349,6 +352,7 @@ export interface ModelApi {
    */
   chat(input: ModelChatInput): Promise<ModelChatResult>;
   searchWeb(input: ModelWebSearchInput): Promise<ModelWebSearchResult>;
+  analyzeShopCorrection(input: ShopCorrectionAnalysisInput): Promise<ModelChatResult>;
   /**
    * openai.embeddings.create({ model: OPENAI_EMBED_MODEL, input, dimensions: EMBED_DIM }) in batches of ≤ 256 texts
    * (a text over 8,192 tokens → VALIDATION_ERROR). Vectors are unit length → pgvector cosine distance `<=>`.
@@ -557,6 +561,7 @@ export type WebhookHandler = (ctx: WebhookContext) => Promise<WebhookResult>;
  * for the protocol catalog. A (method, path) already registered by another feature fails boot naming both.
  */
 export interface FeatureApi {
+  readFeatureFlags(): Promise<FeatureFlagView[]>;
   get<Q = unknown, R = unknown>(path: string, opts: RouteOptions<never, Q>, handler: RouteHandler<never, Q, R>): void;
   post<B = unknown, Q = unknown, R = unknown>(path: string, opts: RouteOptions<B, Q>, handler: RouteHandler<B, Q, R>): void;
   put<B = unknown, Q = unknown, R = unknown>(path: string, opts: RouteOptions<B, Q>, handler: RouteHandler<B, Q, R>): void;

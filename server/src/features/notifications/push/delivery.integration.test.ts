@@ -5,6 +5,8 @@ import webPush from 'web-push';
 import { config, createSession, db } from '../../../core';
 import type { JobContext } from '../../../core';
 import { createHttpApp, httpError } from '../../../core/http';
+import { saveMessage } from '../../inbox/service';
+import { applyAiHandoff, assignConversation } from '../../team/service';
 import { handleNotificationPush } from './delivery';
 import { registerOwnerConsultLookup } from './destination';
 import { registerPushRoutes } from './routes';
@@ -79,7 +81,7 @@ describe('durable phone notification delivery', () => {
       await tx.query("INSERT INTO accounts (id,name,owner_user_id) VALUES ($1,'Push test account',$2)", [accountId, ownerId]);
       await tx.query("INSERT INTO businesses (id,account_id,name) VALUES ($1,$2,'Push test shop')", [businessId, accountId]);
       await tx.query("INSERT INTO memberships (business_id,user_id,role,permissions) VALUES ($1,$2,'owner','{}')", [businessId, ownerId]);
-      await tx.query("INSERT INTO notification_preferences (user_id,type,in_app,push) VALUES ($1,'system',true,true)", [ownerId]);
+      await tx.query("INSERT INTO notification_preferences (user_id,type,in_app,push) VALUES ($1,'system',true,true),($1,'chat.handoff',true,true)", [ownerId]);
     });
     await owner.post('/fixture/owner').expect(204);
     await stranger.post('/fixture/stranger').expect(204);
@@ -182,6 +184,45 @@ describe('durable phone notification delivery', () => {
     expect(send).not.toHaveBeenCalled();
     expect(await db.maybeOne('SELECT id FROM push_deliveries WHERE notification_id = $1', [noticeId])).toBeNull();
   }, 25000);
+
+  it.each(['line', 'web'] as const)('checks the real confirmed F11 receipt for %s delivery and tap', async (channel) => {
+    const send = vi.spyOn(webPush, 'sendNotification').mockResolvedValue(sent);
+    const { conversation } = await saveMessage({
+      businessId,
+      customer: { channel, externalId: 'push-receipt-' + randomUUID(), displayName: 'Synthetic notification visitor' },
+      direction: 'inbound', author: 'customer', parts: [{ type: 'text', text: 'Synthetic request' }],
+      externalId: randomUUID(), triggerAi: false,
+    });
+    const receipt = await applyAiHandoff({
+      businessId, conversationId: conversation.id, expectedVersion: conversation.version,
+      turnId: randomUUID(), reason: 'customer_request', explicitRequestEvidence: 'accepted_staff_offer',
+    });
+    expect(receipt?.committedVersion).toBe(conversation.version + 1);
+    const version = conversation.version + 1;
+    const dedupKey = 'handoff:' + conversation.id + ':v' + version;
+    const notice = await db.one<{ id: string; purpose: unknown }>(
+      'SELECT id, push_purpose AS purpose FROM notifications WHERE business_id=$1 AND user_id=$2 AND dedup_key=$3',
+      [businessId, ownerId, dedupKey],
+    );
+    const path = pushApi + '/open/' + notice.id;
+    if (channel === 'line') {
+      await owner.get(path).expect(200).expect(({ body }) => {
+        expect(body.data).toEqual({ businessId, link: '/chat?c=' + conversation.id });
+      });
+      await Promise.all([handleNotificationPush(job(notice.id)), handleNotificationPush(job(notice.id))]);
+      expect(send).toHaveBeenCalledTimes(1);
+      await assignConversation(conversation.id, ownerId, { businessId });
+      await owner.get(path).expect(404);
+    } else {
+      expect(notice.purpose).toBeNull();
+      await db.query('UPDATE notifications SET push_purpose=$3 WHERE id=$1 AND business_id=$2', [
+        notice.id, businessId, JSON.stringify({ kind: 'staff-offer', conversationId: conversation.id, version }),
+      ]);
+      await owner.get(path).expect(404);
+      await handleNotificationPush(job(notice.id));
+      expect(send).not.toHaveBeenCalled();
+    }
+  }, 35000);
 
   it('serves the worker as public same-scope JavaScript without a redirect', async () => {
     const result = await publicClient.get(originApi + '/sw.js').expect(200);

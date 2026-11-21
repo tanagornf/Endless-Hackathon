@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { AppError, assertRateLimit, auditInTransaction, config, createSession, db, log, revokeUserSessionsInTransaction } from '../../core';
 import type { DbExecutor } from '../../core';
 import { assertSameOriginRequest } from './csrf';
-import { hashPassword, PASSWORD_MAX, validatePassword, verifyPassword } from './password';
+import { hashPassword, PASSWORD_MAX, passwordCharacterCount, validatePassword, verifyPassword } from './password';
 import { authTokenSchema } from './tokens';
 
 export interface RecoveryPorts {
@@ -18,22 +18,20 @@ export interface RecoveryPorts {
 
 const ForgotBody = z.object({ email: z.string().trim().toLowerCase().email().max(200) }).strict();
 const ResetBody = z.object({
-  token: authTokenSchema, newPassword: z.string().max(PASSWORD_MAX),
+  token: authTokenSchema, newPassword: z.string(),
 }).strict();
 const ChangeBody = z.object({
-  currentPassword: z.string().min(1).max(PASSWORD_MAX), newPassword: z.string().max(PASSWORD_MAX),
+  currentPassword: z.string().min(1).refine((value) => passwordCharacterCount(value) <= PASSWORD_MAX),
+  newPassword: z.string(),
 }).strict();
 
 type PasswordAccount = {
-  email: string;
-  display_name: string;
-  email_normalized: string;
   password_hash: string | null;
   status: 'active' | 'disabled';
 };
 
-function validateNewPassword(plain: string, user: Pick<PasswordAccount, 'email' | 'display_name'>) {
-  const code = validatePassword(plain, { email: user.email, displayName: user.display_name });
+function validateNewPassword(plain: string) {
+  const code = validatePassword(plain);
   if (code) throw new AppError('VALIDATION_ERROR', 'Password does not meet requirements', {
     details: { issues: [{ path: 'newPassword', code }] },
   });
@@ -79,13 +77,12 @@ export async function resetPassword(req: Request, input: unknown, ports: Recover
   await db.tx(async (tx) => {
     // A rejection or failed update rolls back the token consumption as well as the credential change.
     const id = await ports.consumeToken(token, 'reset_password', tx);
-    const user = await tx.one<PasswordAccount>(
-      'SELECT email, display_name, email_normalized, password_hash, status FROM users WHERE id = $1 FOR UPDATE', [id],
+    const user = await tx.one<{ email_normalized: string; status: PasswordAccount['status'] }>(
+      'SELECT email_normalized, status FROM users WHERE id = $1 FOR UPDATE', [id],
     );
     if (user.status !== 'active') throw new AppError('ACCOUNT_DISABLED', 'Account disabled');
-    validateNewPassword(newPassword, user);
-    await tx.query('UPDATE users SET password_hash = $2, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1',
-      [id, await hashPassword(newPassword)]);
+    validateNewPassword(newPassword);
+    await tx.query('UPDATE users SET password_hash = $2 WHERE id = $1', [id, await hashPassword(newPassword)]);
     await tx.query('DELETE FROM auth_login_attempts WHERE email_normalized = $1', [user.email_normalized]);
     await revokeUserSessionsInTransaction(tx, id);
     await auditInTransaction(tx, [{ action: 'auth.password.reset', actorUserId: id }]);
@@ -98,11 +95,11 @@ export async function changePassword(req: Request, res: Response, userId: string
   assertRateLimit({ key: 'auth.change:' + userId, limit: 5, windowSeconds: 900 });
   const { currentPassword, newPassword } = ChangeBody.parse(input);
   const user = await db.one<PasswordAccount>(
-    'SELECT email, display_name, email_normalized, password_hash, status FROM users WHERE id = $1', [userId],
+    'SELECT password_hash, status FROM users WHERE id = $1', [userId],
   );
   if (user.status !== 'active') throw new AppError('ACCOUNT_DISABLED', 'Account disabled');
   if (!user.password_hash || !await verifyPassword(currentPassword, user.password_hash)) throw invalidCurrentPassword();
-  validateNewPassword(newPassword, user);
+  validateNewPassword(newPassword);
   const hash = await hashPassword(newPassword);
   await db.tx(async (tx) => {
     const result = await tx.query(

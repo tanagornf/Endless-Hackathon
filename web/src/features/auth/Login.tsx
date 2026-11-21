@@ -65,7 +65,7 @@ export default function Login() {
           label={t('login.email')} slotProps={{ htmlInput: { 'data-testid': 'login-email', maxLength: 200 } }} />
         <TextField id="auth-login-password" name="password" type={show ? 'text' : 'password'}
           autoComplete="current-password" required label={t('login.password')} slotProps={{
-            htmlInput: { 'data-testid': 'login-password', maxLength: 128 },
+            htmlInput: { 'data-testid': 'login-password' },
             input: { endAdornment: <InputAdornment position="end">
               <IconButton type="button" edge="end" aria-label={t('login.toggle')} aria-pressed={show}
                 onMouseDown={(event) => event.preventDefault()} onClick={() => setShow((value) => !value)}>
