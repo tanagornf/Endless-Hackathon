@@ -12,3 +12,16 @@ export interface FollowUpMetrics {
   cancelled: number;
   recovered: number;
 }
+
+export type FollowUpChannel = 'web' | 'line';
+
+export interface FollowUpSettings {
+  businessId: string;
+  enabled: boolean;
+  delayHours: number;
+  quietStart: string;
+  quietEnd: string;
+  allowedChannels: FollowUpChannel[];
+  version: number;
+  timezone: string;
+}
