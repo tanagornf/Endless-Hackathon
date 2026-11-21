@@ -37,7 +37,7 @@ test('F04 owner adds and removes a future closure through the business settings 
   const path = '/api/v1/businesses/' + demoA.id + '/settings/closures';
   await setUiLanguage(ownerPage, 'th');
   await ownerPage.goto('/business');
-  await expect(ownerPage.getByRole('tab', { name: 'เวลาทำการ' })).toBeVisible();
+  await ownerPage.getByRole('tab', { name: 'เวลาทำการ' }).click();
   try {
     await ownerPage.getByRole('button', { name: 'เพิ่มวันหยุด' }).click();
     const form = ownerPage.getByRole('dialog');
@@ -56,6 +56,42 @@ test('F04 owner adds and removes a future closure through the business settings 
       const result = await list.json() as ApiResult<{ items: { id: string; reason: string }[] }>;
       const created = result.data.items.find((item) => item.reason === marker);
       if (created) await api.delete(path + '/' + created.id);
+    }
+  }
+});
+
+
+test('F04 owner changes only the price policy, reloads, and restores the prior price rule', async ({ ownerPage, api }) => {
+  const path = '/api/v1/businesses/' + demoA.id + '/settings';
+  const initial = await api.get(path);
+  expect(initial.ok()).toBe(true);
+  const before = (await initial.json() as ApiResult<SettingsView>).data.settings.answerPolicy?.price ?? null;
+  const expected = { reveal: 'ask_staff' };
+
+  await setUiLanguage(ownerPage, 'en');
+  await ownerPage.goto('/bot-settings');
+  const price = ownerPage.getByTestId('policy-price').getByRole('combobox');
+  try {
+    await price.click();
+    await ownerPage.getByRole('option', { name: 'Ask staff' }).click();
+    await ownerPage.getByRole('button', { name: 'Save', exact: true }).first().click();
+    await expect(ownerPage.getByText('Saved', { exact: true })).toBeVisible();
+    await ownerPage.reload();
+    await expect(price).toHaveText('Ask staff');
+
+    const persisted = await api.get(path);
+    expect(persisted.ok()).toBe(true);
+    expect((await persisted.json() as ApiResult<SettingsView>).data.settings.answerPolicy?.price).toEqual(expected);
+  } finally {
+    const current = await api.get(path);
+    if (current.ok()) {
+      const { settings } = (await current.json() as ApiResult<SettingsView>).data;
+      if (settings.answerPolicy?.price?.reveal === expected.reveal && before?.reveal !== expected.reveal) {
+        const restored = await api.patch(path + '/answer-policy', {
+          data: { expectedVersion: settings.version, policy: { price: before } },
+        });
+        expect(restored.ok()).toBe(true);
+      }
     }
   }
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AnswerPolicy, EffectiveAnswerRules, MerchantCapabilities } from '@nless/shared/features/business-settings/types';
-import { resolveRules } from './policy';
+import { mergePolicy, normalizePolicy, resolveRules } from './policy';
 
 const permissiveCaps: MerchantCapabilities = {
   canQuotePrices: true,
@@ -46,5 +46,27 @@ const cases: {
 describe('F04 capability and policy intersection', () => {
   it.each(cases)('$name', ({ caps, policy, expected }) => {
     expect(resolveRules({ ...permissiveCaps, ...caps }, policy)).toEqual({ ...permissiveRules, ...expected });
+  });
+});
+
+
+describe('F04 answer policy normalization and merge', () => {
+  it('preserves existing restrictions when a single unrelated key is patched', () => {
+    expect(mergePolicy({ price: { reveal: 'never' } }, { stock: { reveal: 'ask_staff' } })).toEqual({
+      price: { reveal: 'never' }, stock: { reveal: 'ask_staff' },
+    });
+  });
+
+  it('clears only the requested restriction', () => {
+    expect(mergePolicy({ booking: { enabled: false }, generalKnowledge: false }, { booking: null })).toEqual({
+      generalKnowledge: false,
+    });
+  });
+
+  it('normalizes explicitly permissive entries to the default null policy', () => {
+    expect(normalizePolicy({
+      price: { reveal: 'always' }, stock: { reveal: 'always' }, contact: { reveal: 'always' },
+      generalKnowledge: true, booking: { enabled: true },
+    })).toBeNull();
   });
 });

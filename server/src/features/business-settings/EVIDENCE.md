@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F04 | business-settings | C3 | DOING | R | A | none | | 28 F04 tests passed and 32 with tenancy isolation, typecheck and ownership passed, three Playwright smoke cases discovered | 2026-11-21 12:33 +07:00 | Production smoke and remaining F04 slices pending |
+| F04 | business-settings | C3 | DOING | R | A | none | | 36 F04 tests passed and 40 with tenancy isolation, typecheck and ownership passed, four Playwright smoke cases discovered | 2026-11-21 13:13 +07:00 | Production smoke and core-loop gate evidence pending |
 
 ## Log
 
@@ -18,3 +18,7 @@
 - The effective-rules contract merged as PR #11 at 7e45255b74cc0a92b5fe55ab91068f7e1faf9ebd with green CI and a B2 handoff.
 - S2 adds versioned weekly hours, audited special closures, the public open-state service, and the Thai and English business-hours page. F04 passed 28 tests. Combined checks exercised 14/15 distinct isolation paths with 42 cross-tenant requests.
 - Opening calculations use the stored timezone. The current core display helper renders dates and times in Asia/Bangkok. Production smoke and S3 profile and policy editing remain pending.
+- Hours and closures merged through #27 at 41e808245e8aebb289aabe45ce527a51bb0ab130 with green CI.
+- S3 adds real idempotent settings initialization, profile and capability reads, tenant-scoped policy patches, and audited versioned locale, profile and capability writes. Both settings pages are available in Thai and English. The business tab host passes its scoped business ID to registered extensions.
+- Rebased verification passed 40 F04 plus F03-isolation tests across five files. The matrix covered 20 distinct GET paths and 60 cross-tenant requests. Web-only verification passed 32 tests, including locale key parity and the contributed tab regression. Playwright discovery identified four smoke cases. No production smoke has run for S3.
+- Opening calculations use the saved business timezone. Until the shared formatter accepts a timezone, the next-opening display explicitly labels Bangkok time for other zones.
