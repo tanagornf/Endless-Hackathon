@@ -45,6 +45,30 @@ beforeEach(async () => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+it('renders outgoing HTTPS sources as accessible links while preserving customer and message text', async () => {
+  const source = 'https://example.org/ไทย_(คู่มือ)?edition=en&part=2#rules';
+  const next = 'https://example.org/reference';
+  const body = 'คู่มือเกม / Game rules (' + source + ').\nแหล่งที่สอง: ' + next + '!';
+  const unsupported = '<em>Example</em> http://example.org mailto:demo@example.org /relative https://account@example.org';
+  const items: DemoChatMessage[] = [
+    { ...saved('customer', 1, '1'), parts: [{ type: 'text', text: next }] },
+    { ...saved('ai', 2, '2'), direction: 'outbound', author: 'ai',
+      parts: [{ type: 'text', text: body }, { type: 'text', text: unsupported }] },
+  ];
+  const poll = vi.fn(async (): Promise<DemoChatPoll> => ({
+    conversationId: 'conversation', items, cursor: 'cursor', pending: null, closed: false,
+  }));
+  render(<CustomerChatView transport={{ poll, send: vi.fn(), action: vi.fn(), reset: vi.fn(), fileUrl: vi.fn() }}
+    greeting="Welcome" suggestions={[]} limit={500} />);
+  const first = await screen.findByRole('link', { name: source });
+  expect(first.getAttribute('href')).toBe(source);
+  expect(first.getAttribute('rel')).toContain('noreferrer');
+  expect(first.parentElement?.textContent).toBe(body);
+  expect(screen.getByRole('link', { name: next }).getAttribute('href')).toBe(next);
+  expect(screen.getAllByRole('link')).toHaveLength(2);
+  expect(screen.getByText(unsupported).querySelector('em')).toBeNull();
+});
+
 it('reconciles a lost send acknowledgement only with the same request and preserves a newer draft', async () => {
   const chat = await startChat();
   await chat.loseResponse();

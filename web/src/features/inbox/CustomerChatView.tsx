@@ -250,7 +250,7 @@ export default function CustomerChatView({ transport, greeting, suggestions, lim
           alignSelf: message.author === 'customer' ? 'flex-end' : 'flex-start',
           bgcolor: message.author === 'customer' ? 'primary.main' : 'action.hover',
           color: message.author === 'customer' ? 'primary.contrastText' : 'text.primary' }}>
-        <MessageParts parts={message.parts} fileUrl={transport.fileUrl} onReview={review}
+        <MessageParts parts={message.parts} linkSources={message.direction === 'outbound'} fileUrl={transport.fileUrl} onReview={review}
           onPostback={(text) => void sendText(text)} />
       </Paper>)}
       {attempt && <Paper elevation={0} data-testid="demo-chat-message" data-author="customer" data-message-id={attempt.id}
