@@ -10,4 +10,4 @@
 
 - S1 adds tenant-scoped draft, review, activation, deactivation, deletion, revision snapshots, bilingual list and editor, and seed data.
 - Integration coverage checks state transitions, searchability rollback via a mocked index port, concurrent edits, shop isolation, route permissions and validation, idempotent seeding, and cursor paging.
-- F07 S1 wires actual FAQ indexing and adds an English Playwright activation smoke. A combined lane run passed 16 F05 and F07 tests (fake-model mode). Folder management and import contracts are S2. Moderation, attachments, revision history UI and production smoke are S3.
+- F07 S1 wires actual FAQ indexing and adds an English Playwright activation smoke. A combined lane run passed 17 F05 and F07 tests (fake-model mode). Folder management and import contracts are S2. Moderation, attachments, revision history UI and production smoke are S3.

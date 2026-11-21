@@ -90,6 +90,42 @@ describe('F07 durable knowledge indexing', () => {
   }, 20_000);
 
 
+
+  it('shares a running index generation and starts a new generation after ready', async () => {
+    await createTestAgent();
+    const item = await createKnowledgeItem(bizA, actor, { title: 'Manual reindex', body: 'Fixture MANUAL-INDEX-33.', kind: 'faq', folderId: null });
+    await submitKnowledgeItem(bizA, actor, item.id, 1);
+    const input = { businessId: bizA, itemId: item.id, revision: 1 };
+    const first = await indexKnowledgeRevision(input);
+    let enter!: () => void;
+    let release!: () => void;
+    const embedding = new Promise<void>((resolve) => { enter = resolve; });
+    const resume = new Promise<void>((resolve) => { release = resolve; });
+    const original = model.embed.bind(model);
+    const spy = vi.spyOn(model, 'embed').mockImplementationOnce(async (request) => {
+      enter();
+      await resume;
+      return original(request);
+    });
+    const running = drainJobs({ type: 'knowledge.index', maxMs: 30_000 });
+    try {
+      await Promise.race([embedding, running.then(() => { throw new Error('Index worker did not reach embedding'); })]);
+      expect((await getIndexStates(bizA, [item.id]))[item.id].state).toBe('indexing');
+      expect(await indexKnowledgeRevision(input)).toEqual({ jobId: first.jobId, deduped: true });
+    } finally {
+      release();
+      try { await running; } finally { spy.mockRestore(); }
+    }
+    expect((await getIndexStates(bizA, [item.id]))[item.id].state).toBe('ready');
+    const reindex = await indexKnowledgeRevision(input);
+    expect(reindex.deduped).toBe(false);
+    expect(reindex.jobId).not.toBe(first.jobId);
+    expect(await indexKnowledgeRevision(input)).toEqual({ jobId: reindex.jobId, deduped: true });
+    await drainJobs({ type: 'knowledge.index', maxMs: 30_000 });
+    expect((await jobs.get(reindex.jobId))?.state).toBe('succeeded');
+    expect((await getIndexStates(bizA, [item.id]))[item.id].state).toBe('ready');
+  }, 25_000);
+
   it('retries transient embedding errors through the durable F35 worker', async () => {
     await createTestAgent();
     const item = await createKnowledgeItem(bizA, actor, { title: 'Retryable index', body: 'Fixture RETRY-INDEX-22.', kind: 'faq', folderId: null });
@@ -102,6 +138,7 @@ describe('F07 durable knowledge indexing', () => {
       await drainJobs({ type: 'knowledge.index', maxMs: 30_000 });
       expect(await jobs.get(jobId)).toMatchObject({ state: 'queued', attempts: 1 });
       expect((await getIndexStates(bizA, [item.id]))[item.id].state).toBe('indexing');
+      expect(await indexKnowledgeRevision({ businessId: bizA, itemId: item.id, revision: 1 })).toEqual({ jobId, deduped: true });
       await delay(5100);
       await drainJobs({ type: 'knowledge.index', maxMs: 30_000 });
       expect(await jobs.get(jobId)).toMatchObject({ state: 'succeeded', attempts: 2 });

@@ -5,24 +5,26 @@ import type { KnowledgeIndexView } from '@nless/shared/features/knowledge/types'
 import { withKnowledgePublication } from '../knowledge/service';
 
 export const INDEX_JOB = 'knowledge.index';
-export type IndexPayload = { businessId: string; itemId: string; revision: number };
+export type IndexInput = { businessId: string; itemId: string; revision: number };
+export type IndexPayload = IndexInput & { generation: number };
 
-export async function indexKnowledgeRevision(input: IndexPayload): Promise<{ jobId: string; deduped: boolean }> {
+export async function indexKnowledgeRevision(input: IndexInput): Promise<{ jobId: string; deduped: boolean }> {
   const { businessId, itemId, revision } = input;
-  const attempts = await withKnowledgePublication(businessId, itemId, async (tx, current) => {
+  const { generation } = await withKnowledgePublication(businessId, itemId, async (tx, current) => {
     if (current.revision !== revision || current.status === 'draft' || current.status === 'deleted') {
       throw new AppError('POLICY_BLOCKED', 'Knowledge revision is unavailable for indexing');
     }
-    const row = await tx.one<{ attempts: number }>(
-      "INSERT INTO knowledge_index_states (business_id,item_id,revision,state) VALUES ($1,$2,$3,'not_started') " +
-      'ON CONFLICT (item_id,revision) DO UPDATE SET updated_at=now() RETURNING attempts',
+    return tx.one<{ generation: number }>(
+      "INSERT INTO knowledge_index_states AS idx (business_id,item_id,revision,state,generation) VALUES ($1,$2,$3,'not_started',1) " +
+      "ON CONFLICT (item_id,revision) DO UPDATE SET generation=idx.generation+CASE WHEN idx.state IN ('ready','failed') THEN 1 ELSE 0 END," +
+      "state=CASE WHEN idx.state IN ('ready','failed') THEN 'not_started' ELSE idx.state END,updated_at=now() " +
+      'WHERE idx.business_id=$1 RETURNING generation',
       [businessId, itemId, revision],
     );
-    return row.attempts;
   });
-  return jobs.enqueue(INDEX_JOB, input, {
+  return jobs.enqueue(INDEX_JOB, { ...input, generation }, {
     businessId, lockKey: 'knowledge:' + itemId, maxAttempts: 3,
-    dedupKey: 'knowledge.index:' + itemId + ':' + revision + ':' + attempts,
+    dedupKey: 'knowledge.index:' + itemId + ':' + revision + ':' + generation,
   });
 }
 
