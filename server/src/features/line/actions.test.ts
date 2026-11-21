@@ -38,6 +38,7 @@ describe('LINE server-owned postbacks', () => {
     mocks.conversation.mockResolvedValue({ id: 'conversation', channel: 'line', customer: input.customer });
     mocks.save.mockResolvedValue({ conversation: { id: 'conversation' } });
     mocks.language.mockResolvedValue('en');
+    mocks.notify.mockResolvedValue({ notificationIds: [], mode: 'sandbox' });
     mocks.order.mockResolvedValue({ stage: 'confirm', replayed: false, decision: 'confirm' });
     mocks.booking.mockResolvedValue({ stage: 'confirm', replayed: false, decision: 'confirm' });
   });
