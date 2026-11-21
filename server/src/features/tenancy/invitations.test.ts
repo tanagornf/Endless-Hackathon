@@ -97,7 +97,7 @@ describe('F03 invitation routes', { timeout: 20_000 }, () => {
     const created = await create(path, ' AbCd@example.test ');
     const token = tokenOf(created);
     const row = await stored(created.invitation.id);
-    expect(created.delivery).toBe('link_only');
+    expect(created.delivery).toBe('email_sandbox');
     expect(created.invitation.email).toBe(email);
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(row.token_hash).toBe(hashInvitationToken(token));
@@ -120,6 +120,7 @@ describe('F03 invitation routes', { timeout: 20_000 }, () => {
     ]);
     const rotated = await owner.post(path + '/' + created.invitation.id + '/resend').set(...requestHeader);
     expect(rotated.status).toBe(200);
+    expect(rotated.body.data.delivery).toBe('email_sandbox');
     expect(rotated.body.data.invitation.id).toBe(created.invitation.id);
     expect((await preview(token)).status).toBe(404);
     expect((await preview(tokenOf(rotated.body.data))).status).toBe(200);
