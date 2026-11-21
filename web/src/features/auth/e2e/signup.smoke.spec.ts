@@ -23,7 +23,8 @@ test('signup has Thai and English labels and requires a stored link for invited 
 });
 
 test('verification removes the token from the browser URL and explains an invalid link', async ({ page }) => {
-  await page.goto('/verify-email?token=' + randomBytes(32).toString('base64url'));
+  const documentResponse = await page.goto('/verify-email?token=' + randomBytes(32).toString('base64url'));
+  expect(await documentResponse?.headerValue('referrer-policy')).toBe('no-referrer');
   await expect(page).toHaveURL(/\/verify-email$/);
   await expect(page.getByRole('alert')).toContainText(/ลิงก์นี้ใช้ไม่ได้|This link cannot be used/);
 });

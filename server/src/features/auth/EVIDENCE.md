@@ -23,4 +23,6 @@
 - Verification links are single-use and expire. Resending invalidates the old link. The sandbox outbox encrypts action links and records messages without external delivery.
 - Added Thai and English signup and verification pages. The signup page preserves invitation context and the verification page removes the token from the address bar before submitting it.
 - Seven isolated S2 tests passed. Playwright discovered three S2 smoke cases. The account-creating smoke runs only when `E2E_ALLOW_SIGNUP=1`.
+- The integrated Auth commit `5ef52b13dbb3f1dec9a1a886d2856094e2ad2f20` passed GitHub CI, including Auth S2 route tests. [CI job](https://github.com/tanagornf/Endless-Hackathon/actions/runs/44876140199/job/136761138667)
+- The public merge is gated on C1 serving the initial `/verify-email` document with `Referrer-Policy: no-referrer`. The S2 browser smoke checks that header and verifies that the address bar no longer carries the token.
 - CI or the approved C3 checkout can run `npm test -- server/src/features/auth web/src/features/auth`. Production smoke, sandbox mailbox UI, password recovery, and dev-login cutover are pending.

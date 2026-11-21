@@ -2,13 +2,10 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { SEED } from '@nless/shared/core/fixtures';
 import { config, db, decryptSecret } from '../../core';
 import { createApp } from '../../core/app';
 import { createSignupAccount } from './signup';
 
-const owner = SEED.users.find(({ alias }) => alias === 'owner_a')!;
-const shop = SEED.businesses.find(({ alias }) => alias === 'biz_demo_a')!;
 const password = randomBytes(18).toString('base64url');
 const emails: string[] = [];
 let nextIp = 1;
@@ -52,15 +49,6 @@ function verify(token: string) {
 
 async function noUser(email: string) {
   expect(await db.maybeOne('SELECT id FROM users WHERE email_normalized = $1', [email])).toBeNull();
-}
-
-async function invite(email: string, cookie: string) {
-  const response = await post('/api/v1/businesses/' + shop.id + '/invitations').set('Cookie', cookie)
-    .send({ email, permissions: ['chat.read'] });
-  expect(response.status).toBe(201);
-  const token = new URL(response.body.data.link).searchParams.get('token');
-  if (!token) throw new Error('Expected a test invitation token');
-  return { token, id: response.body.data.invitation.id as string };
 }
 
 describe('auth S2 signup and verification routes', () => {
@@ -161,11 +149,23 @@ describe('auth S2 signup and verification routes', () => {
   }, 30000);
 
   it('joins invited staff without provisioning a shop and rolls back failed invitation signups', async () => {
-    const ownerSession = await post('/api/dev/login').send({ email: owner.email });
-    expect(ownerSession.status).toBe(200);
+    const ownerSession = await signup(newEmail(), { businessName: 'Auth Invitation Test Shop' });
+    expect(ownerSession.status).toBe(201);
     const ownerCookie = getCookie(ownerSession);
+    const ownerMe = await request(app).get('/api/v1/me').set('Cookie', ownerCookie);
+    const shopId = ownerMe.body.data.businesses[0].business.id as string;
+    const invitationsPath = '/api/v1/businesses/' + shopId + '/invitations';
+
+    async function invite(email: string) {
+      const response = await post(invitationsPath).set('Cookie', ownerCookie).send({ email, permissions: ['chat.read'] });
+      expect(response.status).toBe(201);
+      const token = new URL(response.body.data.link).searchParams.get('token');
+      if (!token) throw new Error('Expected a test invitation token');
+      return { token, id: response.body.data.invitation.id as string };
+    }
+
     const invited = newEmail();
-    const { token } = await invite(invited, ownerCookie);
+    const { token } = await invite(invited);
     const mismatched = newEmail();
     const wrong = await signup(mismatched, { inviteToken: token, businessName: undefined });
     expect(wrong.status).toBe(403);
@@ -177,7 +177,7 @@ describe('auth S2 signup and verification routes', () => {
     expect(accepted.body.data.emailVerified).toBe(true);
     const me = await request(app).get('/api/v1/me').set('Cookie', getCookie(accepted));
     expect(me.body.data.businesses).toHaveLength(1);
-    expect(me.body.data.businesses[0]).toMatchObject({ role: 'staff', business: { id: shop.id }, permissions: ['chat.read'] });
+    expect(me.body.data.businesses[0]).toMatchObject({ role: 'staff', business: { id: shopId }, permissions: ['chat.read'] });
     expect((await db.query('SELECT id FROM accounts WHERE owner_user_id = $1', [accepted.body.data.userId])).rowCount).toBe(0);
     expect(await outbox(invited)).toHaveLength(0);
     const replayAddress = newEmail();
@@ -185,8 +185,8 @@ describe('auth S2 signup and verification routes', () => {
     await noUser(replayAddress);
 
     const revoked = newEmail();
-    const pending = await invite(revoked, ownerCookie);
-    expect((await post('/api/v1/businesses/' + shop.id + '/invitations/' + pending.id + '/revoke')
+    const pending = await invite(revoked);
+    expect((await post(invitationsPath + '/' + pending.id + '/revoke')
       .set('Cookie', ownerCookie)).status).toBe(200);
     const rejected = await signup(revoked, { inviteToken: pending.token, businessName: undefined });
     expect(rejected.status).toBe(422);
@@ -194,22 +194,22 @@ describe('auth S2 signup and verification routes', () => {
     await noUser(revoked);
 
     const suspended = newEmail();
-    const suspendedInvite = await invite(suspended, ownerCookie);
-    await db.query("UPDATE businesses SET status = 'suspended' WHERE id = $1", [shop.id]);
+    const suspendedInvite = await invite(suspended);
+    await db.query("UPDATE businesses SET status = 'suspended' WHERE id = $1", [shopId]);
     try {
       const disabled = await signup(suspended, { inviteToken: suspendedInvite.token, businessName: undefined });
       expect(disabled.status).toBe(403);
       expect(disabled.body.error.code).toBe('BUSINESS_INACTIVE');
       await noUser(suspended);
     } finally {
-      await db.query("UPDATE businesses SET status = 'active' WHERE id = $1", [shop.id]);
+      await db.query("UPDATE businesses SET status = 'active' WHERE id = $1", [shopId]);
     }
 
     const expired = newEmail();
     const ttl = config.INVITATION_TTL_HOURS;
     try {
       config.INVITATION_TTL_HOURS = -1;
-      const expiredInvite = await invite(expired, ownerCookie);
+      const expiredInvite = await invite(expired);
       const rejectedExpired = await signup(expired, { inviteToken: expiredInvite.token, businessName: undefined });
       expect(rejectedExpired.status).toBe(422);
       expect(rejectedExpired.body.error.details.reason).toBe('expired');
