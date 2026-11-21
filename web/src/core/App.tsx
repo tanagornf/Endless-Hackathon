@@ -1,4 +1,4 @@
-import { Alert, Box, LinearProgress } from '@mui/material';
+import { Alert, Box, LinearProgress, Switch } from '@mui/material';
 import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
@@ -14,7 +14,8 @@ import { useRealtimeConnection } from './realtime';
 import { featurePages, registryErrors } from './registry';
 import { useSession } from './session';
 import { useSlot } from './slots';
-import { LanguageSwitch, SectionCard } from './ui';
+import { DataTable, LanguageSwitch, SectionCard, useToast } from './ui';
+import { api } from './api';
 
 const routes = featurePages.flatMap((entry) => entry.routes.map((route) => ({ ...route, id: entry.featureId, Component: lazy(route.load) })));
 if (registryErrors.length && import.meta.env.DEV) console.error(registryErrors.join('\n'));
@@ -53,7 +54,25 @@ function OAuthCallback() {
   const Component = lazy(entry.load);
   return <Component />;
 }
-const PreparedOps = lazy(() => import('../integration/PreparedPage'));
+function Ops() {
+  const { t } = useTranslation('common');
+  const toast = useToast();
+  const { flags } = useFeatures();
+  return <>
+    <PageHeader title={t('pages.jobs')} />
+    <DataTable rows={flags?.items ?? []} loading={!flags} rowKey={(item) => item.featureId} columns={[
+      { key: 'featureId', header: t('pages.features') },
+      { key: 'slug', header: 'ID' },
+      { key: 'visible', header: t('actions.open'), render: (item) => <Switch
+        defaultChecked={!item.hidden} aria-label={item.featureId} onChange={(event) => {
+          const target = event.target;
+          const hidden = !target.checked;
+          void api.put('/ops/features/' + item.featureId, { hidden }).catch((error) => { target.checked = hidden; toast.error(error); });
+        }} /> },
+    ]} />
+  </>;
+}
+const OpsScreen = import.meta.env.VITE_UI_PREVIEW === '1' ? lazy(() => import('../integration/PreparedPage')) : Ops;
 function SessionHome({ children }: { children: ReactNode }) {
   return <Guard auth="user"><AppShell>{children}</AppShell></Guard>;
 }
@@ -67,7 +86,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<SessionHome><WorkspaceHome /></SessionHome>} />
         <Route path="/account" element={<SessionHome><Account /></SessionHome>} />
-        <Route path="/ops" element={<SessionHome><Guard auth="platform_admin"><PreparedOps /></Guard></SessionHome>} />
+        <Route path="/ops" element={<SessionHome><Guard auth="platform_admin"><OpsScreen /></Guard></SessionHome>} />
         <Route path="/oauth/callback" element={<SessionHome><OAuthCallback /></SessionHome>} />
         <Route path="/no-business" element={<SessionHome><MessagePage label="pages.noBusiness" /></SessionHome>} />
         <Route path="/forbidden" element={<SessionHome><MessagePage label="pages.forbidden" /></SessionHome>} />

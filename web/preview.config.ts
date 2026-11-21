@@ -19,6 +19,8 @@ export default defineConfig({
         let data: unknown;
         if (req.method === 'GET' && route === '/v1/me') {
           data = { user: { id: 'preview', displayName: 'UI preview', isPlatformAdmin: true }, businesses: [{ business, role: 'owner', permissions: Object.keys(PERMISSIONS) }] };
+        } else if (req.method === 'GET' && route === '/v1/features/visible') {
+          data = { visibleFeatureIds: FEATURES.filter(f => f.folder).map(f => f.id) };
         } else if (req.method === 'GET' && route === '/v1/features') {
           data = { production: false, items: FEATURES.filter(f => f.folder).map(f => ({ featureId: f.id, slug: f.slug, visible: true, hidden: false, placeholder: true })) };
         }

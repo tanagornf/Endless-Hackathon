@@ -14,7 +14,7 @@ export const featurePages = modules.flatMap(([file, { default: pages }]) => {
     registryErrors.push('Invalid pages registration for ' + slug);
     return [];
   }
-  const integrated = registerPreparedScreens(pages);
+  const integrated = import.meta.env.VITE_UI_PREVIEW === '1' ? registerPreparedScreens(pages) : pages;
   return [{
     ...integrated,
     routes: integrated.routes.filter(({ path }) => {

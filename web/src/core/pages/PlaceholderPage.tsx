@@ -15,7 +15,7 @@ const PreparedPage = lazy(() => import('../../integration/PreparedPage'));
 export function PlaceholderPage({ featureId }: { featureId: FeatureId }) {
   const { t } = useTranslation();
   const { pathname } = useLocation();
-  if (screens.some(screen => screen.id === featureId && matchPath({path:screen.path,end:true},pathname))) return <PreparedPage />;
+  if (import.meta.env.VITE_UI_PREVIEW === '1' && screens.some(screen => screen.id === featureId && matchPath({path:screen.path,end:true},pathname))) return <PreparedPage />;
   const feature = FEATURES.find((item) => item.id === featureId)!;
   const title = t(feature.slug + ':page.title', { defaultValue: feature.title });
   const path = feature.slug.replace('/', '-');
