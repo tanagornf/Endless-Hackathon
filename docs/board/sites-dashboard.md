@@ -28,10 +28,10 @@
 |---|---|---|
 | C0 · B0 · A0 | C · B · A | orchestrator: ไม่มีฟีเจอร์ (C0 ตรวจ gate 13:00 และดูแล production) |
 | C1 | C | F01 core (P0) → F35 core/jobs (P0) → F39 chatgpt-catalog (P2) → F36 release (P1, เริ่ม 15:15) |
-| C2 | C | F17 line (P0) → F18 meta (P1) → F21 comments (P2) |
+| C2 | C | F17 line (P0) → F30 voice (P3) · F18/F21 U-deferred |
 | C3 | C | F04 business-settings (P0) → F03 tenancy (P0) → F02 auth (P1) → F31 notifications (P1) |
 | B1 | B | F05 knowledge (P0) → F07 knowledge-search (P0) → F08 catalog (P0) → F37 evals (P2) |
-| B2 | B | F10 ai-agent (P0) → F38 follow-ups (P2) → F30 voice (P3) |
+| B2 | B | F10 ai-agent (P0) → F38 follow-ups (P2) |
 | B3 | B | F06 knowledge-import (P1) → F26 insights (P2) → F27 analytics (P2) |
 | A1 | A | F09 inbox (P0) → F11 team (P0) → F12 message-templates (P2) → F23 broadcast (P2) |
 | A2 | A | F13 orders (P1) → F14 payments (P1) → F22 live-commerce (P2) |

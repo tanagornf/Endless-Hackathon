@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { FEATURES, LANE_ORDER } from '@nless/shared/core/features';
 import { checkBranch, ownerOfPath } from './check-paths';
 
 test.each([
@@ -27,4 +28,18 @@ test('rejects cross-lane or protected files and requires a bounded fix with a te
   expect(checkBranch({ branch, files: [...files, 'server/src/features/catalog/migrations/002_x.sql'] }).ok).toBe(false);
   expect(checkBranch({ branch, files: [...files, 'web/src/features/inbox/x'] }).ok).toBe(false);
   expect(checkBranch({ branch: 'fix/C1/contract', files: ['contracts.ts', 'scripts/check-paths.test.ts'] }).ok).toBe(false);
+});
+
+test('F30 voice keeps its P3 gate and grants all feature paths to C2', () => {
+  const files = [
+    'server/src/features/voice/service.ts',
+    'web/src/features/voice/pages.tsx',
+    'shared/features/voice/types.ts',
+  ];
+  expect(FEATURES.find(({ id }) => id === 'F30')).toMatchObject({ slug: 'voice', lane: 'C2', tier: 'P3' });
+  expect(LANE_ORDER.C2).toContain('F30');
+  expect(LANE_ORDER.B2).not.toContain('F30');
+  for (const path of files) expect(ownerOfPath(path)).toBe('C2');
+  expect(checkBranch({ branch: 'lane/C2/voice', files }).ok).toBe(true);
+  expect(checkBranch({ branch: 'lane/B2/voice', files }).ok).toBe(false);
 });

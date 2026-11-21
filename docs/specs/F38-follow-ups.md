@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Lane / คน | **B2** / **B** · ลำดับ 2 ใน lane (F10 → F38 → F30) |
+| Lane / คน | **B2** / **B** · ลำดับ 2 ใน lane (F10 → F38) |
 | Tier / เป้า | **P2** · เป้า **R** (ช่อง web จริง · LINE/Meta จริงเมื่อ C2 ส่ง sender จริง) |
 | Timebox | 30–75 นาที |
 | เริ่มเมื่อ | หัวหน้าโพสต์ `LEAD: OPEN P2` (และ F10 merge แล้ว: ต้องมี `ai_turns` + `listAiTurnTopics`) |

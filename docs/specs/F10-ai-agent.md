@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Lane / คน | **B2** / **B** · ลำดับ 1 ใน lane (F10 → F38 → F30) |
+| Lane / คน | **B2** / **B** · ลำดับ 1 ใน lane (F10 → F38) |
 | Tier / เป้า | **P0** · เป้า **R** · ต้องผ่าน CORE-LOOP GATE 13:00 (slice 1–2) |
 | Timebox | 75–180 นาที (slice 1–3 = ขั้นต่ำ 75 · ครบ 6 slice ≈ 180) |
 | พึ่ง | F09 inbox (`saveMessage`, `getConversation`, `getHistory`) · F11 (`isHumanTakeover`, `requestHumanHandoff`) · F07 (`searchKnowledge`) · F08 (`getProduct`, `getPrice`, `listCatalogItems`) · F04 (`getBusinessSettings`, `getEffectiveAnswerRules`, `getBusinessOpenState`, `getBusinessProfile`) · F31 (`notify`) · core (`db`, `jobs`, `model`, `sendToCustomer`, `audit`, `publish`) · ทุกตัวมี fake ตั้งแต่ setup |
@@ -18,7 +18,7 @@
 
 ทำไมมี: นี่คือ core loop ของผลิตภัณฑ์ ลูกค้าถามบน LINE / Messenger / Instagram / Demo Chat แล้ว AI ตอบด้วยข้อมูลจริงของร้าน (ราคา สต็อก นโยบาย เวลาเปิด) ภายในไม่กี่วินาที โดยไม่แต่งราคา ไม่ยอมลดราคาตามที่ลูกค้าพิมพ์ ไม่อ้างว่าออเดอร์/ชำระเงินสำเร็จ และส่งต่อคนเมื่อควร ทุก turn ตรวจย้อนหลังได้ (trace) เพื่อเป็นหลักฐานกับกรรมการ
 
-ผู้ใช้: ลูกค้าของร้าน (ผ่านช่องทาง) · เจ้าของ/พนักงาน (ดู trace, รับช่วงต่อ) · lane อื่น (A1 ใช้ `suggest`, B3 อ่าน metrics/trace, B2 F38/F30 ใช้ต่อ)
+ผู้ใช้: ลูกค้าของร้าน (ผ่านช่องทาง) · เจ้าของ/พนักงาน (ดู trace, รับช่วงต่อ) · lane อื่น (A1 ใช้ `suggest`, B3 อ่าน metrics/trace, B2 F38 และ C2 F30 ใช้ต่อ)
 
 User stories:
 1. ลูกค้าถาม "A-GAME-01 ราคาเท่าไหร่ครับ" ได้ "1,490 บาท" จาก catalog พร้อมแหล่งที่มา (evidenceIds) ภายใน p50 ≤ 6 วินาที

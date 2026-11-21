@@ -6,7 +6,7 @@
 | Tier / เป้า | **P0** · เป้า **R** · ส่วน takeover/คืน AI/staff reply อยู่ใน CORE-LOOP GATE 13:00 ขั้น 5 → **slice 1 ต้อง merge ก่อน 12:15** · schedule, idle, auto-assign, notes เป็น R หรือ S ตามที่ทันและจดใน EVIDENCE.md |
 | Timebox | 45–90 นาที (S1+S2 = ขั้นต่ำ 45 · ครบ S1–S4 ≈ 90) |
 | พึ่ง | F09 (`getConversation`, `sendStaffMessage` เรียกกลับมาที่ `assignConversation`) · F03 (ตาราง `memberships` อ่านอย่างเดียว) · F31 `notify` (fake ได้) · core (`db`, `publish`, `audit`, `jobs` + `schedules`, `defineFeatureRoutes`) |
-| ให้ | `isHumanTakeover` · `assignConversation` (contracts.ts) · ของใหม่ใน §4: `requestHumanHandoff` (B2 F10/F30 เรียก) · `closeConversation` · `reopenConversation` · `getTeamAvailability` |
+| ให้ | `isHumanTakeover` · `assignConversation` (contracts.ts) · ของใหม่ใน §4: `requestHumanHandoff` (B2 F10 และ C2 F30 เรียก) · `closeConversation` · `reopenConversation` · `getTeamAvailability` |
 | ใช้ | contracts ใน §4 · F09 service (`getConversation`) · ตาราง core `conversations` `memberships` `users` `customers` (เขียนเฉพาะคอลัมน์ handler/assignee/version/status ของ `conversations` ผ่านฟังก์ชันของ F11 เท่านั้น) |
 | โฟลเดอร์ | `server/src/features/team/` · `shared/features/team/types.ts` · `web/src/features/team/` |
 | Web path | `/team` (ทีมและตารางงาน) + แผงใน `/chat` ผ่าน slot `chatSidePanels` และปุ่มลัดผ่าน `chatComposerActions` |
@@ -173,7 +173,7 @@ export async function assignConversation(
 ```ts
 // ═══ F11 team · A1 additions (วางต่อท้ายส่วน F11 ใน contracts.ts) ═══
 /**
- * @owner F11 team · A1 · consumers: B2 F10 (escalation / budget exhausted), B2 F30 voice (ลูกค้าขอคน)
+ * @owner F11 team · A1 · consumers: B2 F10 (escalation / budget exhausted), C2 F30 voice (ลูกค้าขอคน)
  * ตั้งแชตเป็นคนดูแลโดยไม่มีผู้ดูแล: handler 'human', assignee null → isHumanTakeover() = true, บอทเงียบ, แชตขึ้นคิว "รอพนักงานรับ",
  * โน้ต audit 'handover', publish 'conversation.updated', audit 'conversation.handoff.requested',
  * notify({ type: 'chat.handoff', to: { permission: 'chat.takeover' }, link: '/chat?c=<id>' }) และถ้า team_settings.auto_assign

@@ -91,7 +91,7 @@ export const FEATURES = [
   { id: 'F24', slug: 'crm', lane: 'A3', title: 'CRM and tag automation', mvp: false, tier: 'P1', folder: true, webPaths: ['/customers'] },
   { id: 'F26', slug: 'insights', lane: 'B3', title: 'Insights and summaries', mvp: false, tier: 'P2', folder: true, webPaths: ['/insights'] },
   { id: 'F27', slug: 'analytics', lane: 'B3', title: 'Dashboard, usage/cost, traces', mvp: false, tier: 'P2', folder: true, webPaths: ['/dashboard', '/usage', '/traces'] },
-  { id: 'F30', slug: 'voice', lane: 'B2', title: 'Browser voice (OpenAI Realtime)', mvp: false, tier: 'P3', folder: true, webPaths: ['/voice', '/call'] },
+  { id: 'F30', slug: 'voice', lane: 'C2', title: 'Browser voice (OpenAI Realtime)', mvp: false, tier: 'P3', folder: true, webPaths: ['/voice', '/call'] },
   { id: 'F31', slug: 'notifications', lane: 'C3', title: 'Notifications and push', mvp: false, tier: 'P1', folder: true, webPaths: ['/notifications'] },
   { id: 'F35', slug: 'core/jobs', lane: 'C1', title: 'Reliability: jobs, outbox, ops tools', mvp: true, tier: 'P0', folder: false, webPaths: ['/ops'] },
   { id: 'F36', slug: 'release', lane: 'C1', title: 'Integration, release, evidence', mvp: false, tier: 'P1', folder: true, webPaths: ['/release'] },
@@ -115,18 +115,18 @@ export type MigrationOwner = 'core' | FolderSlug;
  * (C1 keeps only setup + jobs before the gate), F21 A2 → C2 (same lane as F18 it depends on), F06 B1 → B3, F26 B2 → B3.
  * Added 20 Nov evening (DECISIONS D8/D17): F37 → B1 (free after its three P0 features), F38 → B2 (between F10 and the
  * P3 voice feature), F39 → C1 (between F35 and the 15:15 release work).
- * Tiers: C1 F01 P0 → F35 P0 → F39 P2 → F36 P1 (15:15 by the clock; F39 pauses then) · C2 F17 P0 → F18 P1 → F21 P2 ·
- * C3 F04 P0 → F03 P0 → F02 P1 → F31 P2 · B1 F05 → F07 → F08 (all P0) → F37 P2 · B2 F10 P0 → F38 P2 → F30 P3 ·
+ * Tiers: C1 F01 P0 → F35 P0 → F39 P2 → F36 P1 (15:15 by the clock; F39 pauses then) · C2 F17 P0 → F18 P1 → F21 P2 → F30 P3 ·
+ * C3 F04 P0 → F03 P0 → F02 P1 → F31 P2 · B1 F05 → F07 → F08 (all P0) → F37 P2 · B2 F10 P0 → F38 P2 ·
  * B3 F06 P1 → F26 P2 → F27 P2 · A1 F09 P0 → F11 P0 → F12 P2 → F23 P2 · A2 F13 → F14 → F22 (all P1) ·
  * A3 F24 P1 → F15 P2 → F16 P2.
  * A2, A3 and B3 have no P0 work: they read their specs and plan until `LEAD: OPEN P1`.
  */
 export const LANE_ORDER: Record<Lane, readonly FeatureId[]> = {
   C1: ['F01', 'F35', 'F39', 'F36'],
-  C2: ['F17', 'F18', 'F21'],
+  C2: ['F17', 'F18', 'F21', 'F30'],
   C3: ['F04', 'F03', 'F02', 'F31'],
   B1: ['F05', 'F07', 'F08', 'F37'],
-  B2: ['F10', 'F38', 'F30'],
+  B2: ['F10', 'F38'],
   B3: ['F06', 'F26', 'F27'],
   A1: ['F09', 'F11', 'F12', 'F23'],
   A2: ['F13', 'F14', 'F22'],

@@ -10,7 +10,7 @@ C ถือคอขวดของทั้งทีม: setup ของ C1 (�
 |---|---|---|---|---|
 | **C0** orchestrator | มอบงาน ตรวจงาน **ตรวจ gate 13:00** เฝ้า production หลังทุก merge | `..\nless-c0` · 3000 / 5170 | [orchestrators/C0.md](../orchestrators/C0.md) 10:15 | High · Fast เปิดตั้งแต่ `SETUP READY` ถึง 13:00 และ 15:30–17:00 |
 | C1 | **F01 setup + deploy (P0)** → F35 jobs/ops (P0) → F39 ChatGPT-ready catalog (P2) → F36 release (P1, 15:15) | `..\nless-c1` · 3001 / 5171 | [C1-setup.md](../C1-setup.md) **~10:05** แล้ว [lanes/C1.md](../lanes/C1.md) ใน chat ใหม่หลัง deploy (S9) | Medium · **Fast เปิดตอน setup** แล้วเปิดได้ถึง 13:00 ถ้า usage < 40% |
-| C2 | F17 LINE (P0) → F18 Messenger/Instagram (P1) → F21 ตอบคอมเมนต์ (P2) | `..\nless-c2` · 3002 / 5172 | [lanes/C2.md](../lanes/C2.md) 10:15 | Medium · Fast เปิดได้ถึง 13:00 ถ้า usage < 40% |
+| C2 | F17 LINE (P0) → F30 voice (P3) · F18/F21 U-deferred | `..\nless-c2` · 3002 / 5172 | [lanes/C2.md](../lanes/C2.md) 10:15 | Medium · Fast เปิดได้ถึง 13:00 ถ้า usage < 40% |
 | C3 | F04 ตั้งค่าร้าน (P0) → F03 ร้านและสิทธิ์ (P0) → F02 login (P1, ไม่รอ) → F31 แจ้งเตือน (P1) | `..\nless-c3` · 3003 / 5173 | [lanes/C3.md](../lanes/C3.md) 10:15 | Medium · Fast ปิด |
 
 855 นาทีงาน (ค่ากลาง) แต่คุณมีงานมือมากที่สุด (Render, webhook, บัญชี provider) · ถ้า C ตามไม่ทัน หัวหน้าตัด F21 แล้ว F39 แล้ว F31 ก่อน
