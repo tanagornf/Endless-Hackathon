@@ -1,8 +1,31 @@
 {
+  "scope": "This report uses customer LINE chats and orders from those chats, in Bangkok time. Demo Chat test data is excluded.",
+  "range": "Reporting period",
+  "days": "Last {{value}} days",
+  "customers": "Distinct LINE customers",
+  "conversations": "Active chats",
+  "orders": "Confirmed, non-cancelled orders",
+  "handoffs": "Chats handed to staff",
+  "products": "Products referenced in AI replies",
+  "noProducts": "No catalog-backed product replies in this period.",
+  "suggestion": "Review price, stock and delivery information for {{name}}. It appeared in {{chats}} chats without a matching order in this period.",
+  "handoffAdvice": "Staff have yet to reply to {{chats}} handed-off chats. Review them in the inbox.",
+  "loading": "Loading report",
+  "error": "Could not load the shop report.",
+  "retry": "Retry",
+  "empty": "No live customer chats in this period.",
   "menu": {
     "title": "Insights"
   },
   "page": {
     "title": "Insights"
-  }
+  },
+  "sourcePeriod": "Source period {{since}} to {{until}} (Bangkok time)",
+  "pendingSupport": "Chats awaiting a staff reply",
+  "unavailable": "Unavailable",
+  "incompleteOrders": "Order data is incomplete for this period. The order count is unavailable.",
+  "incompleteProducts": "There isn’t enough product or order data to suggest follow-up.",
+  "product": "Product and SKU",
+  "productChats": "Chats mentioning this SKU",
+  "productWithoutOrder": "Chats with no order for this SKU in the same period"
 }
