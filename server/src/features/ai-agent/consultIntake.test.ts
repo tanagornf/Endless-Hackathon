@@ -7,6 +7,7 @@ import { createTestAgent, loginAs } from '../../core/test-utils';
 import * as settings from '../business-settings/service';
 import { getHistory, saveMessage } from '../inbox/service';
 import { fallbacks } from './fallbacks';
+import { needsProductCareConsult } from './consultIntake';
 import { OWNER_CONSULT_RESUME_JOB } from './ownerConsult';
 import { runAiTurn } from './turn';
 
@@ -28,13 +29,13 @@ beforeAll(async () => {
 afterEach(() => { vi.restoreAllMocks(); sent.mockClear(); });
 afterAll(closeDb);
 
-async function openFixture(asked = question, language: 'en' | 'th' = 'en') {
+async function openFixture(asked = question, language: 'en' | 'th' = 'en', proposedReply = fallbacks.no_answer[language]) {
   const opened = vi.spyOn(settings, 'openOwnerConsult');
   const reply = vi.spyOn(model, 'chat').mockImplementation((request) => fakeChat({
     ...request,
     fake: request.usage.purpose === 'classify'
       ? { json: { label: 'QUESTION', confidence: 0.95, price_items: null, max_price_baht: null, query: null } }
-      : { text: fallbacks.no_answer[language] },
+      : { text: proposedReply },
   }));
   const input = await saveMessage({
     businessId: shop, customer: { channel: 'line', externalId: 'consult-' + randomUUID() },
@@ -95,6 +96,24 @@ it.each([
   expect(JSON.stringify(sent.mock.calls)).not.toContain(rationale);
   expect(reply).toHaveBeenCalledTimes(chatCalls);
 }, 30_000);
+
+it.each([
+  ['en', "How should I wash your store’s Lumistag tote bag?", 'Use cold water and mild detergent.'],
+  ['th', 'ถุงผ้ารุ่น Lumistag ของร้านซักอย่างไร', 'แนะนำให้ซักด้วยน้ำเย็นและใช้น้ำยาซักผ้าสูตรอ่อนโยนค่ะ'],
+] as const)('asks the %s shop for product-specific care without sending unsupported instructions', async (language, asked, unsupported) => {
+  const { input } = await openFixture(asked, language, unsupported);
+  const history = (await getHistory(input.conversation.id, { businessId: shop })).items;
+  const reply = history.find(({ author }) => author === 'ai');
+  expect(reply?.text).toContain(fallbacks.no_answer[language]);
+  expect(reply?.text).not.toContain(unsupported);
+}, 30_000);
+
+it('keeps focused care clarification and evidenced product answers available', () => {
+  const care = "How should I wash your store’s Lumistag tote bag?";
+  expect(needsProductCareConsult(care, 'Could you share a photo of the care label?', [])).toBe(false);
+  expect(needsProductCareConsult(care, 'Use cold water and mild detergent.', ['knowledge:fixture:r1'])).toBe(false);
+  expect(needsProductCareConsult('How does the Qi2 charger work?', 'Qi2 provides magnetic alignment.', [])).toBe(false);
+});
 
 it('stores the same owner approval privately when a newer buyer message supersedes the old question', async () => {
   const { input } = await fixture();
