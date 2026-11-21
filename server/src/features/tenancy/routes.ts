@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { registerInvitationRoutes } from './invitation-routes';
 import { defineFeatureRoutes } from '../../core';
 import { changeMember, listMembers } from './service';
 
@@ -15,6 +16,7 @@ export default defineFeatureRoutes({
   featureId: 'F03',
   slug: 'tenancy',
   register(api) {
+    registerInvitationRoutes(api);
     api.get(membersPath, { ...memberAuth, summary: 'List business members' },
       async ({ business, user }) => listMembers(business!.id, user!.id));
     api.put(membersPath + '/:userId/permissions', {

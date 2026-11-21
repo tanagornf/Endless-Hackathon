@@ -28,3 +28,26 @@ test('F03 English permissions dialog locks both owner-only grants', async ({ own
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
 });
+
+
+test('F03 invitation initial document suppresses referrers and scrubs the token in the browser', async ({ page, request }) => {
+  const before = await request.get('/build-info');
+  expect(before.ok()).toBe(true);
+  const { sha } = await before.json();
+
+  const syntheticInvalidToken = 'x'.repeat(43);
+  const path = '/invitations/accept?token=' + syntheticInvalidToken;
+  const initial = await request.get(path, { maxRedirects: 0 });
+  expect(initial.status()).toBe(200);
+  expect(initial.headers()['content-type']).toMatch(/^text\/html/);
+  expect(initial.headers()['referrer-policy']).toBe('no-referrer');
+
+  await setUiLanguage(page, 'th');
+  await page.goto(path);
+  await expect(page).toHaveURL((url) => url.pathname === '/invitations/accept' && !url.searchParams.has('token'));
+  await expect(page.getByText('ไม่พบคำเชิญนี้', { exact: true })).toBeVisible();
+
+  const after = await request.get('/build-info');
+  expect(after.ok()).toBe(true);
+  expect((await after.json()).sha).toBe(sha);
+});

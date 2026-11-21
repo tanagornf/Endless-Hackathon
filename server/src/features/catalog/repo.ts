@@ -3,7 +3,8 @@ import { AppError, db } from '../../core';
 import type { DbExecutor } from '../../core';
 import type { Page } from '@nless/shared/core/types';
 import type {
-  CatalogImage, CatalogItem, CatalogItemAdminDetail, CatalogItemDetail, CatalogItemRow, CatalogVariant,
+  CatalogCategories, CatalogHistory, CatalogImage, CatalogItem, CatalogItemAdminDetail, CatalogItemDetail,
+  CatalogItemRow, CatalogSkuCheck, CatalogVariant,
 } from '@nless/shared/features/catalog/types';
 import type { ListQuery } from './schema';
 import { catalogKey, literalContains } from './sku';
@@ -232,4 +233,58 @@ export function adminView(row: ItemRow): CatalogItemAdminDetail {
 
 export async function getItemAdmin(businessId: string, itemId: string): Promise<CatalogItemAdminDetail> {
   return adminView(await findItemRow(db, businessId, itemId));
+}
+
+
+export async function checkSku(businessId: string, sku: string, excludeItemId?: string): Promise<CatalogSkuCheck> {
+  const row = await db.maybeOne<{ item_id: string }>(
+    'SELECT r.item_id FROM catalog_sku_registry r JOIN catalog_items i ON i.id=r.item_id AND i.business_id=r.business_id ' +
+    'WHERE r.business_id=$1 AND r.sku_key=$2 AND i.deleted_at IS NULL ' +
+    'AND ($3::uuid IS NULL OR r.item_id<>$3 OR r.variant_id IS NOT NULL)',
+    [businessId, catalogKey(sku), excludeItemId ?? null],
+  );
+  return { taken: Boolean(row), itemId: row?.item_id ?? null };
+}
+
+export async function listCategories(businessId: string): Promise<CatalogCategories> {
+  const { rows } = await db.query<CatalogCategories['items'][number]>(
+    'SELECT min(i.category) AS name,count(*)::int AS count FROM catalog_items i ' +
+    'WHERE i.business_id=$1 AND i.deleted_at IS NULL AND i.category IS NOT NULL GROUP BY ' +
+    categoryKey + ' ORDER BY lower(min(i.category)),min(i.category)',
+    [businessId],
+  );
+  return { items: rows };
+}
+
+export async function getHistory(businessId: string, itemId: string): Promise<CatalogHistory> {
+  const item = isItemId(itemId) && await db.maybeOne(
+    'SELECT id FROM catalog_items WHERE business_id=$1 AND id=$2', [businessId, itemId],
+  );
+  if (!item) throw new AppError('NOT_FOUND', 'Catalog item not found');
+  const [prices, stock] = await Promise.all([
+    db.query<{
+      version: number; variant_id: string | null; old_price_minor: string | null; new_price_minor: string;
+      changed_at: Date; changed_by_name: string | null;
+    }>('SELECT h.version,h.variant_id,h.old_price_minor,h.new_price_minor,h.changed_at,u.display_name AS changed_by_name ' +
+      'FROM catalog_price_history h LEFT JOIN users u ON u.id=h.changed_by WHERE h.business_id=$1 AND h.item_id=$2 ' +
+      'ORDER BY h.changed_at DESC,h.id DESC LIMIT 50', [businessId, itemId]),
+    db.query<{
+      variant_id: string | null; delta: number; stock_after: number; reason: string; note: string | null;
+      changed_at: Date; changed_by_name: string | null;
+    }>('SELECT m.variant_id,m.delta,m.stock_after,m.reason,m.note,m.created_at AS changed_at,u.display_name AS changed_by_name ' +
+      'FROM catalog_stock_moves m LEFT JOIN users u ON u.id=m.actor_user_id WHERE m.business_id=$1 AND m.item_id=$2 ' +
+      'ORDER BY m.created_at DESC,m.id DESC LIMIT 50', [businessId, itemId]),
+  ]);
+  return {
+    prices: prices.rows.map((row) => ({
+      version: row.version, variantId: row.variant_id,
+      oldPriceMinor: row.old_price_minor === null ? null : minorAmount(row.old_price_minor),
+      newPriceMinor: minorAmount(row.new_price_minor),
+      changedAt: row.changed_at.toISOString(), changedByName: row.changed_by_name,
+    })),
+    stock: stock.rows.map((row) => ({
+      variantId: row.variant_id, delta: row.delta, stockAfter: row.stock_after, reason: row.reason,
+      note: row.note, changedAt: row.changed_at.toISOString(), changedByName: row.changed_by_name,
+    })),
+  };
 }

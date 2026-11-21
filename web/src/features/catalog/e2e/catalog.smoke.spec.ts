@@ -3,7 +3,19 @@ import { e2eMarker, expect, setUiLanguage, test } from '../../../../../tests/e2e
 test('catalog owner creates and reprices a product in English', async ({ ownerPage, api }) => {
   const marker = 'CATALOG-' + e2eMarker();
   await setUiLanguage(ownerPage, 'en');
+  const itemsResponse = ownerPage.waitForResponse((response) =>
+    response.request().method() === 'GET' && new URL(response.url()).pathname.endsWith('/catalog/items'));
   await ownerPage.goto('/catalog');
+  const itemsUrl = new URL((await itemsResponse).url());
+  itemsUrl.search = '?q=A-GAME-01';
+  async function readSeededProduct() {
+    const response = await api.get(itemsUrl.toString());
+    expect(response.ok()).toBe(true);
+    const { data } = await response.json();
+    return data.items.find((item: { sku: string }) => item.sku === 'A-GAME-01');
+  }
+  const seeded = await readSeededProduct();
+  expect(seeded).toMatchObject({ sku: 'A-GAME-01', priceMinor: 149000, active: true });
   await expect(ownerPage.getByRole('heading', { name: 'Catalog' })).toBeVisible();
   await ownerPage.getByRole('button', { name: 'Add product or service' }).first().click();
   const create = ownerPage.getByRole('dialog');
@@ -30,11 +42,23 @@ test('catalog owner creates and reprices a product in English', async ({ ownerPa
     const checked = await api.get(url);
     expect(checked.ok()).toBe(true);
     expect((await checked.json()).data).toMatchObject({ priceMinor: 159000, version: 2 });
+    expect(await readSeededProduct()).toEqual(seeded);
+    await expect(ownerPage.getByRole('tablist', { name: 'History' }).getByRole('tab', { name: 'Prices' })).toBeVisible();
+    await ownerPage.getByRole('button', { name: 'Delete', exact: true }).click();
+    const deleteDialog = ownerPage.getByRole('dialog', { name: 'Delete this item?' });
+    const deleted = ownerPage.waitForResponse((entry) => entry.request().method() === 'DELETE' && entry.url() === url);
+    await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
+    expect((await deleted).status()).toBe(200);
+    await expect(ownerPage.getByRole('heading', { name: 'Catalog' })).toBeVisible();
+    expect((await api.get(url)).status()).toBe(404);
   } finally {
     const current = await api.get(url);
-    expect(current.ok()).toBe(true);
-    const { data: { version } } = await current.json();
-    const disabled = await api.patch(url, { data: { expectedVersion: version, active: false }, headers: { 'X-Requested-With': 'nless' } });
-    expect(disabled.ok()).toBe(true);
+    if (current.ok()) {
+      const { data: { version } } = await current.json();
+      const disabled = await api.patch(url, { data: { expectedVersion: version, active: false }, headers: { 'X-Requested-With': 'nless' } });
+      expect(disabled.ok()).toBe(true);
+    }
+    const removed = await api.delete(url, { headers: { 'X-Requested-With': 'nless' } });
+    expect(removed.ok()).toBe(true);
   }
 });

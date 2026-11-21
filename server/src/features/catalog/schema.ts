@@ -72,3 +72,9 @@ export const PatchItemBody = z.object({
 
 export type CreateItemBody = z.infer<typeof CreateItemBody>;
 export type PatchItemBody = z.infer<typeof PatchItemBody>;
+
+
+export const SkuCheckQuery = z.object({
+  sku: Sku,
+  excludeItemId: z.string().uuid().optional(),
+}).strict();

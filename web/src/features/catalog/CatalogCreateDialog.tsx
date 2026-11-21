@@ -11,7 +11,7 @@ export default function CatalogCreateDialog({ onClose }: { onClose: () => void }
   const { t } = useTranslation('catalog');
   const navigate = useNavigate();
   const toast = useToast();
-  const [fields, setFields] = useState(() => catalogFields());
+  const [fields, setFields] = useState(() => catalogFields(undefined, t('form.defaultUnit')));
   const [error, setError] = useState<string | null>(null);
   const create = useApiMutation<CreateInput, CatalogItemAdminDetail>('POST', '/catalog/items', { toastOnError: false });
   return <FormDialog open title={t('actions.add')} error={error} submitting={create.running} onClose={onClose}

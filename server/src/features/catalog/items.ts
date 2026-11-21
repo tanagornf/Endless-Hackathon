@@ -1,7 +1,7 @@
 import { AppError, audit, db } from '../../core';
 import type { DbExecutor } from '../../core';
 import type { CatalogItemAdminDetail } from '@nless/shared/features/catalog/types';
-import { adminView, findItemRow, minorAmount } from './repo';
+import { adminView, findItemRow, isItemId, minorAmount } from './repo';
 import type { ItemRow } from './repo';
 import type { CreateItemBody, PatchItemBody } from './schema';
 import { catalogKey } from './sku';
@@ -124,4 +124,25 @@ export async function patchItem(businessId: string, actor: Actor, itemId: string
   const otherFields = result.changed.filter((field) => field !== 'priceMinor');
   if (otherFields.length) await itemAudit('catalog.item.update', businessId, itemId, actor, { fields: otherFields });
   return adminView(result.saved);
+}
+
+
+export async function deleteItem(businessId: string, actor: Actor, itemId: string): Promise<{ id: string; deletedAt: string }> {
+  if (!isItemId(itemId)) throw new AppError('NOT_FOUND', 'Catalog item not found');
+  const result = await db.tx(async (tx) => {
+    const item = await tx.maybeOne<{ id: string; deleted_at: Date | null }>(
+      'SELECT id,deleted_at FROM catalog_items WHERE business_id=$1 AND id=$2 FOR UPDATE', [businessId, itemId],
+    );
+    if (!item) throw new AppError('NOT_FOUND', 'Catalog item not found');
+    if (item.deleted_at) return { id: item.id, deletedAt: item.deleted_at, changed: false };
+    const deleted = await tx.one<{ deleted_at: Date }>(
+      'UPDATE catalog_items SET deleted_at=now(),active=false,version=version+1,updated_at=now(),updated_by=$3 ' +
+      'WHERE business_id=$1 AND id=$2 RETURNING deleted_at',
+      [businessId, item.id, actor.userId],
+    );
+    await tx.query('DELETE FROM catalog_sku_registry WHERE business_id=$1 AND item_id=$2', [businessId, item.id]);
+    return { id: item.id, deletedAt: deleted.deleted_at, changed: true };
+  });
+  if (result.changed) await itemAudit('catalog.item.delete', businessId, result.id, actor);
+  return { id: result.id, deletedAt: result.deletedAt.toISOString() };
 }
