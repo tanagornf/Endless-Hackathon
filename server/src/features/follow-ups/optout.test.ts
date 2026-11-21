@@ -3,7 +3,7 @@ import { isOptOutMessage } from './optout';
 
 it.each([
   'ไม่ต้องทักมานะคะ', 'หยุดส่งข้อความ', 'อย่าส่งโปรมา', 'หยุด', 'stop', 'ＳＴＯＰ！', 'unsubscribe',
-  'Don’t   message me', 'stop sending me messages',
+  'Don’t   message me', 'stop sending', 'stop sending me messages', 'stop sending me promotions',
 ])('detects the opt-out %s', (message) => {
   expect(isOptOutMessage(message)).toBe(true);
 });

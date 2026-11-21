@@ -34,6 +34,8 @@ it.each([
   'Ask us about our discount on Demo Cards 2.',
   'Ask us about Demo Cards 2 😊.',
   'Ask us about Demo Cards 2 at example.com.',
+  'Ask us about Demo Cards 2 on line.me.',
+  'Ask us about Demo Cards 2 at `our shop`.',
   'Ask us about Demo Cards 2 ครับ.',
   'We can help with Demo Cards 2. '.repeat(9),
 ])('replaces invalid model copy %# with the bilingual template input', async (invalid) => {
