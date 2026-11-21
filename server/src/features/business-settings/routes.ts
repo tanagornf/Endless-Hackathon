@@ -1,4 +1,6 @@
 import { defineFeatureRoutes } from '../../core';
+import { ownerConsultSchedule } from './owner-consult-outbox';
+import { registerOwnerConsultRoutes } from './owner-consult-routes';
 import { AiSwitchBody, CapabilitiesBody, ClosureBody, ClosuresQuery, HoursBody, LocaleBody, OpenStateQuery, PolicyPatchBody, ProfileBody, parseSettingsInput } from './schemas';
 import {
   createClosure, deleteClosure, getBusinessOpenState, getSettingsView, listClosures, patchAnswerPolicy, setAiEnabled, updateCapabilities, updateHours, updateLocale, updateProfile,
@@ -12,7 +14,9 @@ const botSettingsWrite = { auth: 'business', permission: 'business.bot_settings'
 export default defineFeatureRoutes({
   featureId: 'F04',
   slug: 'business-settings',
+  schedules: [ownerConsultSchedule],
   register(api) {
+    registerOwnerConsultRoutes(api);
     api.get(settingsPath, { ...settingsRead, summary: 'Read business settings' },
       async ({ business }) => getSettingsView(business!.id));
     api.put(settingsPath + '/ai', {

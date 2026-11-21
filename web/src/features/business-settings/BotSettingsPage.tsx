@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Alert, Button, FormControlLabel, MenuItem, Skeleton, Stack, Switch, TextField, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
+import OwnerConsultPanel from './OwnerConsultPanel';
 import type {
   AnswerPolicy, AnswerPolicyPatch, MerchantCapabilities, SettingsView,
 } from '@nless/shared/features/business-settings/types';
@@ -22,10 +24,13 @@ type CapabilityUpdate = { expectedVersion: number; capabilities: MerchantCapabil
 
 export default function BotSettingsPage() {
   const businessId = useSession().currentBusiness?.id;
+  const [search] = useSearchParams();
+  const consult = search.get('consult');
   const { t } = useTranslation('business-settings');
   return (
     <>
       <PageHeader title={t('bot.title')} />
+      {businessId && consult && <OwnerConsultPanel key={businessId + ':' + consult} caseId={consult} />}
       {businessId && <BotSettings key={businessId} />}
     </>
   );
