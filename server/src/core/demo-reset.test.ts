@@ -6,12 +6,23 @@ import { closeDb, db, dbPool } from './db';
 import { DEMO_RESET_LOCK } from './demo-scope';
 import { createTestAgent, loginAs } from './test-utils';
 
-const observed = vi.hoisted(() => ({ hooks: [] as string[], jobId: '' }));
+const observed = vi.hoisted(() => ({ hooks: [] as string[], jobId: '', modelPurpose: 'test-demo-reset-model-' + Math.random() }));
 
 vi.mock('./seed', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./seed')>();
   return {
     ...actual,
+    async seed(onFeatureError?: Parameters<typeof actual.seed>[0]) {
+      await actual.seed(onFeatureError);
+      const { model } = await import('./model');
+      try {
+        await model.embed({ usage: { featureId: 'F07', purpose: observed.modelPurpose, businessId: SEED.businesses[0].id }, purpose: 'document',
+          texts: ['Synthetic missing knowledge vector'] });
+      } catch (error) {
+        if (!onFeatureError) throw error;
+        onFeatureError('F07', error);
+      }
+    },
     async featureSeeds() {
       const rows = await actual.featureSeeds();
       return [
@@ -112,10 +123,11 @@ it('locks, safely resets and re-seeds only the demo businesses, and enforces the
       expect.objectContaining({ name: 'clear_demo_data', ok: true }),
       expect.objectContaining({ name: 'reset:F13', ok: false, error: expect.stringContaining('[REDACTED]') }),
       expect.objectContaining({ name: 'reset:F08', ok: true }),
-      expect.objectContaining({ name: 'seed', ok: true }),
+      expect.objectContaining({ name: 'seed', ok: false, error: expect.stringContaining('F07: Model calls are disabled during demo reset') }),
       expect.objectContaining({ name: 'seed_demo', ok: false, error: expect.stringContaining('F13:') }),
     ]));
     expect(response.text).not.toContain('seed-testsecret');
+    expect(await db.maybeOne('SELECT id FROM model_usage WHERE purpose=$1', [observed.modelPurpose])).toBeNull();
     expect(observed.hooks).toEqual(['F13', 'F08']);
     expect(await db.maybeOne('SELECT id FROM customers WHERE id=$1', [synthetic.id])).toBeNull();
     expect(await db.maybeOne('SELECT id FROM customers WHERE id=$1', [external.id])).toBeTruthy();

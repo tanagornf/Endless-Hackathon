@@ -64,7 +64,8 @@ export const SETTLE_DEAD_DELIVERIES_SQL = `
       AND NOT EXISTS (
         SELECT 1 FROM jobs active
         WHERE active.id<>j.id AND active.type='core.deliver' AND active.business_id=j.business_id
-          AND active.payload->>'messageId'=j.payload->>'messageId' AND active.state IN ('queued','running')
+          AND (active.payload->>'messageId')=(j.payload->>'messageId') AND active.state IN ('queued','running')
+          AND NOT EXISTS (SELECT 1 FROM settled_jobs sibling WHERE sibling.id=active.id AND sibling.state IN ('dead','cancelled'))
       )
     RETURNING j.id AS "jobId", m.id AS "messageId", m.business_id AS "businessId",
       m.conversation_id AS "conversationId", m.channel, m.delivery_state AS state, m.delivery_mode AS mode, m.delivery_error AS error
@@ -74,6 +75,12 @@ export const SETTLE_DEAD_DELIVERIES_SQL = `
 `;
 
 export async function settleCancelledDelivery(transaction: DbExecutor, jobId: string): Promise<DeliveryChange | null> {
+  // Lock the shared message before checking siblings in a fresh statement snapshot.
+  const message = await transaction.maybeOne(`
+    SELECT m.id FROM jobs j JOIN messages m ON m.business_id=j.business_id AND m.id::text=(j.payload->>'messageId')
+    WHERE j.id=$1 AND j.type='core.deliver' AND j.state='cancelled'
+      AND m.direction='outbound' AND m.delivery_state='pending' FOR UPDATE OF m`, [jobId]);
+  if (!message) return null;
   const settled = await transaction.maybeOne<SettledDeliveryJob>(`
     WITH settled_jobs AS (SELECT id,type,business_id,attempts,payload,state FROM jobs WHERE id=$1 AND state='cancelled')
     ${SETTLE_DEAD_DELIVERIES_SQL}`, [jobId]);

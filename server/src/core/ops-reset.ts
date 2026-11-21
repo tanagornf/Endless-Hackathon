@@ -4,6 +4,7 @@ import { config } from './config';
 import { db } from './db';
 import { clearDemoData, seedDemoData, withDemoResetLock } from './demo';
 import { DEMO_BUSINESS_IDS, DEMO_RESET_LOCK } from './demo-scope';
+import { withModelCallsDisabled } from './model';
 import { opsAudit, opsPolicy } from './ops-audit';
 import { assertRateLimit } from './ratelimit';
 import { redactText } from './redact';
@@ -51,7 +52,7 @@ export async function runDemoReset(actorUserId: string): Promise<DemoResetResult
   if (!config.DEMO_RESET_ENABLED) throw opsPolicy('demo_reset_disabled');
   assertRateLimit({ key: 'demo-reset:global', limit: 3, windowSeconds: 600 });
 
-  return withDemoResetLock(async () => {
+  return withDemoResetLock(() => withModelCallsDisabled(async () => {
     demoResetting = true;
     try {
       const startedAt = new Date().toISOString();
@@ -82,15 +83,16 @@ export async function runDemoReset(actorUserId: string): Promise<DemoResetResult
               const reset = module.resetDemo;
               if (reset) await step('reset:' + module.default.featureId, () => reset(seedContext));
             }
-            await step('seed', seed);
-            await step('seed_demo', async () => {
+            const reportSeed = (run: typeof seed) => async () => {
               const failures: string[] = [];
-              await seedDemoData((featureId, error) => {
+              await run((featureId, error) => {
                 const message = error instanceof Error ? error.message : 'Demo seed failed';
                 failures.push(featureId + ': ' + redactText(message, 100));
               });
               if (failures.length) throw new Error(failures.join(', '));
-            });
+            };
+            await step('seed', reportSeed(seed));
+            await step('seed_demo', reportSeed(seedDemoData));
           }
         }
       } finally {
@@ -102,5 +104,5 @@ export async function runDemoReset(actorUserId: string): Promise<DemoResetResult
     } finally {
       demoResetting = false;
     }
-  });
+  }));
 }

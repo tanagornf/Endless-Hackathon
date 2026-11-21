@@ -260,4 +260,37 @@ test('an active canonical job recovers its message and a repeated sent request n
   expect(await db.one('SELECT count(*)::int AS count FROM jobs WHERE business_id=$1 AND dedup_key=$2', [
     businessId, 'deliver:' + messageId,
   ])).toEqual({ count: 1 });
+test('reaping both final sibling claims settles their shared pending message once', async () => {
+  const send = vi.fn(async () => ({ state: 'sent', mode: 'real' } as const));
+  registerChannelSender('web', { channel: 'web', mode: 'real', send });
+  const { jobId, messageId, conversationId } = await queueDelivery();
+  const sibling = await jobs.enqueue('core.deliver', { messageId }, {
+    businessId, dedupKey: 'reap-sibling:' + messageId, lockKey: 'conversation:' + conversationId,
+  });
+  await db.query("UPDATE jobs SET state='running',attempts=1,max_attempts=1,locked_until=now()-interval '1 second',claim_token=gen_random_uuid() WHERE id=ANY($1::uuid[])",
+    [[jobId, sibling.jobId]]);
+  await drain();
+  expect(send).not.toHaveBeenCalled();
+  expect(await jobs.get(jobId)).toMatchObject({ state: 'dead' });
+  expect(await jobs.get(sibling.jobId)).toMatchObject({ state: 'dead' });
+  expect(await deliveryState(messageId)).toMatchObject({ state: 'failed', error: 'DELIVERY_JOB_ENDED_BEFORE_DISPATCH' });
+}, 20_000);
+
+test('concurrent cancellation of the last two sibling jobs settles their shared message', async () => {
+  const { jobId, messageId, conversationId } = await queueDelivery();
+  const sibling = await jobs.enqueue('core.deliver', { messageId }, {
+    businessId, dedupKey: 'cancel-sibling:' + messageId, lockKey: 'conversation:' + conversationId,
+  });
+  let arrived = 0;
+  let release!: () => void;
+  const bothUpdated = new Promise<void>((resolve) => { release = resolve; });
+  const cancel = (id: string) => db.tx(async (tx) => {
+    await tx.query("UPDATE jobs SET state='cancelled',finished_at=now() WHERE id=$1 AND business_id=$2", [id, businessId]);
+    if (++arrived === 2) release();
+    await bothUpdated;
+    return settleCancelledDelivery(tx, id);
+  });
+  const dispositions = await Promise.all([cancel(jobId), cancel(sibling.jobId)]);
+  expect(dispositions.filter(Boolean)).toHaveLength(1);
+  expect(await deliveryState(messageId)).toMatchObject({ state: 'failed', error: 'DELIVERY_JOB_ENDED_BEFORE_DISPATCH' });
 }, 20_000);

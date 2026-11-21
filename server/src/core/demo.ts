@@ -11,6 +11,7 @@ import { assertSafeDbName, db, dbPool, dbUrl } from './db';
 import { DEMO_BUSINESS_IDS, DEMO_RESET_LOCK } from './demo-scope';
 import { AppError } from './errors';
 import { log } from './log';
+import { withModelCallsDisabled } from './model';
 import { featureSeeds, seed, seedContext, seedId } from './seed';
 import { storage, uploadDirectory } from './storage';
 
@@ -135,12 +136,12 @@ export async function clearDemoData(): Promise<void> {
 }
 
 export async function resetDemoData(): Promise<void> {
-  await withDemoResetLock(async () => {
+  await withDemoResetLock(() => withModelCallsDisabled(async () => {
     const modules = (await featureSeeds()).reverse();
     for (const module of modules) await module.resetDemo?.(seedContext);
     await clearDemoData();
-    await seed();
+    await seed((featureId) => log.warn({ featureId }, 'Demo reset seed did not complete'));
     await seedDemoData();
     await audit({ action: 'core.demo.reset', actorUserId: null });
-  });
+  }));
 }
