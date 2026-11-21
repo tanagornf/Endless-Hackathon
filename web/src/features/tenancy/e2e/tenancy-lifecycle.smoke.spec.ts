@@ -46,7 +46,7 @@ test('F03 lifecycle creates, previews and revokes a synthetic invitation', async
     await dialog.getByLabel('Staff email').fill(email);
     await dialog.getByRole('button', { name: 'Create invitation' }).click();
     dialog = ownerPage.getByRole('dialog', { name: 'Invitation link' });
-    await expect(dialog.getByText(/^Share this link with the staff member/)).toBeVisible();
+    await expect(dialog.getByText(/^(Share this link with the staff member|The email is in the sandbox mailbox)/)).toBeVisible();
     expect((await findInvite())?.status).toBe('pending');
     let link: URL;
     try {
