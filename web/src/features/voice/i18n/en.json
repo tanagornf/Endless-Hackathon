@@ -1,8 +1,50 @@
 {
-  "menu": {
-    "title": "Demo Voice"
-  },
   "page": {
-    "title": "Demo Voice"
+    "title": "Talk to the shop by voice"
+  },
+  "invite": {
+    "intro": "Verify that you received this invitation in your LINE chat to start a private call.",
+    "verify": "Verify my LINE account",
+    "working": "Creating verification",
+    "proofTitle": "Confirm in LINE",
+    "proofHelp": "Send this one-time code to the shop in LINE, then return to this tab.",
+    "openLine": "Open LINE with code",
+    "copy": "Copy code",
+    "copied": "Code copied",
+    "waiting": "Waiting for your LINE confirmation",
+    "unavailable": "This invitation is unavailable",
+    "returnToLine": "Ask for a new voice call in the shop’s LINE chat."
+  },
+  "call": {
+    "title": "Voice call",
+    "private": "You can hang up at any time. We save text captions only if you choose to.",
+    "micConsent": "I agree to use my microphone for this call",
+    "saveTranscript": "Save captions so I can refer to them in later calls",
+    "start": "Start call",
+    "end": "Hang up",
+    "tryAgain": "Try microphone again",
+    "playAudio": "Enable sound",
+    "captions": "Live captions",
+    "emptyCaptions": "No captions yet"
+  },
+  "role": {
+    "customer": "You",
+    "assistant": "Shop assistant"
+  },
+  "status": {
+    "ready": "Ready",
+    "microphone": "Waiting for microphone permission",
+    "connecting": "Connecting to the voice assistant",
+    "listening": "Listening",
+    "speaking": "The assistant is speaking",
+    "ended": "Call ended",
+    "unsupported": "Open this invitation in an HTTPS tab in a browser that supports microphone calls.",
+    "denied": "Microphone permission was not granted.",
+    "failed": "Couldn't connect to the voice assistant.",
+    "simulated": "Voice audio is unavailable in test mode."
+  },
+  "history": {
+    "title": "Saved call history",
+    "unavailable": "Saved call history could not be loaded."
   }
 }
