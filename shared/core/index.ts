@@ -5,3 +5,4 @@ export * from './fixtures';
 export * from './loader';
 export * from './language';
 export { SetFeatureFlagBody } from './flags';
+export * from './ops';
