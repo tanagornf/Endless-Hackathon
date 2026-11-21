@@ -104,7 +104,7 @@ export async function conversationFor(identity: DemoIdentity, openOnly = false) 
 }
 
 function customerMessage(message: MessageRecord): DemoChatMessage | null {
-  if (message.author === 'system') return null;
+  if (message.author === 'system' || (message.direction === 'outbound' && message.author === 'ai' && message.delivery.state !== 'sent')) return null;
   const { id, seq, direction, author, parts, createdAt, delivery } = message;
   return {
     id, seq, direction, author, parts: parts.map((part) => {
@@ -234,11 +234,16 @@ async function readPoll(identity: DemoIdentity, conversation: { id: string; stat
     getHistory(conversation.id, scoped) satisfies Promise<Page<MessageRecord>>,
     pending(identity, conversation.id),
   ]);
-  const last = history.items.at(-1);
+  // saveMessage commits before the delivery worker can decide whether the customer may see the AI reply.
+  const waiting = history.items.findIndex((row) => row.direction === 'outbound' && row.author === 'ai'
+    && (row.delivery.state === 'not_required' || row.delivery.state === 'pending'));
+  const ready = waiting < 0 ? history.items : history.items.slice(0, waiting);
+  const last = ready.at(-1);
   return {
-    conversationId: conversation.id, items: history.items.flatMap((message) => customerMessage(message) ?? []),
+    conversationId: conversation.id, items: ready.flatMap((message) => customerMessage(message) ?? []),
     cursor: last ? Buffer.from(String(last.seq)).toString('base64url') : after ?? null,
-    pending: ai, closed: conversation.status === 'closed',
+    pending: waiting < 0 ? ai : { since: history.items[waiting]!.createdAt, state: 'typing' },
+    closed: conversation.status === 'closed',
   };
 }
 
@@ -247,7 +252,8 @@ export async function demoPoll(identity: DemoIdentity, after: string | undefined
   if (!conversation) return { conversationId: null, items: [], cursor: null, pending: null, closed: false };
   const first = await readPoll(identity, conversation, after);
   if (first.items.length || first.pending?.state === 'failed' || first.closed || waitMs === 0) return first;
-  await waitForDemoUpdate(identity.businessId + ':' + identity.externalId, conversation.id, waitMs);
+  // Delivery updates are published to staff WebSockets. Public visitors also recheck the DB while typing.
+  await waitForDemoUpdate(identity.businessId + ':' + identity.externalId, conversation.id, first.pending ? Math.min(waitMs, 1000) : waitMs);
   const current = await conversationFor(identity);
   if (!current) return { conversationId: null, items: [], cursor: null, pending: null, closed: false };
   return readPoll(identity, current, current.id === conversation.id ? after : undefined);

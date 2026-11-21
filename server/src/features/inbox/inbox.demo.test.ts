@@ -95,6 +95,40 @@ describe('F09 public Demo Chat', { timeout: 30000 }, () => {
     expect(next.body.data.conversationId).not.toBe(conversationId);
   });
 
+  it('withholds an AI reply until sent and advances past failed and unknown attempts', async () => {
+    const agent = await createTestAgent();
+    const token = freshToken();
+    const first = await agent.post(demoA + '/messages').set('X-Demo-Visitor', token).send(input('Delivery check'));
+    expect(first.status).toBe(200);
+    const { conversationId, message } = first.body.data;
+    const cursor = Buffer.from(String(message.seq)).toString('base64url');
+    const poll = (after: string) => agent.get(demoA + '/poll').query({ after }).set('X-Demo-Visitor', token);
+    const attempt = async (text: string) => (await saveMessage({ businessId: bizA, conversationId,
+      direction: 'outbound', author: 'ai', parts: [{ type: 'text', text }] })).message;
+    const setState = (id: string, state: string) => db.query(
+      'UPDATE messages SET delivery_state=$3 WHERE business_id=$1 AND id=$2', [bizA, id, state]);
+
+    const reply = await attempt('Delivered reply');
+    expect((await poll(cursor)).body.data).toMatchObject({ items: [], cursor });
+    await setState(reply.id, 'pending');
+    expect((await poll(cursor)).body.data).toMatchObject({ items: [], cursor });
+    await setState(reply.id, 'sent');
+    const delivered = (await poll(cursor)).body.data;
+    expect(delivered.items.map((row: { id: string }) => row.id)).toEqual([reply.id]);
+
+    const suppressed = await attempt('Suppressed reply');
+    await setState(suppressed.id, 'failed');
+    const uncertain = await attempt('Unknown delivery');
+    await setState(uncertain.id, 'unknown');
+    const later = await attempt('Next delivered reply');
+    await setState(later.id, 'sent');
+    const resumed = (await poll(delivered.cursor)).body.data;
+    expect(resumed.items.map((row: { id: string }) => row.id)).toEqual([later.id]);
+    expect((await poll(resumed.cursor)).body.data.items).toEqual([]);
+    expect((await getHistory(conversationId, { businessId: bizA })).items.map((row) => row.id))
+      .toContain(suppressed.id);
+  });
+
   it('rejects an extra visitor before creating a message when the shop cap is reached', async () => {
     const agent = await createTestAgent();
     const prior = process.env.DEMO_CHAT_DAILY_TURN_CAP;

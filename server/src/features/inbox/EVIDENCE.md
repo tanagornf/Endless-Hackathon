@@ -40,3 +40,10 @@
 - `npm run typecheck`, `npm run check:paths`, and `git diff --check` passed.
 - Local Chromium with intercepted synthetic responses verified Thai wrapping at 360 px without horizontal overflow and a 44 × 44 px Send target. At a simulated keyboard viewport height of 435 px, the composer bottom moved from 451 px to 435 px and Send from 443 px to 427 px. Chromium also verified the 55 px viewport offset, 24 px top and bottom safe-area insets, and desktop at 1280 × 900.
 - Production smoke for this patch is pending.
+
+### Customer-visible AI delivery
+
+- The public and tester polls show AI replies only after the web delivery worker records a successful send. The cursor waits at an in-flight reply and moves past terminal failed or unknown attempts. Staff can still inspect attempted replies in the inbox. Visitor attachment and card action reads apply the same visibility rule.
+- The delivery regression covers the interval between message persistence and queuing, pending to sent, and failed or unknown attempts followed by a successful reply. Deployed takeover smoke remains pending.
+
+- Before the evidence-only rebase, the combined F09 and F11 integration suites passed 25/25 in 108.35 seconds with the fake model. Full typecheck and path ownership passed.
