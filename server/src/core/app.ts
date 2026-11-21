@@ -1,4 +1,3 @@
-import express from 'express';
 import { join } from 'node:path';
 import { FEATURES } from '@nless/shared/core/features';
 import { SetFeatureFlagBody } from '@nless/shared/core/flags';
@@ -9,6 +8,7 @@ import { AppError } from './errors';
 import { featureFlags, initializeFlags, loadFeatures, setFeatureFlag, visiblePublicFeatures } from './features';
 import { createHttpApp, httpError } from './http';
 import { mountMeta } from './meta';
+import { mountSpa } from './spa';
 
 export async function createApp() {
   const http = createHttpApp();
@@ -36,14 +36,7 @@ export async function createApp() {
   await initializeFlags();
   mountMeta(app, () => loaded.size);
   app.use(['/api', '/webhooks', '/mcp'], (_req, _res, next) => next(new AppError('NOT_FOUND', 'Route not found')));
-  if (config.NODE_ENV === 'production') {
-    const dist = join(rootDir, 'web', 'dist');
-    app.use(express.static(dist, { index: false }));
-    app.get('/{*splat}', (req, res, next) => {
-      if (/^\/(?:health|healthz|readyz|build-info|ws)(?:\/|$)/.test(req.path)) return next(new AppError('NOT_FOUND', 'Route not found'));
-      res.sendFile(join(dist, 'index.html'));
-    });
-  }
+  if (config.NODE_ENV === 'production') mountSpa(app, join(rootDir, 'web', 'dist'));
   app.use(httpError);
   return app;
 }
