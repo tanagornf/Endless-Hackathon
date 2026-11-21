@@ -1,10 +1,12 @@
-import { render, screen, within } from '@testing-library/react';
-import { expect, it, vi } from 'vitest';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import ShopInstructionReviewComparison from './ShopInstructionReviewComparison';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string, values?: { id: string }) => values ? `${key} ${values.id}` : key }),
 }));
+
+afterEach(cleanup);
 
 it('shows both exact texts and identifiers with preserved line breaks', () => {
   render(<ShopInstructionReviewComparison
