@@ -106,4 +106,4 @@ F10 accepts explicit Thai or English purchase requests for catalog items with a 
 
 ## Scoped LINE owner consultation
 
-The owner consultation bridge records one unresolved question and reads only the committed F04 buyer-facing copy before resuming the original LINE conversation. A newer buyer turn, staff takeover, closure or AI-off suppresses delivery. A private rationale stays in the owner review and incomplete replies stay pending. The earlier 25/25 candidate validated the queue and deduplication; its production release was held pending the separate review fields. The privacy-fixed paired suite uses synthetic sends.
+The owner consultation bridge records one unresolved question and reads only the committed F04 buyer-facing copy before resuming the original LINE conversation. A newer buyer turn, staff takeover, closure or AI-off suppresses delivery. A private rationale stays in the owner review and incomplete replies stay pending. The corrected F04 and F10 candidate passed 72/72 focused tests. The same F10 implementation on merged F04 #123 passed 29/29 across intake and resume. These checks used synthetic sends. Production acceptance is pending.
