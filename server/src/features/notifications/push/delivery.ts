@@ -21,11 +21,12 @@ function devicesFor(userId: string, device?: string) {
   );
 }
 
-export async function enqueueNotificationPush(notificationId: string, businessId: string): Promise<void> {
-  if (!pushCredentials) return;
+export async function enqueueNotificationPush(notificationId: string, businessId: string): Promise<boolean> {
+  if (!pushCredentials) return false;
   await jobs.enqueue(notificationPushJob, { notificationId }, {
     businessId, dedupKey: notificationPushJob + ':' + notificationId, maxAttempts,
   });
+  return true;
 }
 
 async function reserveDelivery(noticeId: string | null, device: Device, userId: string) {
@@ -65,10 +66,23 @@ async function persistOutcome(deliveryId: string, userId: string, device: Device
 
 async function deliverToDevice(
   userId: string, device: Device, payload: Omit<PrivatePush, 'ref'> & { urgency: 'normal' | 'high' },
+  maySend?: () => Promise<boolean>,
 ): Promise<PushOutcome | null> {
   if (!pushCredentials) return null;
   const delivery = await reserveDelivery(payload.noticeId, device, userId);
   if (!delivery) return null;
+  if (maySend) {
+    let eligible = false;
+    try {
+      eligible = await maySend();
+    } finally {
+      if (!eligible) {
+        // The provider has not been called. Release the reservation without counting a device failure.
+        await db.query("DELETE FROM push_deliveries WHERE id = $1 AND user_id = $2 AND state = 'pending'", [delivery.id, userId]);
+      }
+    }
+    if (!eligible) return null;
+  }
 
   let keys: { p256dh: string; auth: string };
   try {
@@ -90,12 +104,19 @@ export async function handleNotificationPush(job: JobContext<PushJobPayload>): P
   const preference = await getNotificationPreference(notice.userId, notice.type);
   if (!preference.inApp || !preference.push || job.signal.aborted) return;
 
+  const maySend = async () => {
+    if (job.signal.aborted) return false;
+    const current = await readPhoneNotice(notice.id, { businessId: notice.businessId });
+    if (!current || !await pendingNoticeDestination(current)) return false;
+    const settings = await getNotificationPreference(current.userId, current.type);
+    return !job.signal.aborted && settings.inApp && settings.push;
+  };
   const { rows } = await devicesFor(notice.userId);
   if (job.signal.aborted) return;
   const results = await Promise.allSettled(rows.map((device) => deliverToDevice(notice.userId, device, {
     noticeId: notice.id, language: notice.language,
     urgency: notice.purpose.kind === 'staff-offer' ? 'high' : 'normal',
-  })));
+  }, maySend)));
   const needsRetry = results.some((result) => result.status === 'rejected' ||
     (result.value?.state === 'retry' && result.value.status !== undefined));
   if (needsRetry) throw new Error('A notification provider delivery needs retry');

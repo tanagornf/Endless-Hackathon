@@ -120,7 +120,7 @@ function Bell({ userId }: { userId: string }) {
         : feed.data?.items.length ? <List disablePadding sx={{ maxHeight: 'min(420px, 55dvh)', overflowY: 'auto' }}>
           {feed.data.items.map((item) => {
             const Icon = icons[item.type];
-            return <ListItemButton key={item.id} disabled={read.running}
+            return <ListItemButton key={item.id} data-testid={'notification-' + item.id} disabled={read.running}
               onClick={() => { void openItem(item).catch(() => undefined); }} sx={{ alignItems: 'flex-start' }}>
               <ListItemIcon sx={{ minWidth: 34, mt: 0.75 }}><Icon fontSize="small" /></ListItemIcon>
               <ListItemText disableTypography primary={<Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>

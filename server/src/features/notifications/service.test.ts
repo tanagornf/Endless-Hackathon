@@ -25,7 +25,7 @@ const input = {
   link: '/chat?c=synthetic', dedupKey: 'handoff:synthetic:v2',
 } as const;
 
-beforeEach(() => { query.mockReset(); publish.mockReset(); logError.mockReset(); vi.mocked(enqueueNotificationPush).mockReset(); });
+beforeEach(() => { query.mockReset(); publish.mockReset(); logError.mockReset(); vi.mocked(enqueueNotificationPush).mockReset().mockResolvedValue(true); });
 
 test('publishes only new notification rows to eligible shop recipients across retries', async () => {
   const members = [
@@ -86,7 +86,7 @@ test('only the new eligible row for a confirmed staff receipt schedules phone de
   query.mockResolvedValueOnce({ rows: [{ id: notificationId, userId: staffId, pushEligible: true }] });
   const event = { ...input, to: { permission: 'chat.takeover' } as const, dedupKey: consentKey };
   expect(await notify(event)).toEqual({ notificationIds: [notificationId], mode: 'real' });
-  expect(query.mock.lastCall?.[1][6]).toBe('handoff:' + outsiderId + ':v4');
+  expect(query.mock.calls.find(([sql]) => sql.includes('INSERT INTO notifications'))?.[1][6]).toBe('handoff:' + outsiderId + ':v4');
   expect(enqueueNotificationPush).toHaveBeenCalledExactlyOnceWith(notificationId, businessId);
   query.mockResolvedValueOnce({ rows: [{ userId: staffId, role: 'owner', permissions: [] }] });
   query.mockResolvedValueOnce({ rows: [] });

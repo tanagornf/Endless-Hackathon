@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { NotifyInput } from '@nless/shared/features/notifications/types';
 import { afterAll, beforeAll, expect, test, vi } from 'vitest';
-import { db } from '../../core';
+import { db, jobs } from '../../core';
 import vectors from './fixtures/consent-delivery.json';
+import { reconcilePhonePushQueue } from './phone-queue';
 import { enqueueNotificationPush } from './push/delivery';
 import { hasNotificationReceipt, notify } from './service';
 
-vi.mock('./push/delivery', () => ({ enqueueNotificationPush: vi.fn() }));
+vi.mock('./push/delivery', () => ({ enqueueNotificationPush: vi.fn().mockResolvedValue(true) }));
 
 const users = new Map(vectors.memberships.map((member) => [member.userId, member]));
 const shops = [...new Set(vectors.memberships.map(({ businessId }) => businessId))];
@@ -90,4 +91,49 @@ test('stores authorized consent receipts and private owner questions once across
   );
   expect(vectors.cases.filter(({ receipt }) => !receipt)).toHaveLength(21);
   expect(summary.rows).toEqual([{ type: 'chat.handoff', count: 11 }, { type: 'system', count: 10 }]);
+}, 20000);
+
+
+test('recovers one missing push job across a failed immediate enqueue and a producer retry', async () => {
+  const businessId = shops[0];
+  const caseId = randomUUID();
+  const dedupKey = 'ai-owner-review:' + businessId + ':' + caseId + ':initial';
+  const ownerId = vectors.memberships.find((member) => member.businessId === businessId && member.role === 'owner')!.userId;
+  const input: NotifyInput = {
+    businessId, dedupKey, type: 'system', to: { role: 'owners' }, title: 'Synthetic owner question',
+    link: '/bot-settings?consult=' + caseId,
+  };
+  const enqueue = vi.mocked(enqueueNotificationPush);
+  enqueue.mockClear();
+  enqueue.mockRejectedValueOnce(new Error('fixture interruption after the bell write'));
+  let receipt: Awaited<ReturnType<typeof jobs.enqueue>> | undefined;
+  try {
+    const first = await notify(input);
+    expect(first.notificationIds).toHaveLength(4);
+    const pending = await db.one<{ id: string; userId: string }>(
+      'SELECT id, user_id AS "userId" FROM notifications WHERE business_id = $1 AND dedup_key = $2 AND push_queue_at IS NOT NULL',
+      [businessId, dedupKey],
+    );
+    expect(first.notificationIds).toContain(pending.id);
+    expect(await hasNotificationReceipt({ businessId, dedupKey })).toBe(true);
+    expect(await notify(input)).toEqual({ notificationIds: [], mode: 'real' });
+    await expect(db.one('SELECT count(*)::int AS count FROM notifications WHERE business_id = $1 AND user_id = $2 AND dedup_key = $3',
+      [businessId, pending.userId ?? ownerId, dedupKey])).resolves.toEqual({ count: 1 });
+
+    const jobKey = 'notifications.push:' + pending.id;
+    enqueue.mockClear();
+    enqueue.mockImplementation(async (id, shop) => {
+      receipt = await jobs.enqueue('notifications.push', { notificationId: id }, { businessId: shop, dedupKey: jobKey, maxAttempts: 3 });
+      return true;
+    });
+    await reconcilePhonePushQueue();
+    await reconcilePhonePushQueue();
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith(pending.id, businessId);
+    expect(receipt).toMatchObject({ deduped: false });
+    expect(await jobs.get(receipt!.jobId)).toMatchObject({ state: 'queued' });
+    expect(await jobs.enqueue('notifications.push', { notificationId: pending.id }, { businessId, dedupKey: jobKey }))
+      .toEqual({ jobId: receipt!.jobId, deduped: true });
+  } finally {
+    enqueue.mockReset().mockResolvedValue(true);
+  }
 }, 20000);

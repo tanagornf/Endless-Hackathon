@@ -162,6 +162,16 @@ describe('durable phone notification delivery', () => {
     expect(send).not.toHaveBeenCalled();
   }, 25000);
 
+  it('drops an unsubmitted reservation when its case resolves during dispatch', async () => {
+    const noticeId = await makeNotice();
+    const send = vi.spyOn(webPush, 'sendNotification').mockResolvedValue(sent);
+    pending.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    await handleNotificationPush(job(noticeId));
+    expect(pending).toHaveBeenCalledTimes(2);
+    expect(send).not.toHaveBeenCalled();
+    expect(await db.maybeOne('SELECT id FROM push_deliveries WHERE notification_id = $1', [noticeId])).toBeNull();
+  }, 25000);
+
   it('serves the worker as public same-scope JavaScript without a redirect', async () => {
     const result = await publicClient.get(originApi + '/sw.js').expect(200);
     expect(result.headers['content-type']).toContain('text/javascript');

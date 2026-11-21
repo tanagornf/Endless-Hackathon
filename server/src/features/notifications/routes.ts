@@ -2,6 +2,7 @@ import { AppError, assertRateLimit, defineFeatureRoutes, isFeatureHidden } from 
 import type { RouteContext } from '../../core';
 import { markRead, notificationFeed, unreadCount } from './repo';
 import { listPreferences, savePreferences } from './preferences';
+import { phonePushQueueSchedule } from './phone-queue';
 import { handleNotificationPush, notificationPushJob } from './push/delivery';
 import { registerOwnerConsultLookup } from './push/destination';
 import { notificationPushPurge, registerPushRoutes } from './push/routes';
@@ -25,7 +26,7 @@ export default defineFeatureRoutes({
   featureId: 'F31',
   slug: 'notifications',
   jobs: { [notificationPushJob]: handleNotificationPush },
-  schedules: [notificationPushPurge],
+  schedules: [phonePushQueueSchedule, notificationPushPurge],
   register(api) {
     registerPushRoutes(api);
     api.get('/notification-preferences', { auth: 'user', summary: 'List my notification preferences' },

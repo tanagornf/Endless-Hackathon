@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F31 | notifications | C3 | DOING | R | A | iPhone Web Push | | 51 isolated server tests, 2 bell tests, S1/S2 PostgreSQL CI | 2026-11-21 14:55 +07:00 | PostgreSQL route CI, release smoke, consent producer, and physical iPhone proof pending |
+| F31 | notifications | C3 | DOING | R | A | iPhone Web Push | | 52 isolated server tests, 4 web tests, 4 Playwright smoke cases discovered | 2026-11-21 15:02 +07:00 | PostgreSQL route CI, release smoke, consent producer, and physical iPhone proof pending |
 
 ## Log
 
@@ -22,3 +22,7 @@
 - F31 tests all passed on CI run 44881885910 at a7d7a23. Both remaining failures were F11 publish-count test expectations, addressed separately in F11 PR #96.
 - Integrated C3 Web Push transport commit 25959062947a1f9eb0f398112548f6387af4f796 and the v3 fixture's canonical owner action keys. Local, DB-free tests cover reservation/worker/transport modules and new-row-only scheduling for an authorized receipt. PostgreSQL CI covers the full expected recipient/device queue pairs using a mocked enqueue to avoid provider calls.
 - Device delivery remains unverified. Run the physical iPhone check only on an approved deployed build with the Home Screen manifest, configured VAPID, and the consent and owner-consult producers. Evidence should distinguish provider acceptance, display acknowledgment, and an authorized tap.
+
+
+- Full CI passed at bbd8104 in run 44882525004. A follow-up regression reproduced the crash between writing the bell and enqueueing push. This revision records the enqueue intent in the same write, then reconciles due intents every 30 seconds using the idempotent job key. The worker rechecks case, recipient and preferences before sending a reserved delivery.
+- Local red/green covered the failed immediate enqueue. PostgreSQL CI covers one existing bell row and one actual queued job after replay, plus cancellation before provider contact if the case resolves during dispatch. Four Playwright smoke cases were discovered for the post-deploy check. No production smoke or iPhone run is recorded.
