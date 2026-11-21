@@ -1,11 +1,12 @@
 import type { CustomerLanguage } from '@nless/shared/core/language';
 import type { ConversationRecord } from '@nless/shared/features/inbox/types';
-import type { AssignmentResult } from '@nless/shared/features/team/types';
+import type { AiHandoffIntent, AiHandoffReceipt } from '@nless/shared/features/team/types';
 import { audit, log } from '../../core';
 import { getEffectiveAnswerRules } from '../business-settings/service';
+import { getConversation } from '../inbox/service';
 import { notify } from '../notifications/service';
-import { requestHumanHandoff } from '../team/service';
-import { recordHandoff } from './repo';
+import { applyAiHandoff, getAiHandoffReceipt } from '../team/service';
+import { prepareHandoff, recordHandoff } from './repo';
 import type { HandoffCheckpoint, HandoffReason, TurnLease } from './repo';
 
 const staffTitles = {
@@ -27,40 +28,71 @@ type HandoffResult =
   | { status: 'stale' }
   | { status: 'lost' };
 
+function intentFor(turn: TurnLease, reason: HandoffReason, expectedVersion: number): AiHandoffIntent {
+  return { businessId: turn.business_id, conversationId: turn.conversation_id, turnId: turn.id, reason, expectedVersion };
+}
+
+function checkpointOf(intent: AiHandoffIntent, receipt: AiHandoffReceipt | null): HandoffCheckpoint | null {
+  if (!receipt || receipt.businessId !== intent.businessId || receipt.conversationId !== intent.conversationId ||
+    receipt.turnId !== intent.turnId || receipt.reason !== intent.reason || receipt.expectedVersion !== intent.expectedVersion ||
+    receipt.committedVersion !== intent.expectedVersion + 1) return null;
+  return { turnId: intent.turnId, version: receipt.committedVersion };
+}
+
+export async function recoverHandoff(turn: TurnLease, reason: HandoffReason, expectedVersion: number): Promise<HandoffCheckpoint | null> {
+  const intent = intentFor(turn, reason, expectedVersion);
+  return checkpointOf(intent, await getAiHandoffReceipt(intent));
+}
+
+export async function persistHandoff(turn: TurnLease, reason: HandoffReason, checkpoint: HandoffCheckpoint): Promise<boolean> {
+  if (!(await recordHandoff(turn, reason, checkpoint.version))) return false;
+  await audit({
+    action: 'ai-agent.handoff.requested', actorUserId: null, businessId: turn.business_id,
+    targetType: 'conversation', targetId: turn.conversation_id, details: { reason, turnId: turn.id },
+  }).catch(() => log.warn({ turnId: turn.id }, 'Handoff audit could not be written'));
+  return true;
+}
+
 export async function beginHandoff(
   turn: TurnLease,
   conversation: ConversationRecord,
   reason: HandoffReason,
+  expectedVersion: number,
   shopLanguage: CustomerLanguage,
   signal: AbortSignal,
 ): Promise<HandoffResult> {
   const { id: conversationId, businessId } = conversation;
   signal.throwIfAborted();
-  let assignment: AssignmentResult | undefined;
+  if (conversation.version !== expectedVersion) return { status: 'stale' };
+  if (!(await prepareHandoff(turn, reason, expectedVersion))) return { status: 'lost' };
+  const intent = intentFor(turn, reason, expectedVersion);
+  let checkpoint: HandoffCheckpoint | null;
   try {
-    assignment = await requestHumanHandoff(conversationId, { reason, actor: 'ai' }, { businessId });
+    signal.throwIfAborted();
+    checkpoint = checkpointOf(intent, await applyAiHandoff(intent));
   } catch {
-    log.warn({ turnId: turn.id }, 'Team handoff failed, opening a fallback wait');
+    signal.throwIfAborted();
+    checkpoint = await recoverHandoff(turn, reason, expectedVersion);
+    if (!checkpoint) {
+      // Only an unchanged AI assignment proves no handoff committed. An
+      // intervening staff claim or handback must never produce a fallback ACK.
+      const current = await getConversation(conversationId, { businessId });
+      if (current?.status !== 'open' || current.handler !== 'ai' || current.version !== expectedVersion) {
+        return { status: 'stale' };
+      }
+      log.warn({ turnId: turn.id }, 'Team handoff failed, opening a fallback wait');
+      checkpoint = { turnId: turn.id, version: null };
+    }
   }
-  if (assignment && (
-    assignment.conversationId !== conversationId || assignment.handler !== 'human' ||
-    assignment.assigneeUserId !== null || assignment.version !== conversation.version + 1
-  )) {
-    // F11 can return an existing assignment. It is not permission for this turn to acknowledge a manual takeover.
-    return { status: 'stale' };
-  }
-  const version = assignment?.version ?? null;
-  if (!(await recordHandoff(turn, reason, version))) return { status: 'lost' };
-  if (!assignment) {
+  signal.throwIfAborted();
+  if (!checkpoint) return { status: 'stale' };
+  if (!(await persistHandoff(turn, reason, checkpoint))) return { status: 'lost' };
+  if (checkpoint.version === null) {
     await notify({
       businessId, to: { permission: 'chat.takeover' }, type: 'chat.handoff',
       title: staffHandoffTitle(reason, shopLanguage), body: conversation.customer.displayName || undefined,
       link: '/chat?c=' + conversationId, dedupKey: 'handoff:' + turn.id,
     }).catch(() => log.warn({ turnId: turn.id }, 'Fallback handoff notification failed'));
   }
-  await audit({
-    action: 'ai-agent.handoff.requested', actorUserId: null, businessId,
-    targetType: 'conversation', targetId: conversationId, details: { reason, turnId: turn.id },
-  }).catch(() => log.warn({ turnId: turn.id }, 'Handoff audit could not be written'));
-  return { status: 'recorded', checkpoint: { turnId: turn.id, version } };
+  return { status: 'recorded', checkpoint };
 }
