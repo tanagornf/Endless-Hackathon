@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, expect, test } from 'vitest';
 import { buildResponsesRequest, classifyOpenAIError, model, withDeadlineRetry, withModelCallsDisabled } from './model';
 import { closeDb, db } from './db';
@@ -51,6 +52,23 @@ test('fake shop correction records the server-owned scope, effort and requested 
   await expect(model.analyzeShopCorrection({ ...input, redactedInput: '{"correction":"No trusted version"}' }))
     .rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
   await expect(model.analyzeShopCorrection({ ...input, signal: AbortSignal.abort() })).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+}, 12000);
+
+test('meters a Live close once, upgrades unknown duration, and rejects cross-shop usage', async () => {
+  const scoped: UsageAttribution = { featureId: 'F30', purpose: 'test', businessId: '00000000-0000-4000-8000-0000000a2000', turnId: randomUUID() };
+  const session = await model.createLiveVoiceSession({
+    usage: scoped, offerSdp: 'v=0\r\ns=Fixture\r\n', customerId: null, instructions: 'Synthetic fixture.',
+  });
+  expect(session).toMatchObject({ mode: 'fake', providerSessionId: expect.stringMatching(/^fake-live-/) });
+  const meter = { usage: scoped, providerSessionId: session.providerSessionId };
+  await expect(model.recordLiveVoiceUsage({ ...meter, providerSessionId: 'invented-session', duration: null })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  const pending = await model.recordLiveVoiceUsage({ ...meter, duration: null });
+  const duration = { seconds: 4.25, activeSeconds: 4, pausedSeconds: 0.25 };
+  const confirmations = await Promise.all(Array.from({ length: 3 }, () => model.recordLiveVoiceUsage({ ...meter, duration })));
+  expect(confirmations).toEqual(Array.from({ length: 3 }, () => ({ usageId: pending.usageId, costUsdMicros: 0 })));
+  await expect(model.recordLiveVoiceUsage({ ...meter, usage: { ...meter.usage, businessId: randomUUID() }, duration })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  expect(await db.one('SELECT audio_seconds::text,audio_active_seconds::text,audio_paused_seconds::text,cost_reason FROM model_usage WHERE id=$1',
+    [pending.usageId])).toEqual({ audio_seconds: '4.25', audio_active_seconds: '4', audio_paused_seconds: '0.25', cost_reason: 'fake_mode' });
 }, 12000);
 
 test('never retries a provider budget exhaustion', async () => {

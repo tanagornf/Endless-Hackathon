@@ -52,7 +52,7 @@ export default defineFeatureRoutes({
     api.post(item + '/submit', { ...write, body: ExpectedRevision, summary: 'Submit knowledge for review' },
       async ({ business, user, params, body }) => submitKnowledgeItem(business!.id, { userId: user!.id }, params.itemId, body.expectedRevision));
     api.post(item + '/activate', { ...write, body: ActivateBody, summary: 'Activate knowledge' },
-      async ({ business, user, params, body }) => activateKnowledgeItem(business!.id, { userId: user!.id }, params.itemId, body));
+      async ({ business, user, scope, params, body }) => activateKnowledgeItem(business!.id, { userId: user!.id, scope }, params.itemId, body));
     api.post(item + '/deactivate', { ...write, body: ExpectedRevision, summary: 'Deactivate knowledge' },
       async ({ business, user, params, body }) => deactivateKnowledgeItem(business!.id, { userId: user!.id }, params.itemId, body.expectedRevision));
     api.post(item + '/reject', { ...write, body: ExpectedRevision, summary: 'Reject a pending web knowledge suggestion' },

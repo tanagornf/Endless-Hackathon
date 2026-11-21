@@ -1,4 +1,4 @@
-import { AppError, audit, db, publish } from '../../core';
+import { AppError, auditInTransaction, db, publish } from '../../core';
 import type { DbExecutor } from '../../core';
 import type { KnowledgeDraftInput, KnowledgeDraftResult, WebKnowledgeSuggestion } from '@nless/shared/features/knowledge/types';
 import { contentHash, normalizeContent } from './hash';
@@ -15,7 +15,8 @@ export function createKnowledgeDraft(input: KnowledgeDraftInput): Promise<Knowle
   return storeKnowledgeDraft(input, null);
 }
 
-export async function storeKnowledgeDraft(input: KnowledgeDraftInput, webSuggestion: WebKnowledgeSuggestion | null): Promise<KnowledgeDraftResult> {
+export async function storeKnowledgeDraft(input: KnowledgeDraftInput, webSuggestion: WebKnowledgeSuggestion | null,
+  source: 'web' | 'import' | 'owner-consult' = webSuggestion ? 'web' : 'import'): Promise<KnowledgeDraftResult> {
   const { businessId, sourceRef, clientRequestId, actorUserId } = input;
   const content = CreateBody.safeParse({ kind: input.kind, title: input.title, body: input.body, folderId: input.folderId });
   if (!content.success || !sourceRef?.trim() || !clientRequestId?.trim() ||
@@ -33,21 +34,22 @@ export async function storeKnowledgeDraft(input: KnowledgeDraftInput, webSuggest
       'INSERT INTO knowledge_items (business_id,folder_id,kind,title,body,content_hash,source,source_ref,client_request_id,created_by,updated_by,web_suggestion) ' +
       'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11) ' +
       'ON CONFLICT (business_id,client_request_id) WHERE client_request_id IS NOT NULL DO NOTHING RETURNING id',
-      [businessId, folderId, kind, title, body, hash, webSuggestion ? 'web' : 'import', sourceRef, clientRequestId,
+      [businessId, folderId, kind, title, body, hash, source, sourceRef, clientRequestId,
         actorUserId, webSuggestion ? JSON.stringify(webSuggestion) : null],
     );
     if (inserted) {
       const item = await requireItem(businessId, inserted.id, tx);
       await snapshot(tx, item, actorUserId);
+      await auditInTransaction(tx, [{ businessId, actorUserId, action: 'knowledge.item.create',
+        targetType: 'knowledge_item', targetId: item.id, details: source === 'owner-consult' ? { source } : undefined }]);
       return { item, created: true };
     }
     const raced = await priorDraft(tx, businessId, clientRequestId);
     if (!raced) throw new AppError('SERVICE_NOT_READY', 'Knowledge draft changed during creation', { retryable: true });
     return { item: await requireItem(businessId, raced.id, tx), created: false };
   });
-  if (result.created) {
-    await audit({ businessId, actorUserId, action: 'knowledge.item.create', targetType: 'knowledge_item', targetId: result.item.id });
-    if (webSuggestion) publish(businessId, { type: 'knowledge.status', knowledgeItemId: result.item.id, indexState: 'not_started' });
+  if (result.created && source !== 'import') {
+    publish(businessId, { type: 'knowledge.status', knowledgeItemId: result.item.id, indexState: 'not_started' });
   }
   const warnings = (await duplicateWarnings(result.item)).map(({ code, itemId }) => ({ code, itemId }));
   return { itemId: result.item.id, revision: result.item.revision, created: result.created, warnings };

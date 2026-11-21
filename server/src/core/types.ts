@@ -5,7 +5,9 @@ import type { FeatureId, FolderSlug, MigrationOwner } from '@nless/shared/core/f
 import type { SeedData } from '@nless/shared/core/fixtures';
 import type { Application, Request, Response } from 'express';
 import type { ZodType } from 'zod';
+import type { LiveVoiceCloseResult, LiveVoiceControl, ModelLiveVoiceAttachInput, ModelLiveVoiceSession, ModelLiveVoiceSessionInput, ModelLiveVoiceUsageInput } from './live-voice-types';
 import type { ShopCorrectionAnalysisInput } from './shop-correction-analysis';
+export type * from './live-voice-types';
 export type { ShopCorrectionAnalysisInput } from './shop-correction-analysis';
 
 /** Result of getBusiness(): the business, the verified scope, and the user. */
@@ -334,6 +336,11 @@ export interface ModelPriceRate {
 export type ModelPriceTable = Record<string, ModelPriceRate>;
 
 export interface ModelApi {
+  createLiveVoiceSession(input: ModelLiveVoiceSessionInput): Promise<ModelLiveVoiceSession>;
+  attachLiveVoiceSession(input: ModelLiveVoiceAttachInput): Promise<LiveVoiceControl>;
+  closeLiveVoiceSession(providerSessionId: string): Promise<LiveVoiceCloseResult>;
+  recordLiveVoiceUsage(input: ModelLiveVoiceUsageInput): Promise<{ usageId: string; costUsdMicros: number | null }>;
+
   /**
    * One Responses round: openai.responses.create({ model, input, tools, tool_choice, parallel_tool_calls: true,
    * reasoning: { effort }, text: { verbosity: 'low', format? }, max_output_tokens, store: false,
