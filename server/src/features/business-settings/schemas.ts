@@ -44,3 +44,30 @@ export const ClosureBody = z.strictObject({
 });
 export const ClosuresQuery = z.object({ scope: z.enum(['upcoming', 'all']).default('upcoming') });
 export const OpenStateQuery = z.object({ at: z.iso.datetime().optional() });
+
+
+const ExpectedVersion = z.number().int().min(1);
+export const ProfileBody = z.strictObject({
+  expectedVersion: ExpectedVersion,
+  name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(1000),
+  contactPhone: z.string().trim().max(30).regex(/^[0-9+()\- ]*$/).nullable(),
+  contactEmail: z.string().trim().max(200).refine((value) => value === '' || z.email().safeParse(value).success).nullable(),
+  address: z.string().trim().max(300).nullable(),
+});
+export const LocaleBody = z.strictObject({
+  expectedVersion: ExpectedVersion,
+  timezone: z.string().min(1).max(64),
+  language: z.enum(['th', 'en']),
+});
+export const PolicyPatchBody = z.strictObject({
+  expectedVersion: ExpectedVersion,
+  policy: z.strictObject({
+    price: z.strictObject({ reveal }).nullish(),
+    stock: z.strictObject({ reveal }).nullish(),
+    contact: z.strictObject({ reveal: z.enum(['always', 'never']) }).nullish(),
+    generalKnowledge: z.boolean().nullish(),
+    booking: z.strictObject({ enabled: z.boolean() }).nullish(),
+  }).nullable(),
+});
+export const CapabilitiesBody = z.strictObject({ expectedVersion: ExpectedVersion, capabilities: CapabilitiesSchema });

@@ -34,7 +34,10 @@
     "title": "Business and hours"
   },
   "tabs": {
-    "hours": "Hours"
+    "hours": "Hours",
+    "profile": "Profile",
+    "error": "This tab could not be loaded",
+    "additional": "More settings"
   },
   "hours": {
     "title": "Weekly hours",
@@ -68,7 +71,8 @@
     },
     "status": "Business status",
     "dayLabel": "Day",
-    "timeLabel": "Opening and closing times"
+    "timeLabel": "Opening and closing times",
+    "nextOpenBangkok": "Opens again {{when}} Bangkok time"
   },
   "closures": {
     "title": "Special closures",
@@ -86,5 +90,53 @@
       "closure_in_past": "The end date is in the past",
       "too_many_closures": "The business has reached the closure limit"
     }
+  },
+  "profile": {
+    "name": "Business name",
+    "description": "Description",
+    "phone": "Phone",
+    "email": "Business email",
+    "address": "Address"
+  },
+  "locale": {
+    "title": "Language and timezone",
+    "language": "Default bot reply language",
+    "languageHelp": "Used when a customer message does not show a language (numbers or pictures only) and for staff notifications. The bot always replies in the language the customer writes, Thai or English",
+    "timezone": "Business timezone",
+    "timezoneWarn": "Saved hours will be read as local time in the new timezone",
+    "th": "Thai",
+    "en": "English",
+    "invalidTimezone": "Choose a valid IANA timezone"
+  },
+  "policy": {
+    "title": "What the bot may say",
+    "price": "Prices",
+    "stock": "Stock levels",
+    "contact": "Shop phone and email",
+    "reveal": {
+      "always": "May answer",
+      "ask_staff": "Ask staff",
+      "never": "Never reveal"
+    },
+    "generalKnowledge": "Answer only from shop data (no general knowledge)",
+    "booking": "Accept bookings in chat",
+    "reset": "Reset to default"
+  },
+  "caps": {
+    "title": "Shop capabilities",
+    "canQuotePrices": "The shop can quote prices",
+    "canTakeOrders": "Orders via chat",
+    "canTakeBookings": "Bookings via chat",
+    "canHandoffToHuman": "Hand off to staff",
+    "canShareContact": "Share shop contact details"
+  },
+  "effective": {
+    "title": "What the bot will actually do",
+    "note": "If either the capability or the policy is off, the result is off",
+    "orders": "Propose orders",
+    "handoff": "Hand off to staff",
+    "on": "On",
+    "off": "Off",
+    "generalKnowledge": "General knowledge"
   }
 }

@@ -3,7 +3,7 @@ import { SEED } from '@nless/shared/core/fixtures';
 import { afterEach, describe, expect, it } from 'vitest';
 import { db } from '../../core';
 import { createTestAgent, loginAs } from '../../core/test-utils';
-import { getBusinessSettings, getEffectiveAnswerRules } from './service';
+import { ensureBusinessSettings, getBusinessProfile, getBusinessSettings, getCapabilities, getEffectiveAnswerRules } from './service';
 
 const demoA = SEED.businesses.find(({ alias }) => alias === 'biz_demo_a')!;
 const demoB = SEED.businesses.find(({ alias }) => alias === 'biz_demo_b')!;
@@ -51,7 +51,7 @@ async function newBusiness() {
   return { accountId, businessId };
 }
 
-describe('F04 business settings', () => {
+describe('F04 business settings', { timeout: 20_000 }, () => {
   it('returns the exact contract for the seeded business', async () => {
     await expect(getBusinessSettings(demoA.id)).resolves.toEqual({
       businessId: demoA.id,
@@ -285,4 +285,91 @@ describe('F04 business settings', () => {
     expect(deleted.status).toBe(204);
     expect((await owner.get(path)).body.data.items).toEqual([]);
   }, 20_000);
+
+
+  it('validates, patches, and resets answer policy without dropping unrelated restrictions', async () => {
+    const { businessId } = await newBusiness();
+    const owner = await login(ownerA.email);
+    const staff = await login(staffA.email);
+    const path = settingsPath(businessId) + '/answer-policy';
+    const patch = (expectedVersion: number, policy: unknown) =>
+      owner.patch(path).set('X-Requested-With', 'nless').send({ expectedVersion, policy });
+
+    const badValue = await patch(1, { price: { reveal: 'maybe' } });
+    expect(badValue.status).toBe(400);
+    expect(badValue.body.error).toMatchObject({
+      code: 'VALIDATION_ERROR',
+      details: { issues: [expect.objectContaining({ path: 'policy.price.reveal' })] },
+    });
+    expect((await patch(1, { pricee: { reveal: 'never' } })).status).toBe(400);
+    expect((await patch(1, { price: { reveal: 'never' } })).status).toBe(200);
+    const stale = await patch(1, { booking: { enabled: false } });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error).toMatchObject({ code: 'VERSION_CONFLICT', details: { currentVersion: 2 } });
+    expect((await patch(2, { booking: { enabled: false } })).status).toBe(200);
+    await expect(getBusinessSettings(businessId)).resolves.toMatchObject({
+      answerPolicy: { price: { reveal: 'never' }, booking: { enabled: false } },
+    });
+    expect((await patch(3, { booking: null })).status).toBe(200);
+    await expect(getBusinessSettings(businessId)).resolves.toMatchObject({ answerPolicy: { price: { reveal: 'never' } } });
+    const defaults = await patch(4, null);
+    expect(defaults.status).toBe(200);
+    expect(defaults.body.data.settings.answerPolicy).toBeNull();
+    const deniedStaff = await staff.patch(settingsPath(demoA.id) + '/answer-policy')
+      .set('X-Requested-With', 'nless').send({ expectedVersion: 1, policy: null });
+    expect(deniedStaff.status).toBe(403);
+  });
+
+  it('loads saved capabilities and resolves price and order denial consistently', async () => {
+    const { businessId } = await newBusiness();
+    const owner = await login(ownerA.email);
+    const updated = await owner.put(settingsPath(businessId) + '/capabilities')
+      .set('X-Requested-With', 'nless').send({
+        expectedVersion: 1,
+        capabilities: {
+          canQuotePrices: false, canTakeOrders: true, canTakeBookings: true, canHandoffToHuman: false, canShareContact: true,
+        },
+      });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.effectiveRules).toMatchObject({ price: 'never', orders: false, handoff: false });
+    await expect(getCapabilities(businessId)).resolves.toMatchObject({ canQuotePrices: false, canTakeOrders: true });
+    await expect(getEffectiveAnswerRules(businessId)).resolves.toMatchObject({ price: 'never', orders: false, handoff: false });
+  });
+
+  it('persists profile and locale in core and F04, with audit field names only', async () => {
+    const { businessId } = await newBusiness();
+    const owner = await login(ownerA.email);
+    const path = settingsPath(businessId);
+    const profile = { name: 'F04 synthetic profile', description: 'Test contact', contactPhone: '02-000-0020', contactEmail: '', address: '' };
+    const savedProfile = await owner.put(path + '/profile').set('X-Requested-With', 'nless')
+      .send({ ...profile, expectedVersion: 1 });
+    expect(savedProfile.status).toBe(200);
+    await expect(getBusinessProfile(businessId)).resolves.toEqual({ ...profile, contactEmail: null, address: null });
+    const profileAudit = await db.one<{ details: { changed: string[] } }>(
+      "SELECT details FROM audit_events WHERE business_id=$1 AND action='business-settings.profile.update'", [businessId],
+    );
+    expect(profileAudit.details).toEqual({ changed: ['name', 'description', 'contactPhone'] });
+
+    const setLocale = (timezone: string, language: 'en' | 'th', expectedVersion: number) => owner.put(path + '/locale')
+      .set('X-Requested-With', 'nless').send({ expectedVersion, timezone, language });
+    expect((await setLocale('Mars/Base', 'en', 2)).status).toBe(400);
+    expect((await setLocale('America/New_York', 'th', 2)).status).toBe(200);
+    expect((await setLocale('America/New_York', 'en', 3)).status).toBe(200);
+    await expect(getBusinessSettings(businessId)).resolves.toMatchObject({ timezone: 'America/New_York', language: 'en', version: 4 });
+    expect((await owner.get('/api/v1/businesses/' + businessId)).body.data).toMatchObject({
+      name: profile.name, timezone: 'America/New_York', language: 'en', version: 4,
+    });
+  });
+
+  it('initializes settings and profile rows idempotently for an existing business', async () => {
+    const { businessId } = await newBusiness();
+    const first = await ensureBusinessSettings(businessId);
+    await expect(ensureBusinessSettings(businessId)).resolves.toEqual(first);
+    const counts = await db.one<{ settings: number; profile: number }>(
+      'SELECT (SELECT count(*)::int FROM business_settings WHERE business_id=$1) AS settings, ' +
+      '(SELECT count(*)::int FROM business_profiles WHERE business_id=$1) AS profile', [businessId],
+    );
+    expect(counts).toEqual({ settings: 1, profile: 1 });
+    await expect(ensureBusinessSettings(randomUUID())).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
 });

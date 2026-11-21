@@ -1,4 +1,4 @@
-import type { FeatureSeed } from '../../core';
+import type { FeatureSeed, SeedContext } from '../../core';
 
 const profiles = {
   biz_demo_a: ['ร้านบอร์ดเกมสังเคราะห์สำหรับสาธิตระบบ', '02-000-0001', 'shop.a@example.test', 'ที่อยู่สมมติ กรุงเทพฯ'],
@@ -26,3 +26,26 @@ export default {
     });
   },
 } satisfies FeatureSeed;
+
+
+export async function runDemo({ db, id }: SeedContext): Promise<void> {
+  const reason = 'ปิดปีใหม่ (ข้อมูลสาธิต)';
+  await db.query(
+    "INSERT INTO business_closures (business_id,start_date,end_date,reason) SELECT $1,'2026-12-31','2027-01-02',$2 " +
+    'WHERE NOT EXISTS (SELECT 1 FROM business_closures WHERE business_id=$1 AND reason=$2)',
+    [id('biz_demo_a'), reason],
+  );
+}
+
+export async function resetDemo({ db, fixtures }: SeedContext): Promise<void> {
+  await db.tx(async (tx) => {
+    for (const business of fixtures.businesses) {
+      await tx.query(
+        "UPDATE business_settings SET ai_enabled=true,answer_policy=NULL,capabilities='{}'::jsonb,hours=$2::jsonb, " +
+        'version=version+1,updated_at=now() WHERE business_id=$1',
+        [business.id, JSON.stringify(business.settings.hours)],
+      );
+      await tx.query('DELETE FROM business_closures WHERE business_id=$1', [business.id]);
+    }
+  });
+}
