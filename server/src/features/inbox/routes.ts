@@ -2,6 +2,7 @@ import type { ConversationDetail } from '@nless/shared/features/inbox/types';
 import { AppError, db, defineFeatureRoutes, publish, requirePermission } from '../../core';
 import type { RouteContext } from '../../core';
 import { getBusinessSettings } from '../business-settings/service';
+import { registerDemoRoutes } from './demoRoutes';
 import { countConversations, listConversations } from './list';
 import { historyQuery, listConversationsQuery, staffSendBody } from './schemas';
 import { activeHolder } from './staff';
@@ -18,6 +19,7 @@ export default defineFeatureRoutes({
   featureId: 'F09',
   slug: 'inbox',
   register(api) {
+    registerDemoRoutes(api);
     api.get('/businesses/:businessId/conversations', {
       auth: 'business', permission: 'chat.read', query: listConversationsQuery, summary: 'List conversations',
     }, async (ctx) => listConversations(ctx.business!.id, ctx.user!.id, ctx.query));
