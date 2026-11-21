@@ -66,7 +66,9 @@ export async function claimTurn(
     }
     if (existing?.state === 'failed') {
       if (existing.attempts >= MAX_ATTEMPTS || !existing.retry_after) return { status: 'finished', turn: existing };
-      if (existing.waiting) return { status: 'pending', turnId: existing.id, retryAt: existing.retry_after.toISOString() };
+      if (existing.waiting || existing.reply_message_id && !delivery) {
+        return { status: 'pending', turnId: existing.id, retryAt: existing.retry_after.toISOString() };
+      }
     }
     const active = await transaction.maybeOne<{ id: string }>(
       "SELECT id FROM ai_turns WHERE business_id = $1 AND conversation_id = $2 AND state = 'running' AND lease_until > now() LIMIT 1",
@@ -140,7 +142,7 @@ export async function finishTurn(turn: TurnLease, outcome: {
   timings?: TurnDraft['timings'];
 }): Promise<boolean> {
   const result = await db.query(String.raw`
-    UPDATE ai_turns SET state = $5, skip_reason = $6, reply_message_id = $7,
+    UPDATE ai_turns SET state = $5, skip_reason = $6, reply_message_id = COALESCE($7, reply_message_id),
       reply_parts = CASE WHEN $5 IN ('skipped', 'superseded') THEN NULL ELSE reply_parts END,
       retry_after = $8, timings = COALESCE($9::jsonb, timings), finished_at = now(),
       latency_ms = CASE WHEN mode = 'reply' THEN GREATEST(0, EXTRACT(epoch FROM now() - started_at) * 1000)::int END

@@ -8,7 +8,7 @@ import type { ModelChatResult, ModelMessage } from '../../core';
 import { buildReplyContext, turnLanguage } from './context';
 import type { ReplyContext } from './context';
 import { fallbacks } from './fallbacks';
-import { codeFallback, inspectReply, isPriceQuestion, mentionsProduct, shapeReply, stripUnsafeSentences } from './guards';
+import { codeFallback, inspectReply, isPriceQuestion, mentionsProduct, renderCatalogQuotes, shapeReply, stripUnsafeSentences } from './guards';
 import { maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
 import { repairPrompt } from './prompt';
@@ -153,6 +153,11 @@ export async function generateDraft(
     );
     if (!text || onlyQuote && isPriceQuestion(context) && !includesQuotedPrice) {
       text = replyFallback;
+    }
+    const catalogText = renderCatalogQuotes(context, text);
+    if (catalogText) {
+      text = catalogText;
+      draft.guardActions.push({ guard: 'price', action: 'fallback', detail: 'Rendered catalog prices by SKU' });
     }
     Object.assign(draft, usedEvidence(text, context));
     draft.parts = shapeReply(text);

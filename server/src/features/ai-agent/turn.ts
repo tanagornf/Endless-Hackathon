@@ -137,21 +137,31 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       await releaseClaim(turn);
       return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
     }
-    let replyMessageId: string | undefined;
+    let replyMessageId = turn.reply_message_id ?? undefined;
     if (request.deliver) {
-      const persistStart = performance.now();
-      const saved = await saveMessage({
-        businessId: conversation.businessId, conversationId, direction: 'outbound', author: 'ai',
-        parts: draft.parts, origin: conversation.channel === 'web' ? 'demo' : 'live',
-        triggerAi: false, groupId: turn.id, clientRequestId: 'ai.reply:' + turn.id,
-      });
-      replyMessageId = saved.message.id;
-      draft.timings.persistMs = elapsed(persistStart);
+      let parts = draft.parts;
+      if (!replyMessageId) {
+        const persistStart = performance.now();
+        const saved = await saveMessage({
+          businessId: conversation.businessId, conversationId, direction: 'outbound', author: 'ai',
+          parts, origin: conversation.channel === 'web' ? 'demo' : 'live',
+          triggerAi: false, groupId: turn.id, clientRequestId: 'ai.reply:' + turn.id,
+        });
+        replyMessageId = saved.message.id;
+        parts = saved.message.parts;
+        draft.timings.persistMs = elapsed(persistStart);
+      }
       const sendStart = performance.now();
       try {
-        await sendToCustomer(conversationId, saved.message.parts, { businessId: conversation.businessId, messageId: replyMessageId });
-      } catch {
+        await sendToCustomer(conversationId, parts, { businessId: conversation.businessId, messageId: replyMessageId });
+      } catch (error) {
         log.warn({ turnId: turn.id, replyMessageId }, 'Saved AI reply could not be queued for delivery');
+        if (turn.attempts < MAX_ATTEMPTS && (!(error instanceof AppError) || error.retryable)) {
+          const retryAt = delayRetry(4000 * turn.attempts);
+          draft.timings.sendMs = elapsed(sendStart);
+          await closeTurn(turn, { state: 'failed', replyMessageId, retryAt, timings: draft.timings });
+          return { response: result(turn.id, 'pending'), retryAt };
+        }
       }
       draft.timings.sendMs = elapsed(sendStart);
     }

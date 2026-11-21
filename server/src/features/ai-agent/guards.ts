@@ -116,11 +116,31 @@ export function codeFallback(context: ReplyContext, allowPrice: boolean): string
   if (!isPriceQuestion(context)) return fallbacks.no_answer[context.language];
   if (context.rules.price !== 'always') return fallbacks.price_hidden[context.language];
   if (!allowPrice || context.prices.length !== 1) return fallbacks.no_answer[context.language];
-  const [{ quote, name }] = context.prices;
-  const price = formatMoneyText(quote.unitPriceMinor, context.language);
-  return context.language === 'en'
-    ? name + ' costs ' + price + (quote.soldOut ? ' and is sold out.' : '.')
-    : name + ' ราคา ' + price + (quote.soldOut ? ' และสินค้าหมดค่ะ' : ' ค่ะ');
+  return formatCatalogQuote(context.prices[0], context.language, false);
+}
+
+function formatCatalogQuote({ quote, name }: PriceEvidence, language: ReplyContext['language'], showSku: boolean): string {
+  const label = showSku ? name + ' (' + quote.sku + ')' : name;
+  const price = formatMoneyText(quote.unitPriceMinor, language);
+  return language === 'en'
+    ? label + ' costs ' + price + (quote.soldOut ? ' and is sold out.' : '.')
+    : label + ' ราคา ' + price + (quote.soldOut ? ' และสินค้าหมดค่ะ' : ' ค่ะ');
+}
+
+export function renderCatalogQuotes(context: ReplyContext, text: string): string | null {
+  if (context.rules.price !== 'always') return null;
+  const quotes = [...new Map(context.prices.map((price) => [price.quote.itemId + ':' + price.quote.variantId, price])).values()];
+  if (quotes.length < 2) return null;
+  const amounts = new Set(quotes.flatMap(({ quote }) => [quote.unitPriceMinor, quote.subtotalMinor]));
+  if (!isPriceQuestion(context) && !moneyMentions(text).some(({ minor }) => amounts.has(minor))) return null;
+  const explicitlyRequested = quotes.filter((price) => context.unanswered.some((message) => mentionsProduct(message, price)));
+  const requested = explicitlyRequested.length ? explicitlyRequested : quotes;
+  const lines = requested.map((price) => formatCatalogQuote(price, context.language, true));
+  const independentFacts = text.split(/\n+|(?<=[.!?])\s+|(?<=ค่ะ|คะ|ครับ)\s+/u).filter((line) =>
+    line.trim() && !moneyMentions(line).length && !quotes.some((price) => mentionsProduct(line, price)) &&
+    line !== fallbacks.no_answer[context.language],
+  );
+  return [...lines, ...independentFacts].join('\n');
 }
 
 export function shapeReply(text: string): MessagePart[] {

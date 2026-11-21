@@ -116,6 +116,22 @@ describe('F10 S1 reply and gates', { timeout: 15_000 }, () => {
     expect(modelSpy).not.toHaveBeenCalled();
   });
 
+  it('renders the correct amount for each SKU when the draft swaps two valid catalog prices', async () => {
+    vi.spyOn(model, 'chat').mockImplementationOnce((input) => originalChat({
+      ...input, fake: { text: 'A-GAME-01 costs 99 baht. A-CARD-01 costs 1,490 baht.' },
+    }));
+    const inbound = await incoming('How much are A-GAME-01 and A-CARD-01?');
+    await execute(inbound);
+    const [reply] = await replies(inbound.conversation.id);
+    expect(reply.text).toMatch(/A-GAME-01\) costs 1,490 baht/);
+    expect(reply.text).toMatch(/A-CARD-01\) costs 99 baht/);
+    expect(reply.text).not.toMatch(/A-GAME-01\)? costs 99 baht|A-CARD-01\)? costs 1,490 baht/);
+    expect(await trace(inbound.message.id)).toMatchObject({
+      evidence_ids: expect.arrayContaining(['catalog:' + seedId('item_a_game') + ':v1', 'catalog:' + seedId('item_a_card') + ':v1']),
+      guard_actions: expect.arrayContaining([expect.objectContaining({ guard: 'price', action: 'fallback' })]),
+    });
+  });
+
   it('G7 suppresses turns while staff holds the thread and replies when staff returns it', async () => {
     const inbound = await incoming('ราคา A-GAME-01 เท่าไหร่');
     const options = { businessId };
@@ -281,4 +297,28 @@ describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
     expect(aiWrites[0][0].providerMeta?.nlessHandoffAckVersion).toBeUndefined();
     expect(sends).toHaveBeenCalledTimes(1);
   }, 15_000);
+
+  it('retries a transient enqueue error with the same saved message and no second model or inbox write', async () => {
+    const inbound = await incoming('How much is A-GAME-01?');
+    const chat = vi.spyOn(model, 'chat');
+    const writes = vi.spyOn(inbox, 'saveMessage');
+    const sends = vi.spyOn(channels, 'sendToCustomer')
+      .mockRejectedValueOnce(new AppError('SERVICE_NOT_READY', 'Synthetic delivery queue error', { retryable: true }));
+
+    expect(await execute(inbound)).toHaveProperty('retryAt');
+    const first = await trace(inbound.message.id);
+    expect(first).toMatchObject({ state: 'failed', reply_message_id: expect.any(String) });
+    expect(await execute(inbound)).toHaveProperty('retryAt');
+    expect(sends).toHaveBeenCalledTimes(1);
+    await db.query("UPDATE ai_turns SET retry_after = now() - interval '1 second' WHERE business_id = $1 AND id = $2", [businessId, first.id]);
+    expect((await generateReply(inbound.conversation.id, { triggerMessageId: inbound.message.id })).state).toBe('pending');
+
+    await execute(inbound);
+    const saved = await replies(inbound.conversation.id);
+    expect(saved.map(({ id }) => id)).toEqual([first.reply_message_id]);
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(writes.mock.calls.filter(([input]) => input.author === 'ai')).toHaveLength(1);
+    expect(sends.mock.calls.map(([, , options]) => options?.messageId)).toEqual([first.reply_message_id, first.reply_message_id]);
+    expect(await trace(inbound.message.id)).toMatchObject({ state: 'completed', reply_message_id: first.reply_message_id, attempts: 2 });
+  });
 });
