@@ -143,7 +143,10 @@ export async function generateDraft(
     signal.throwIfAborted();
     const unanswered = unansweredCustomerMessages(history, inbound);
     const prior = mode === 'reply' ? await withinDeadline(priorSavedReply(conversation, inbound), signal) : null;
-    const offerPending = prior?.offeredHandoff === true;
+    const previousAnswer = history.findLast((message) => message.seq < inbound.seq && message.direction === 'outbound' &&
+      (message.author === 'ai' || message.author === 'staff'));
+    const offerPending = prior?.offeredHandoff === true && previousAnswer?.id === prior.replyMessageId &&
+      previousAnswer.delivery.state !== 'failed';
     const offerReply = offerPending && unanswered.length === 1 ? replyToStaffOffer(unanswered[0]) : null;
     if (mode === 'reply' && (explicitlyRequestsStaff(unanswered.join('\n')) || offerReply === 'accepted') &&
         await withinDeadline(canRequestHandoff(conversation.businessId), signal)) {

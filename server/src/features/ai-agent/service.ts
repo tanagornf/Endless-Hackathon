@@ -31,9 +31,8 @@ export async function generateReply(conversationId: string, opts?: GenerateReply
  * ai.reply job handler (F10 owns it, declared in features/ai-agent/routes.ts `jobs`). Order is fixed:
  *   1 getBusinessSettings(businessId).aiEnabled  2 isHumanTakeover(conversationId) false
  *   3 serialisation: the job's lockKey `conversation:<id>` already guarantees one ai.reply per conversation (the worker
- *     holds that advisory lock for the whole job). The handler must NOT take `conversation:<id>` again from another
- *     connection (it would wait on itself); when it needs its own lock it uses db.withAdvisoryLock(`ai.turn:<id>`).
- *     Turn claim/dedup = unique row in the F10 `ai_turns` table per inbound message.
+ *     holds that advisory lock for the whole job). The F10 claim takes a short transaction lock scoped to
+ *     `ai.turn:<id>`. Queued and direct turns use the same fenced lease and deduplicate by inbound message.
  *   4 generateReply(conversationId, { triggerMessageId }) — state 'failed' or empty parts → stop (nothing saved) and
  *     retry the job (at most 3 attempts). After the last attempt, or on a non-retryable provider error, the customer is
  *     not left in silence: the handler sends one fixed apology in the customer's language and calls

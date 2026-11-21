@@ -636,7 +636,7 @@ describe('F10 S2 tools loop', { timeout: 15_000 }, () => {
 });
 
 describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
-  it('G9 acknowledges Thai once, calls F11 once and goes silent while staff holds the thread', async () => {
+  it('G9 and G19 acknowledge Thai once, stay silent for staff and resume after handback', async () => {
     const inbound = await incoming('ขอคุยกับพนักงานหน่อยครับ');
     const chat = vi.spyOn(model, 'chat');
     const assignment = vi.spyOn(team, 'requestHumanHandoff');
@@ -664,8 +664,12 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     )).toEqual({ count: 1 });
 
     await assignConversation(inbound.conversation.id, null, { businessId });
-    await execute(await incoming('A-GAME-01 ราคาเท่าไหร่คะ', inbound));
-    expect((await replies(inbound.conversation.id)).at(-1)!.text).toContain('1,490 บาท');
+    await execute(await incoming('A-CARD-01 ราคาเท่าไหร่คะ', inbound));
+    expect((await replies(inbound.conversation.id)).at(-1)!.text).toContain('99 บาท');
+    expect(await db.one<{ count: number }>(
+      'SELECT count(*)::int AS count FROM ai_handoff_waits WHERE business_id = $1 AND conversation_id = $2 AND released_at IS NULL',
+      [businessId, inbound.conversation.id],
+    )).toEqual({ count: 0 });
   });
 
   it('G15 uses the English acknowledgement for an explicit human request', async () => {
@@ -791,6 +795,34 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     expect((await replies(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.ai_failed.th]);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', error_code: 'PROVIDER_UNAVAILABLE', attempts: 3, escalated: true });
   });
+
+  it('uses the localized budget fallback and hands off without a repair call', async () => {
+    const chat = vi.spyOn(model, 'chat').mockRejectedValue(new AppError('PROVIDER_BUDGET_EXHAUSTED'));
+    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    const inbound = await incoming('How much is A-GAME-01?');
+    await execute(inbound);
+    expect((await replies(inbound.conversation.id))[0].text).toBe(fallbacks.budget_handoff.en);
+    expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', error_code: 'PROVIDER_BUDGET_EXHAUSTED' });
+    expect(handoff).toHaveBeenCalledExactlyOnceWith(inbound.conversation.id, { reason: 'budget_exhausted', actor: 'ai' }, { businessId });
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
+  it('notifies the owners after a model failure when handoff is disabled', async () => {
+    vi.spyOn(settings, 'getEffectiveAnswerRules').mockResolvedValue({ ...allow, handoff: false });
+    vi.spyOn(model, 'chat').mockRejectedValue(new AppError('PROVIDER_UNAVAILABLE'));
+    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    const notify = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
+    const inbound = await incoming('How much is A-GAME-01?');
+    await execute(inbound);
+    await execute(inbound);
+    const turn = await trace(inbound.message.id);
+    expect(turn).toMatchObject({ state: 'completed', error_code: 'PROVIDER_UNAVAILABLE', attempts: 1, escalated: false });
+    expect((await replies(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.ai_failed_retry.en]);
+    expect(notify).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      businessId, to: { role: 'owners' }, type: 'system', dedupKey: 'ai-failed:' + turn.id,
+    }));
+    expect(handoff).not.toHaveBeenCalled();
+  });
 });
 
 describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
@@ -872,5 +904,24 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
     expect(stored[0].text).toContain('ได้รับรูปแล้วค่ะ');
     expect(await trace(second.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'non_text_repeat', reply_message_id: null });
     expect(chat).not.toHaveBeenCalled();
+  });
+
+  it('G20 answers hours and offers help for unknown policy when knowledge is empty', async () => {
+    vi.spyOn(knowledge, 'searchKnowledge').mockResolvedValue({ query: '', strategy: 'hybrid', hits: [], mode: 'fake' });
+    vi.spyOn(model, 'chat').mockImplementation((input) => {
+      const latest = String(input.messages.findLast(({ role }) => role === 'user')?.content ?? '');
+      const hours = /(?:^|latest customer message:\n)ร้านเปิดกี่โมง/u.test(latest);
+      if (input.usage.purpose === 'classify') return classifyAs(input, hours ? 'BUSINESS_HOURS' : 'QUESTION', 0.9);
+      return originalChat({ ...input, fake: { text: hours ? 'ร้านเปิด 10:00 น. ค่ะ' : fallbacks.no_answer.th } });
+    });
+    const hours = await incoming('ร้านเปิดกี่โมงคะ');
+    await execute(hours);
+    const returns = await incoming('คืนสินค้าได้ไหมคะ', hours);
+    await execute(returns);
+    const stored = await replies(hours.conversation.id);
+    expect(stored[0].text).toBe('ร้านเปิด 10:00 น. ค่ะ');
+    expect(stored[1].parts).toContainEqual({ type: 'text', text: fallbacks.handoff_offer.th });
+    expect(await trace(hours.message.id)).toMatchObject({ intent: 'BUSINESS_HOURS', handoff_offered: false, evidence_ids: [] });
+    expect(await trace(returns.message.id)).toMatchObject({ intent: 'QUESTION', handoff_offered: true, evidence_ids: [] });
   });
 });
