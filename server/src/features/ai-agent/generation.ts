@@ -18,6 +18,7 @@ import { runModelLoop } from './loop';
 import { arabicDigits, maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
 import { getReplyProductImages } from './productMedia';
+import { productFactQuestion, replyWithProductFact } from './product-facts';
 import { repairPrompt } from './prompt';
 import { customerInboundsHeldByStaff, priorSavedReply } from './repo';
 import type { TurnDraft } from './repo';
@@ -57,7 +58,7 @@ function appendHandoffOffer(draft: TurnDraft): void {
   draft.handoffOffered = true;
 }
 
-function summarizeUsage(calls: readonly ModelChatResult[]): AiTurnUsage | null {
+function summarizeUsage(calls: readonly Pick<ModelChatResult, 'usage'>[]): AiTurnUsage | null {
   if (!calls.length) return null;
   const total = (key: 'inputTokens' | 'outputTokens' | 'cachedInputTokens' | 'costUsdMicros') => {
     const values = calls.map((call) => call.usage?.[key] ?? null);
@@ -137,7 +138,7 @@ export async function generateDraft(
   const signal = AbortSignal.any([cancellation, AbortSignal.timeout(config.MODEL_TIMEOUT_MS)]);
   const language = turnLanguage(inboxHistory, inbound, settings.language);
   const draft = emptyDraft(language);
-  const calls: ModelChatResult[] = [];
+  const calls: Pick<ModelChatResult, 'usage'>[] = [];
   const modelMs: number[] = [];
   let context: ReplyContext | undefined;
   try {
@@ -164,8 +165,9 @@ export async function generateDraft(
     if (mode === 'reply' && !unanswered.length && prior?.recentlySentNonTextNotice) {
       return { state: 'skipped', draft, reason: 'non_text_repeat' };
     }
+    const factQuestion = casual ? null : productFactQuestion(unanswered);
     context = await withinDeadline(buildReplyContext(conversation, history, inbound, settings, language, signal, {
-      skipLookups: Boolean(casual) || !unanswered.length, offerPending,
+      skipLookups: Boolean(casual) || !unanswered.length || Boolean(factQuestion), offerPending,
       previousProductSkus: matchingPrior?.productRefs.map(({ sku }) => sku),
     }), signal);
     draft.timings.contextMs = elapsed(started);
@@ -176,6 +178,19 @@ export async function generateDraft(
       draft.timings.nonTextNotice = 1;
       draft.parts = shapeReply(fallbacks[inbound.parts.some(({ type }) => type === 'image') ? 'image_only' : 'text_only'][language]);
       if (canEscalate && !offerPending) appendHandoffOffer(draft);
+      return { state: 'completed', draft };
+    }
+    const fact = factQuestion && await withinDeadline(replyWithProductFact({
+      question: factQuestion, context, signal, deadline: started + config.MODEL_TIMEOUT_MS, suggestDraft: mode === 'reply',
+      usage: { businessId: conversation.businessId, conversationId: conversation.id, turnId, featureId: 'F10', purpose: 'product_fact' },
+      noteUsage: (result) => { calls.push(result); modelMs.push(result.latencyMs); },
+    }), signal);
+    if (fact) {
+      rememberIntent(draft, { label: 'QUESTION', source: 'regex', confidence: 1 });
+      draft.parts = fact.parts;
+      draft.productRefs = fact.productRefs;
+      draft.evidenceIds = fact.evidenceIds;
+      if (fact.offerStaff && canEscalate && !offerPending) appendHandoffOffer(draft);
       return { state: 'completed', draft };
     }
     const draftContext = context;
