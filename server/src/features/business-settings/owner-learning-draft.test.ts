@@ -1,7 +1,8 @@
+/// <reference types="vite/client" />
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { prepareOwnerLearningDraft } from './owner-learning-draft';
-import type { OwnerLearningDraftInput, OwnerLearningDraftReceipt } from './owner-learning-draft';
+import type { OwnerLearningAnalysisInput, OwnerLearningDraftInput, OwnerLearningDraftReceipt } from './owner-learning-draft';
 import type { KnowledgeDraftInput, KnowledgeDraftResult } from '@nless/shared/features/knowledge/types';
 import { db } from '../../core';
 
@@ -29,14 +30,23 @@ const receipt: OwnerLearningDraftReceipt = {
   answer: 'รับได้วันศุกร์ โทร 081-234-5678 https://example.test/private-help',
 };
 const valid = {
-  action: 'draft',
+  action: 'knowledge_add',
   caseId: key.caseId,
-  targetId: canonical,
+  targetId: null,
   expectedVersion: key.expectedVersion,
   textTh: 'รับสินค้าได้วันศุกร์',
   textEn: 'Pickup is available on Friday.',
   reason: 'The owner confirmed the pickup day.',
 };
+
+const coreAnalysis = import.meta.glob<{
+  prepareShopCorrectionAnalysis(input: OwnerLearningAnalysisInput, settings: {
+    model: string; reasoningEffort: 'high'; serviceTier: 'ultrafast';
+  }): { request: unknown };
+  validateShopCorrectionResponse(request: unknown, model: string, response: unknown, scope: unknown): {
+    json?: { action: string }; reason?: string;
+  };
+}>('../../core/shop-correction-analysis.ts')['../../core/shop-correction-analysis.ts'];
 
 function ports() {
   const createDraft = vi.fn<(input: KnowledgeDraftInput) => Promise<KnowledgeDraftResult>>()
@@ -68,8 +78,11 @@ describe('owner-reviewed learning draft', () => {
     const request = deps.analyze.mock.calls[0][0];
     expect(request.signal).toBe(signal);
     expect(request.usage).toMatchObject({ featureId: 'F04', businessId: key.businessId, purpose: 'learning.owner-correction' });
-    expect(request.responseFormat).toMatchObject({ strict: true, schema: { type: 'object', additionalProperties: false } });
-    expect(JSON.parse(request.redactedInput)).toMatchObject({ caseId: key.caseId, targetId: canonical, expectedVersion: 2 });
+    expect(request.responseFormat).toMatchObject({ strict: true, schema: {
+      type: 'object', additionalProperties: false,
+      properties: { action: { enum: ['knowledge_add', 'no_change'] }, targetId: { type: 'null' } },
+    } });
+    expect(JSON.parse(request.redactedInput)).toMatchObject({ caseId: key.caseId, targetId: null, expectedVersion: 2 });
     for (const value of ['buyer@example.test', '081-234-5678', 'private-help', ownerId]) {
       expect(request.redactedInput.includes(value)).toBe(false);
     }
@@ -86,6 +99,34 @@ describe('owner-reviewed learning draft', () => {
     expect(write.title).not.toContain('buyer@example.test');
     const digest = createHash('sha256').update(JSON.stringify({ title: write.title, body: write.body })).digest('hex');
     expect(result).toMatchObject({ candidateDigest: digest });
+  });
+
+  // Runs on the integrated tree once the independently owned C1 analyzer is available.
+  it.skipIf(!coreAnalysis).each([
+    ['knowledge_add', 'draft', 1],
+    ['no_change', 'no_change', 0],
+    ['knowledge_revise', 'invalid_candidate', 0],
+    ['instruction_revise', 'invalid_candidate', 0],
+    ['instruction_replace', 'invalid_candidate', 0],
+  ])('passes a real C1-validated %s through the F04 draft worker', async (action, result, writes) => {
+    const { prepareShopCorrectionAnalysis, validateShopCorrectionResponse } = await coreAnalysis();
+    const deps = ports();
+    deps.readReceipt.mockResolvedValue({ ...receipt, language: 'en', question: 'When can buyers pick up orders?', answer: 'Friday.' });
+    deps.analyze.mockImplementation(async (input: OwnerLearningAnalysisInput) => {
+      const model = 'test-correction-model';
+      const { request } = prepareShopCorrectionAnalysis(input, { model, reasoningEffort: 'high', serviceTier: 'ultrafast' });
+      const output = action === 'no_change' ? { ...valid, action, textTh: null, textEn: null } : { ...valid, action };
+      const checked = validateShopCorrectionResponse(request, model, {
+        model, service_tier: 'ultrafast', status: 'completed', output_text: JSON.stringify(output),
+        output: [{ type: 'message', status: 'completed', content: [{ type: 'output_text' }] }],
+      }, JSON.parse(input.redactedInput));
+      expect(checked.json?.action).toBe(action);
+      return checked.json;
+    });
+    const expected = result === 'draft' ? { kind: 'draft' } : { kind: 'skipped', reason: result };
+    await expect(prepareOwnerLearningDraft(key, deps)).resolves.toMatchObject(expected);
+    expect(deps.createDraft).toHaveBeenCalledTimes(writes);
+    if (writes) expect(deps.createDraft.mock.calls[0][0].body).toBe('ไทย\n' + valid.textTh + '\n\nEnglish\n' + valid.textEn);
   });
 
   it.each([
@@ -138,6 +179,10 @@ describe('owner-reviewed learning draft', () => {
   it.each([
     [{ ...valid, action: 'no_change', textTh: null, textEn: null }, 'no_change'],
     [{ ...valid, action: 'no_change' }, 'invalid_candidate'],
+    [{ ...valid, action: 'draft' }, 'invalid_candidate'],
+    [{ ...valid, action: 'knowledge_revise' }, 'invalid_candidate'],
+    [{ ...valid, action: 'instruction_revise' }, 'invalid_candidate'],
+    [{ ...valid, action: 'instruction_replace' }, 'invalid_candidate'],
     [{ ...valid, activate: true }, 'invalid_candidate'],
     [{ ...valid, targetId: key.answerReceiptId }, 'invalid_candidate'],
     [{ ...valid, expectedVersion: 1 }, 'invalid_candidate'],

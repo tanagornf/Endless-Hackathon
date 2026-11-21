@@ -7,6 +7,8 @@ import { createKnowledgeDraft, getKnowledgeRevision } from '../knowledge/service
 
 const purpose = 'learning.owner-correction';
 const textLimit = 3000;
+// This flow creates a new FAQ draft and has no existing knowledge target to revise.
+const candidateActions = ['knowledge_add', 'no_change'] as const;
 const keySchema = z.object({
   businessId: z.uuid(),
   caseId: z.uuid(),
@@ -52,20 +54,20 @@ export type OwnerLearningDraftResult =
   | ({ kind: 'draft'; candidateDigest: string } & KnowledgeDraftResult);
 
 const candidateSchema = z.object({
-  action: z.enum(['draft', 'no_change']),
+  action: z.enum(candidateActions),
   caseId: z.uuid(),
-  targetId: z.string(),
+  targetId: z.null(),
   expectedVersion: z.int().min(1),
   textTh: z.string().trim().min(1).max(textLimit).nullable(),
   textEn: z.string().trim().min(1).max(textLimit).nullable(),
   reason: z.string().trim().min(1).max(500),
 }).strict();
 
-function responseFormat(key: OwnerLearningDraftInput, targetId: string): OwnerLearningAnalysisInput['responseFormat'] {
+function responseFormat(key: OwnerLearningDraftInput): OwnerLearningAnalysisInput['responseFormat'] {
   const properties = {
-    action: { type: 'string', enum: ['draft', 'no_change'] },
+    action: { type: 'string', enum: candidateActions },
     caseId: { type: 'string', enum: [key.caseId] },
-    targetId: { type: 'string', enum: [targetId] },
+    targetId: { type: 'null' },
     expectedVersion: { type: 'integer', enum: [key.expectedVersion] },
     textTh: { type: ['string', 'null'] },
     textEn: { type: ['string', 'null'] },
@@ -150,20 +152,20 @@ export async function prepareOwnerLearningDraft(
   const blocked = blockedReceipt(receipt, key.data);
   if (blocked) return skipped(blocked);
 
-  const targetId = 'ai-owner-review:' + businessId + ':' + caseId + ':' + actionStepId;
   const question = scrub(receipt.question, 1200);
   const ownerAnswer = scrub(receipt.answer, 2000);
   if (!question || !ownerAnswer) return skipped('no_change');
   signal?.throwIfAborted();
   const candidate = candidateSchema.safeParse(await ports.analyze({
     usage: { featureId: 'F04', businessId, purpose },
-    redactedInput: JSON.stringify({ caseId, targetId, expectedVersion, sourceLanguage: receipt.language, question, ownerAnswer }),
-    responseFormat: responseFormat(key.data, targetId),
+    redactedInput: JSON.stringify({ caseId, targetId: null, expectedVersion, sourceLanguage: receipt.language, question, ownerAnswer }),
+    responseFormat: responseFormat(key.data),
     signal,
   }));
   signal?.throwIfAborted();
-  if (!candidate.success || candidate.data.caseId !== caseId ||
-      candidate.data.targetId !== targetId || candidate.data.expectedVersion !== expectedVersion) return skipped('invalid_candidate');
+  if (!candidate.success || candidate.data.caseId !== caseId || candidate.data.expectedVersion !== expectedVersion) {
+    return skipped('invalid_candidate');
+  }
   const { action, textTh, textEn } = candidate.data;
   if (action === 'no_change') return skipped(textTh === null && textEn === null ? 'no_change' : 'invalid_candidate');
 
@@ -178,14 +180,15 @@ export async function prepareOwnerLearningDraft(
   if (current.answer !== receipt.answer || current.question !== receipt.question ||
       current.actorUserId !== receipt.actorUserId || current.language !== receipt.language) return skipped('stale_version');
 
+  const requestId = 'ai-owner-review:' + businessId + ':' + caseId + ':' + actionStepId;
   const draft: KnowledgeDraftInput = {
     businessId,
     actorUserId: current.actorUserId,
     kind: 'faq',
     title: scrub(current.question, 255),
     body: 'ไทย\n' + textTh + '\n\nEnglish\n' + textEn,
-    sourceRef: targetId + ':receipt:' + answerReceiptId,
-    clientRequestId: targetId,
+    sourceRef: requestId + ':receipt:' + answerReceiptId,
+    clientRequestId: requestId,
   };
   signal?.throwIfAborted();
   const item = await createDraft(draft);
