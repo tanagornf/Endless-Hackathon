@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F11 | team | A1 | DOING | R | A | F10 production reply and F09 production inbox | 635e83c3b7e625777a82e6771aeb4de8ea9be8b3 | Team suite 6/6, typecheck, path ownership, migration and TH/EN key parity | 2026-11-21 12:29 | Production deployment and smoke pending |
+| F11 | team | A1 | DOING | R | A | F10 receipt adoption, F31 adapter, production smoke | e74d1fc94b70c90137fb2e32264f5b6d861753c8 | Team suite 19/19, full typecheck and path ownership | 2026-11-21 13:53 | F10 restart-to-delivery integration and shared production gate pending |
 
 ## Slice 1
 
@@ -34,3 +34,7 @@ An identical retry returns the same receipt. A competing turn, manual staff clai
 The receipt also records when a staff notification is due. The F11 schedule retries interruptions using the same conversation/version key and retires a notification if the queue version changes before dispatch. The exact database lease timestamp fences preflight and completion. F11 rechecks the queue version after preparing recipient content and immediately before invoking F31. A later staff claim cannot recall an F31 call already in progress. Staff notification titles follow the shop language. The F31 adapter currently reports sandbox. Its production contract exposes an empty successful result for both deduplication and some persistence failures, so the adapter response alone cannot prove recipient delivery. Socket updates are best effort. The staff control reloads current state after a missed update.
 
 The feature migration applied on the A1 development and isolated A1 test databases. Local checks use synthetic data and the fake model. The production gate and the F10 restart-to-delivery verification are tracked separately.
+
+On 2026-11-21 at 13:53 Bangkok, implementation `e74d1fc94b70c90137fb2e32264f5b6d861753c8` passed all 19 F11 tests in 69.99 seconds on the exclusive A1 test database. The branch used the merged C1 audit dependency `fc36d5e71f3bccc2e68157b8de0a6a3a60729208`. Workspace typecheck, path ownership and diff checks passed. The suite covered precommit rollback after audit, recovery after a lost commit acknowledgement, competing turns, exact tenant and version checks, manual takeover, closure, handback/requeue and Thai/English notifications.
+
+Both notification races first failed against the original implementation. One paused shop settings lookup allowed a stale F31 call after takeover. An expired dispatcher could also complete a newer worker's claim. Both passed on the release implementation, including independent return modes for the two dispatchers.
