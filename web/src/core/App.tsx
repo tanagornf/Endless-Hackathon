@@ -1,11 +1,10 @@
-import { Alert, Box, LinearProgress, Switch, ThemeProvider } from '@mui/material';
+import { Alert, Box, LinearProgress, ThemeProvider } from '@mui/material';
 import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { PageRoute } from '@nless/shared/core/loader';
 import type { PermissionKey } from '@nless/shared/core/permissions';
-import { api } from './api';
 import { useFeatures } from './featureFlags';
 import { AppShell } from './layout/AppShell';
 import { PageHeader } from './layout/PageHeader';
@@ -15,7 +14,7 @@ import { useRealtimeConnection } from './realtime';
 import { featurePages, registryErrors } from './registry';
 import { useSession } from './session';
 import { useSlot } from './slots';
-import { DataTable, LanguageSwitch, useToast } from './ui';
+import { LanguageSwitch } from './ui';
 import { inboxTheme } from './theme';
 
 const routes = featurePages.flatMap((entry) => entry.routes.map((route) => ({ ...route, id: entry.featureId, Component: lazy(route.load) })));
@@ -51,23 +50,9 @@ function OAuthCallback() {
   const Component = lazy(entry.load);
   return <Component />;
 }
+const OpsPage = lazy(() => import('./ops/OpsPage'));
 function Ops() {
-  const { t } = useTranslation('common');
-  const toast = useToast();
-  const { flags } = useFeatures();
-  return <>
-    <PageHeader title={t('pages.jobs')} />
-    <DataTable rows={flags?.items ?? []} loading={!flags} rowKey={(item) => item.featureId} columns={[
-      { key: 'featureId', header: t('pages.features') },
-      { key: 'slug', header: 'ID' },
-      { key: 'visible', header: t('actions.open'), render: (item) => <Switch
-        defaultChecked={!item.hidden} aria-label={item.featureId} onChange={(event) => {
-          const target = event.target;
-          const hidden = !target.checked;
-          void api.put('/ops/features/' + item.featureId, { hidden }).catch((error) => { target.checked = hidden; toast.error(error); });
-        }} /> },
-    ]} />
-  </>;
+  return useSession().user?.isPlatformAdmin ? <OpsPage /> : <NotFound />;
 }
 function Home() {
   const { search } = useLocation();
@@ -87,7 +72,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<SessionHome><Home /></SessionHome>} />
         <Route path="/account" element={<SessionHome><Account /></SessionHome>} />
-        <Route path="/ops" element={<SessionHome><Guard auth="platform_admin"><Ops /></Guard></SessionHome>} />
+        <Route path="/ops" element={<SessionHome><Ops /></SessionHome>} />
         <Route path="/oauth/callback" element={<SessionHome><OAuthCallback /></SessionHome>} />
         <Route path="/no-business" element={<SessionHome><MessagePage label="pages.noBusiness" /></SessionHome>} />
         <Route path="/forbidden" element={<SessionHome><MessagePage label="pages.forbidden" /></SessionHome>} />

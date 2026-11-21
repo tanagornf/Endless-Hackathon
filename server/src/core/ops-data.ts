@@ -37,7 +37,9 @@ export async function resolveOpsDelivery(id: string, body: z.output<typeof Resol
       SELECT ${deliveryColumns},m.delivery_mode AS mode FROM messages m WHERE m.id=$1 AND m.direction='outbound' FOR UPDATE`, [id]);
     if (!current) throw new AppError('NOT_FOUND', 'Outbound message not found');
     if (current.deliveryState !== 'unknown') throw opsPolicy('not_unknown');
-    if (current.channel === 'line' && body.resolution === 'resend') throw opsPolicy('line_resend_unavailable');
+    if (body.resolution === 'resend' && current.channel !== 'web') {
+      throw opsPolicy(current.channel === 'line' ? 'line_resend_unavailable' : 'channel_deferred');
+    }
     const { businessId, conversationId } = current;
     let queued: { id: string; type: string; business_id: string } | null = null;
     if (body.resolution === 'resend') {
