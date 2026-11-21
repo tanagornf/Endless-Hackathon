@@ -117,9 +117,14 @@ function Workbench({ showFixture }: { showFixture: boolean }) {
         {search.error && <Alert severity="error">{t('search.error')}</Alert>}
       </Stack>
       {(result || search.running) && <Stack spacing={2} sx={{ mt: 2 }}>
-        {result && <Typography color="text.secondary">{t('search.applied', {
-          strategy: t('strategy.' + result.strategy), elapsed: result.timings.totalMs,
-        })}</Typography>}
+        {result && <Stack spacing={0.5}>
+          <Typography color="text.secondary">{t('search.applied', {
+            strategy: t('strategy.' + result.strategy), elapsed: result.timings.totalMs,
+          })}</Typography>
+          <Typography variant="caption" color="text.secondary">{t('search.timing', {
+            embed: result.timings.embedMs, sql: result.timings.sqlMs,
+          })}{result.cacheHit && ' · ' + t('search.cached')}</Typography>
+        </Stack>}
         <DataTable rows={(result?.hits ?? []).map((hit, index) => ({ ...hit, rank: index + 1 }))}
           rowKey={(hit) => hit.knowledgeItemId} loading={search.running} empty={<EmptyState title={t('search.empty')} />}
           columns={[
