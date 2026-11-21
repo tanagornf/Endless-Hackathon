@@ -4,5 +4,19 @@
   },
   "page": {
     "title": "Identity and sessions"
+  },
+  "login": {
+    "title": "Sign in",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "toggle": "Show or hide characters",
+    "error": {
+      "invalid": "Wrong email or password",
+      "locked": "Too many attempts. Try again in {{minutes}} minutes",
+      "disabled": "This account is disabled",
+      "csrf": "The request failed validation. Reload the page",
+      "unavailable": "Sign-in is unavailable. Try again."
+    }
   }
 }
