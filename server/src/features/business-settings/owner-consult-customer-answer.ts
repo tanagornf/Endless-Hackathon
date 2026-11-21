@@ -10,7 +10,11 @@ interface CustomerAnswerInput {
 
 export function ownerAnswerPrompts(question: string, explicit: readonly string[] = []): string[] {
   if (explicit.length) return [...explicit];
-  const questions = (question.match(/[^?？]+[?？]/gu) ?? []).map((part) => part.trim());
+  const englishClause = /(?:\s*[,;]\s*|\s+(?:and|also|or)\s+)(?=(?:who|what|where|when|why|which|how)\b|(?:can|could|do|does|did|is|are|will|would|should)\s+(?:i|you|we|it|they|the|my|this|there)\b)/iu;
+  const thaiClause = /(?:\s*(?:แล้ว|และ|อีกอย่าง)\s*|\s+)(?=ใคร|เท่าไหร่|เท่าไร|ที่ไหน|เมื่อไหร่|เมื่อไร|อย่างไร|ยังไง|ต้อง(?:จ่าย|เสีย|ส่ง)|ค่าส่ง(?:ใคร|เท่าไหร่|จ่าย|คิด))/u;
+  const questions = question.split(/(?<=[?？])\s*(?=[^?？\s])/u)
+    .flatMap((part) => part.split(englishClause).flatMap((clause) => clause.split(thaiClause)))
+    .map((part) => part.trim()).filter(Boolean);
   return questions.length > 1 ? questions : [question];
 }
 
@@ -24,7 +28,8 @@ export function prepareCustomerAnswer(input: CustomerAnswerInput, count: number,
   const answer = input.answer.trim();
   const parts = (input.answerParts ?? [answer]).map((text) => text.trim());
   if (!input.customerReady || parts.length !== count || answer !== parts.join('\n\n') ||
-      parts.some((part) => !part || isPlaceholder(part))) {
+      parts.some((part) => !part || isPlaceholder(part)) ||
+      new Set(parts.map((part) => part.toLowerCase().replace(/\s+/gu, ' '))).size !== parts.length) {
     throw new AppError('VALIDATION_ERROR', 'A complete customer-facing reply is required', {
       details: { reason: 'incomplete_owner_answer' },
     });
