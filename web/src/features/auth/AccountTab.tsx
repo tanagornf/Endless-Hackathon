@@ -37,6 +37,7 @@ function ProfileCard({ data }: { data: AuthStatus }) {
     <Stack component="form" spacing={2} noValidate onSubmit={(event) => void submit(event)}>
       {patch.error && <Alert severity="error">{t('account.error.profile')}</Alert>}
       {saved && !patch.error && <Alert severity="success" role="status">{t('account.saved')}</Alert>}
+      <Typography data-user-content color="text.secondary">{data.email}</Typography>
       <TextField name="displayName" label={t('account.displayName')} defaultValue={data.displayName} required
         autoComplete="name" slotProps={{ htmlInput: { maxLength: 80 } }} />
       <TextField select name="locale" label={t('account.locale')} defaultValue={data.locale}>
@@ -106,22 +107,9 @@ export default function AccountTab() {
   const status = useApiQuery<AuthStatus>('/auth/status', { businessScoped: false });
   const [all, setAll] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [queued, setQueued] = useState(false);
   const admin = Boolean(status.data?.isPlatformAdmin);
   const mailbox = useApiQuery<MailboxResult>(status.data ? '/auth/mailbox?scope=' + (admin && all ? 'all' : 'mine') : null, { businessScoped: false });
-  const resend = useApiMutation<undefined, { ok: true }>('POST', '/auth/email/resend', globalMutation);
   const logoutAll = useApiMutation<undefined, { ok: true; revoked: number }>('POST', '/auth/logout-all', globalMutation);
-
-  async function sendVerification() {
-    setQueued(false);
-    try {
-      await resend.run(undefined);
-      setQueued(true);
-      mailbox.reload();
-    } catch (cause) {
-      if ((cause as WebApiError | undefined)?.details?.reason === 'already_verified') status.reload();
-    }
-  }
 
   async function signOut() {
     await logoutAll.run(undefined);
@@ -137,18 +125,6 @@ export default function AccountTab() {
 
   return <Stack spacing={2.5} aria-label={t('account.tab')}>
     <ProfileCard data={data} />
-    <SectionCard title={t('account.emailStatus')}>
-      <Stack spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-        <Typography data-user-content>{data.email}</Typography>
-        <StatusChip status={data.emailVerified ? 'active' : 'pending'}
-          label={t(data.emailVerified ? 'account.verified' : 'account.unverified')} />
-        {resend.error && <Alert severity="error">{t(resend.error.error.code === 'RATE_LIMITED' ? 'recovery.limited' : 'recovery.unavailable')}</Alert>}
-        {queued && !resend.error && <Alert severity="success" role="status">{t('account.verificationQueued')}</Alert>}
-        {!data.emailVerified && <Button variant="outlined" loading={resend.running} onClick={() => void sendVerification()} sx={{ minHeight: 44 }}>
-          {t('account.resend')}
-        </Button>}
-      </Stack>
-    </SectionCard>
     <PasswordCard />
     <SectionCard title={t('account.logoutAll')}>
       {logoutAll.error && <Alert severity="error" sx={{ mb: 2 }}>{t('recovery.unavailable')}</Alert>}

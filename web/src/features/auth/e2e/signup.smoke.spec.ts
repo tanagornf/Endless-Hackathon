@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 
 test.use({ trace: 'off', screenshot: 'off' });
@@ -11,6 +11,7 @@ test('signup has Thai and English labels and requires a stored link for invited 
   await page.getByTestId('lang-switch').getByRole('button', { name: 'EN' }).click();
   await expect(page.getByLabel('Business name')).toBeVisible();
   await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Password (at least 8 characters)')).toHaveAttribute('minlength', '8');
 
   await page.goto('/signup?invite=1');
   await expect(page.getByRole('alert')).toBeVisible();
@@ -22,13 +23,6 @@ test('signup has Thai and English labels and requires a stored link for invited 
   await expect(page.getByLabel(/ชื่อร้าน|Business name/i)).toHaveCount(0);
 });
 
-test('verification removes the token from the browser URL and explains an invalid link', async ({ page }) => {
-  const documentResponse = await page.goto('/verify-email?token=' + randomBytes(32).toString('base64url'));
-  expect(await documentResponse?.headerValue('referrer-policy')).toBe('no-referrer');
-  await expect(page).toHaveURL(/\/verify-email$/);
-  await expect(page.getByRole('alert')).toContainText(/ลิงก์นี้ใช้ไม่ได้|This link cannot be used/);
-});
-
 test('a new owner can sign up and enter the app', async ({ page }) => {
   test.skip(process.env.E2E_ALLOW_SIGNUP !== '1', 'E2E_ALLOW_SIGNUP enables creation of a synthetic account');
   const id = randomUUID();
@@ -37,7 +31,7 @@ test('a new owner can sign up and enter the app', async ({ page }) => {
   await page.getByLabel('Your name').fill('E2E Auth Owner');
   await page.getByLabel('Business name').fill('E2E ' + id);
   await page.getByLabel('Email', { exact: true }).fill('e2e-' + id + '@example.test');
-  await page.getByLabel(/Password/).fill(randomBytes(18).toString('base64url'));
+  await page.getByLabel(/Password/).fill('12345678');
   await page.getByRole('button', { name: 'Sign up and start' }).click();
   await expect(page.getByRole('navigation')).toBeVisible();
   const result = await page.request.get('/api/v1/auth/status');

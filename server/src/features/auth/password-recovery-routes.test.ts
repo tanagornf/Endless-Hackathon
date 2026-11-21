@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { db, decryptSecret, log, revokeUserSessionsInTransaction } from '../../core';
+import { config, db, decryptSecret, log, revokeUserSessionsInTransaction } from '../../core';
 import { createApp } from '../../core/app';
 import { insertSandboxMail } from './mail';
 import { changePassword, resetPassword } from './password-recovery';
@@ -133,7 +133,7 @@ describe('auth S3 recovery and mailbox routes', () => {
     expect((await request(app).post('/api/v1/auth/password/reset').send({ token: 'x'.repeat(43), newPassword: password() })).status).toBe(403);
   }, 30000);
 
-  it('replaces old links, preserves a valid token after weak input and revokes previous sessions on reset', async () => {
+  it('preserves the token after short input and revokes previous sessions after an eight-character reset', async () => {
     const user = await createAccount();
     const anotherCookie = sessionCookie(await login(user.email, user.secret));
     expect((await forgot(user.email)).status).toBe(200);
@@ -142,9 +142,9 @@ describe('auth S3 recovery and mailbox routes', () => {
     const links = await resetLinks(user.email);
     expect(links).toHaveLength(2);
     const latest = links.find(({ token }) => token !== first.token)!;
-    const replacement = password();
+    const replacement = '12345678';
     expect((await reset(first.token, replacement)).body.error.details.reason).toBe('used');
-    expect((await reset(latest.token, 'password123')).status).toBe(400);
+    expect((await reset(latest.token, '1234567')).status).toBe(400);
 
     const responses = await Promise.all([reset(latest.token, replacement), reset(latest.token, replacement)]);
     expect(responses.map(({ status }) => status).sort()).toEqual([200, 422]);
@@ -154,7 +154,7 @@ describe('auth S3 recovery and mailbox routes', () => {
     const loggedIn = await login(user.email, replacement);
     expect(loggedIn.status).toBe(200);
     const status = await request(app).get('/api/v1/auth/status').set('Cookie', sessionCookie(loggedIn));
-    expect(status.body.data.emailVerified).toBe(true);
+    expect(status.body.data.emailVerified).toBe(false);
   }, 35000);
 
   it('rolls back the reset token, credential and sessions when revocation fails', async () => {
@@ -213,12 +213,15 @@ describe('auth S3 recovery and mailbox routes', () => {
   it('changes passwords only with the current password and rotates both existing sessions', async () => {
     const user = await createAccount();
     const anotherCookie = sessionCookie(await login(user.email, user.secret));
-    const replacement = password();
+    const replacement = 'password';
     const failed = await post('/password/change').set('Cookie', user.cookie)
       .send({ currentPassword: password(), newPassword: replacement });
     expect(failed.status).toBe(401);
     expect(failed.body.error.details.reason).toBe('wrong_current_password');
     expect((await me(user.cookie)).status).toBe(200);
+    const tooShort = await post('/password/change').set('Cookie', user.cookie)
+      .send({ currentPassword: user.secret, newPassword: '1234567' });
+    expect(tooShort.status).toBe(400);
 
     const changed = await post('/password/change').set('Cookie', user.cookie)
       .send({ currentPassword: user.secret, newPassword: replacement });
@@ -229,19 +232,24 @@ describe('auth S3 recovery and mailbox routes', () => {
     expect((await login(user.email, replacement)).status).toBe(200);
   }, 35000);
 
-  it('scopes and expires mailbox messages, prevents caching, and protects admin scope', async () => {
+  it('scopes and expires mailbox messages, hides legacy verification links, and protects admin scope', async () => {
     const reader = await createAccount();
     const other = await createAccount();
     const admin = await createAccount();
     await db.query('UPDATE users SET is_platform_admin = true WHERE id = $1', [admin.userId]);
     await forgot(reader.email);
     await forgot(other.email);
+    await insertSandboxMail({
+      to: reader.email, userId: reader.userId, locale: 'en', template: 'verify_email',
+      vars: { name: 'Recovery Fixture', minutes: '30' },
+      actionUrl: new URL('/verify-email?token=synthetic-legacy-link', config.APP_BASE_URL).href,
+    }, db);
 
     const mine = await request(app).get('/api/v1/auth/mailbox').set('Cookie', reader.cookie);
     expect(mine.status).toBe(200);
     expect(mine.headers['cache-control']).toContain('no-store');
     expect(mine.body.data.scope).toBe('mine');
-    expect(mine.body.data.items).toHaveLength(2);
+    expect(mine.body.data.items).toHaveLength(1);
     expect(mine.body.data.items.every(({ to }: { to: string }) => to === reader.email)).toBe(true);
     const [link] = await resetLinks(reader.email);
     const mail = mine.body.data.items.find(({ template }: { template: string }) => template === 'reset_password');
@@ -255,6 +263,7 @@ describe('auth S3 recovery and mailbox routes', () => {
     const recipients = all.body.data.items.map(({ to }: { to: string }) => to);
     expect(recipients).toContain(reader.email);
     expect(recipients).not.toContain(other.email);
+    expect(all.body.data.items.some(({ template }: { template: string }) => template === 'verify_email')).toBe(false);
   }, 35000);
 
   it('updates only the signed-in profile through CSRF-protected routes', async () => {

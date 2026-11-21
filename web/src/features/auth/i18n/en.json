@@ -26,7 +26,7 @@
     "name": "Your name",
     "business": "Business name",
     "email": "Email",
-    "password": "Password (at least 10 characters)",
+    "password": "Password (at least 8 characters)",
     "submit": "Sign up and start",
     "haveAccount": "Already have an account? Sign in",
     "invite": "You are signing up to accept an invitation. Use the invited email.",
@@ -42,18 +42,9 @@
   },
   "password": {
     "error": {
-      "too_short": "Password must be at least 10 characters.",
-      "too_long": "Password is longer than 128 characters.",
-      "common": "This password is too easy to guess.",
-      "same_as_email": "The password must not match your email."
+      "too_short": "Password must be at least 8 characters.",
+      "too_long": "Password is longer than 128 characters."
     }
-  },
-  "verify": {
-    "title": "Confirm email",
-    "working": "Confirming…",
-    "done": "Email confirmed.",
-    "error": "This link cannot be used. It may be expired or already used.",
-    "continue": "Continue to Endless"
   },
   "recovery": {
     "limited": "Too many attempts. Try again later.",
@@ -94,11 +85,6 @@
     },
     "save": "Save profile",
     "saved": "Profile saved.",
-    "emailStatus": "Email status",
-    "verified": "Verified",
-    "unverified": "Unverified",
-    "resend": "Queue another confirmation link",
-    "verificationQueued": "The confirmation link is available in the sandbox mailbox.",
     "changePassword": "Change password",
     "currentPassword": "Current password",
     "newPassword": "New password",
@@ -123,9 +109,6 @@
     "subject": "Message",
     "created": "Created",
     "action": "Action"
-  },
-  "chip": {
-    "unverified": "Email not confirmed"
   },
   "common": {
     "retry": "Retry"
