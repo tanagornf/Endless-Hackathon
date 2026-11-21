@@ -44,3 +44,9 @@ The first hosted full suite passed all 494 collected cases and caught an F04 bus
 ## F31 notification integration
 
 C3 candidate `cae732d1078a8ef749de881eb871da8ea30853bc` revealed that F11 counted every realtime event. A single successful handoff correctly published one conversation update and two private notification events. With the A1 test patch `4c1a638177bab64350c893d218ab438852064e31`, all 19 F11 cases passed against that real F31 candidate on the isolated A1 test database in 87.23 seconds. Full typecheck passed on the same pairing. The tests require the exact committed conversation/version, one private event for each eligible seeded recipient and no additional row or event after replaying the canonical dedup key.
+
+## Confirmed customer request eligibility
+
+F10 may supply one of two typed origins after affirmative confirmation of a customer's scoped pending request or current staff offer. F11 commits that origin with the existing handoff receipt and rejects attempts to upgrade or change it on replay. Existing receipts have no evidence and keep their original response shape. The read-only `getExplicitStaffRequestForNotification(businessId, dedupKey)` requires a canonical F11 key, a stored confirmed origin, matching shop and exact current open, human and unassigned version. A later staff claim, close, handback or requeue invalidates old eligibility.
+
+At `b8194d1c8116999172942e5724a2c945530479a1`, the A1 suite passed 22/22 in 81.35 seconds with the fake model. Full typecheck, path ownership and diff checks passed. Migration 003 applied to both A1 development and isolated test databases. B2 owns the bilingual pending confirmation and supplying validated proof. C3 owns recipient, permission and opt-in policy and any end-device delivery.
