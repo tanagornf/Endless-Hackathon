@@ -8,6 +8,7 @@
 
 ## Log
 
+- Draft PR #123 combines the owner consult, exact-candidate instruction replay and review, and the two factual-reuse files from #119 at e61f8472f7a34daf24c212971d85b7b70cc78a8b. The internal factual-draft service rejects case-only and invalid shop or receipt scope before analysis, rechecks consent before the F05 draft write, and returns a digest of the saved revision. Factual learning, trusted instruction replay, and F10 resume still require runtime callers. Draft preparation leaves publication subject to separate owner approval.
 - S1 adds settings, profile and closure tables, seeds both synthetic settings records, and reads effective AI state from the business and account rows.
 - Owners can toggle AI on /bot-settings in Thai and English. The server versions and audits changes and publishes a settings event. Repeating the same value does not create a second change or audit.
 - The C3 integration suite covers the exact contract, defaults, required permissions, cross-tenant 404s, a malformed request, account and business suspension, and persistence of a toggle. The pre-implementation run had five expected failures. All eight passed after implementation.

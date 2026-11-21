@@ -1,3 +1,6 @@
+import { withOwnerConsultDraftConsent } from './owner-consult-answer';
+import { stageShopInstructionCandidate as persistShopInstructionCandidate } from './shop-instructions-staging';
+
 import type { WeeklyHours } from '@nless/shared/core/types';
 import type {
   AnswerPolicy, AnswerPolicyPatch, BusinessClosure, BusinessOpenState, BusinessProfile, BusinessSettings, EffectiveAnswerRules,
@@ -254,4 +257,18 @@ export function updateLocale(
       [businessId, timezone, language]);
     return { timezone: { from: before.timezone, to: timezone }, language: { from: before.language, to: language } };
   });
+}
+export { answerOwnerConsult, isOwnerConsultActionPending, openOwnerConsult } from './owner-consult';
+export { readOwnerConsultAnswer, withOwnerConsultDraftConsent } from './owner-consult-answer';
+export { registerOwnerConsultAnswerConsumer } from './owner-consult-answer-outbox';
+export { prepareOwnerLearningDraft } from './owner-learning-draft';
+
+export { getShopInstructionReplayTarget, readActiveShopInstruction, recordInstructionReplay } from './shop-instructions-repo';
+export { readShopInstructionAnalysisTarget } from './shop-instructions-staging';
+
+export function stageShopInstructionCandidate(
+  key: Parameters<typeof persistShopInstructionCandidate>[0],
+  result: Parameters<typeof persistShopInstructionCandidate>[1],
+): ReturnType<typeof persistShopInstructionCandidate> {
+  return withOwnerConsultDraftConsent(key, () => persistShopInstructionCandidate(key, result));
 }
