@@ -101,10 +101,13 @@ export function inspectReply(draft: string, context: ReplyContext): { text: stri
     const names = context.prices.flatMap(({ names }) => names).sort((left, right) => right.length - left.length);
     const clean = names.reduce((line, name) => line.replaceAll(name.toLocaleLowerCase(), ''), text.toLocaleLowerCase())
       .replace(skuPattern, '').replace(urlPattern, '');
-    const thai = clean.match(/\p{Script=Thai}/gu)?.length ?? 0;
-    const latin = clean.match(/[a-z]/g)?.length ?? 0;
+    const prose = amounts.length ? clean.replace(/\bbaht\b|บาท/gu, '') : clean;
+    const thai = prose.match(/\p{Script=Thai}/gu)?.length ?? 0;
+    const latin = prose.match(/[a-z]/g)?.length ?? 0;
     const wrongCurrencyLanguage = amounts.length > 0 && (context.language === 'en' ? /บาท/u.test(clean) : /\bbaht\b/u.test(clean));
-    if (wrongCurrencyLanguage || (context.language === 'th' && thai === 0 && latin > 0) || (context.language === 'en' && thai > latin)) {
+    const mixedEnglishQuote = amounts.length > 0 && context.language === 'en' && thai > 0;
+    if (wrongCurrencyLanguage || mixedEnglishQuote || (context.language === 'th' && thai === 0 && latin > 0) ||
+        (context.language === 'en' && thai > latin)) {
       violations.push({ guard: 'language', detail: context.language === 'th' ? 'The reply must be in Thai.' : 'The reply must be in English.' });
     }
   }

@@ -1030,6 +1030,48 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
   });
 });
 
+describe('F10 current reply language', { timeout: 20_000 }, () => {
+  it('answers the first English SKU after a Thai AI-off inbound and switches back to Thai', async () => {
+    let aiEnabled = true;
+    vi.spyOn(settings, 'getBusinessSettings').mockImplementation(async (id) => ({ ...(await originalSettings(id)), aiEnabled }));
+    const chat = await incoming('ขอราคาสินค้ารหัส A-CARD-01 ค่ะ');
+    await execute(chat);
+    aiEnabled = false;
+    const ignored = await incoming('ร้านเปิดกี่โมงและปิดกี่โมงคะ รบกวนแจ้งเวลาเปิดปิดร้านทั้งหมดด้วยนะคะ', chat);
+    await execute(ignored);
+    aiEnabled = true;
+    const english = await incoming('How much is A-GAME-01?', chat);
+    await execute(english);
+    const thai = await incoming('ขอราคาสินค้ารหัส A-CARD-01 ค่ะ', chat);
+    await execute(thai);
+
+    const stored = await replies(chat.conversation.id);
+    expect(stored[1].text).toContain('1,490 baht');
+    expect(stored[1].text).not.toMatch(/\p{Script=Thai}/u);
+    expect(stored[2].text).toContain('99 บาท');
+    expect(await trace(ignored.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'ai_off' });
+    expect(await trace(english.message.id)).toMatchObject({
+      reply_language: 'en', product_refs: [expect.objectContaining({ sku: 'A-GAME-01' })],
+    });
+    expect(await trace(thai.message.id)).toMatchObject({
+      reply_language: 'th', product_refs: [expect.objectContaining({ sku: 'A-CARD-01' })],
+    });
+  });
+
+  it('uses the localized catalog fallback when both reply and repair mix Thai into an English quote', async () => {
+    const mixed = 'Demo Quest board game costs 1,490 baht. ร้านยังมีของตอนนี้ค่ะ. Available in inventory and ready to order from our shop.';
+    const spy = scriptedModel({ text: mixed }, { text: mixed });
+    const input = await incoming('How much is A-GAME-01?');
+    await execute(input);
+    expect((await replies(input.conversation.id))[0].text).toBe('Demo Quest board game costs 1,490 baht.');
+    expect(replyCalls(spy).map(({ usage }) => usage.purpose)).toEqual(['reply', 'repair']);
+    expect(await trace(input.message.id)).toMatchObject({
+      reply_language: 'en', product_refs: [expect.objectContaining({ sku: 'A-GAME-01' })],
+      guard_actions: expect.arrayContaining([expect.objectContaining({ guard: 'language', action: 'repair' })]),
+    });
+  });
+});
+
 describe('F10 catalog reference scope', { timeout: 20_000 }, () => {
   it('rejects an obsolete SKU price after an intervening Thai hours question and an explicit unknown multi-hyphen SKU', async () => {
     scriptedModel(
