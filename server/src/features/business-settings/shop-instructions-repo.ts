@@ -9,8 +9,10 @@ const versionFields = `id,instruction,parent_version_id AS "parentVersionId",can
   to_jsonb(created_at)#>>'{}' AS "createdAt"`;
 const candidateFields = `id,base_version_id AS "baseVersionId",instruction,reason,to_jsonb(created_at)#>>'{}' AS "createdAt"`;
 
-export function requireShopInstructionOwner(scope: AuthScope): void {
-  if (scope.role !== 'owner') throw new AppError('PERMISSION_DENIED', 'An active shop owner is required');
+function requireShopInstructionOwner(scope: AuthScope): asserts scope is AuthScope & { businessId: string; accountId: string } {
+  if (scope.role !== 'owner' || !scope.businessId || !scope.accountId) {
+    throw new AppError('PERMISSION_DENIED', 'An active shop owner is required');
+  }
 }
 
 export async function lockShopInstructionRevisions(tx: DbExecutor, businessId: string): Promise<void> {
@@ -24,7 +26,9 @@ export function readLatestShopInstruction(tx: DbExecutor, businessId: string) {
 
 export function readActiveShopInstruction(businessId: string): Promise<ActiveShopInstruction | null> {
   return db.maybeOne<ActiveShopInstruction>(`
-    SELECT id,instruction FROM shop_instruction_versions WHERE business_id=$1 ORDER BY revision DESC LIMIT 1`, [businessId]);
+    SELECT id,instruction
+    FROM (SELECT id,instruction FROM shop_instruction_versions WHERE business_id=$1 ORDER BY revision DESC LIMIT 1) active
+    WHERE instruction IS NOT NULL`, [businessId]);
 }
 
 export async function listShopInstructions(scope: AuthScope): Promise<ShopInstructionReview> {
@@ -54,7 +58,10 @@ export async function getShopInstructionCandidate(scope: AuthScope, id: string):
   return findCandidate(db, scope.businessId, id);
 }
 
-type Activation = { kind: 'publish' | 'rollback'; targetId: string; expectedActiveVersionId: string | null };
+type Activation = { expectedActiveVersionId: string | null } & (
+  | { kind: 'publish'; targetId: string }
+  | { kind: 'rollback'; targetId: string | null }
+);
 
 async function activate(scope: AuthScope, { kind, targetId, expectedActiveVersionId }: Activation): Promise<ShopInstructionVersion> {
   requireShopInstructionOwner(scope);
@@ -71,12 +78,13 @@ async function activate(scope: AuthScope, { kind, targetId, expectedActiveVersio
 
     const active = await readLatestShopInstruction(tx, businessId);
     const candidate = kind === 'publish' ? await findCandidate(tx, businessId, targetId) : null;
-    const previous = kind === 'rollback'
-      ? await tx.maybeOne<ActiveShopInstruction>(`
+    const restoringBaseline = kind === 'rollback' && targetId === null;
+    const previous = kind === 'rollback' && targetId !== null
+      ? await tx.maybeOne<Pick<ShopInstructionVersion, 'id' | 'instruction'>>(`
           SELECT id,instruction FROM shop_instruction_versions WHERE business_id=$1 AND id=$2`, [businessId, targetId])
       : null;
     const target = candidate ?? previous;
-    if (!target) throw new AppError('NOT_FOUND', 'Shop instruction version not found');
+    if (!target && !restoringBaseline) throw new AppError('NOT_FOUND', 'Shop instruction version not found');
 
     const candidateId = candidate?.id ?? null;
     const restoredFrom = previous?.id ?? null;
@@ -86,6 +94,7 @@ async function activate(scope: AuthScope, { kind, targetId, expectedActiveVersio
       return version;
     }
     if ((active?.id ?? null) !== expectedActiveVersionId || targetId === active?.id
+      || (restoringBaseline && (!active || active.instruction === null))
       || (candidate && candidate.baseVersionId !== expectedActiveVersionId)) {
       throw new AppError('VERSION_CONFLICT', 'The active shop instruction changed');
     }
@@ -94,7 +103,7 @@ async function activate(scope: AuthScope, { kind, targetId, expectedActiveVersio
       INSERT INTO shop_instruction_versions
         (business_id,revision,parent_version_id,candidate_id,restored_from_version_id,instruction,actor_user_id)
       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING ${versionFields}`,
-    [businessId, (active?.revision ?? 0) + 1, expectedActiveVersionId, candidateId, restoredFrom, target.instruction, userId]);
+    [businessId, (active?.revision ?? 0) + 1, expectedActiveVersionId, candidateId, restoredFrom, target?.instruction ?? null, userId]);
     await auditInTransaction(tx, [{
       action: 'business_settings.shop_instruction.' + kind,
       actorUserId: userId,
@@ -102,7 +111,7 @@ async function activate(scope: AuthScope, { kind, targetId, expectedActiveVersio
       accountId,
       targetType: 'shop_instruction_version',
       targetId: version.id,
-      details: { parentVersionId: expectedActiveVersionId, candidateId, restoredFromVersionId: restoredFrom },
+      details: { parentVersionId: expectedActiveVersionId, candidateId, restoredFromVersionId: restoredFrom, restoringBaseline },
     }]);
     return version;
   });
@@ -111,5 +120,5 @@ async function activate(scope: AuthScope, { kind, targetId, expectedActiveVersio
 export const publishShopInstruction = (scope: AuthScope, targetId: string, expectedActiveVersionId: string | null) =>
   activate(scope, { kind: 'publish', targetId, expectedActiveVersionId });
 
-export const rollbackShopInstruction = (scope: AuthScope, targetId: string, expectedActiveVersionId: string | null) =>
+export const rollbackShopInstruction = (scope: AuthScope, targetId: string | null, expectedActiveVersionId: string | null) =>
   activate(scope, { kind: 'rollback', targetId, expectedActiveVersionId });

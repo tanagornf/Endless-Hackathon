@@ -138,7 +138,16 @@ describe('F04 shop instruction revisions', () => {
       .expect('Cache-Control', 'no-store');
     await send({ expectedActiveVersionId: null, instruction: 'A different draft' }).expect(400);
     expect(await readActiveShopInstruction(owner.businessId)).toBeNull();
-    await send({ expectedActiveVersionId: null }).expect(200);
+    const { body: published } = await send({ expectedActiveVersionId: null }).expect(200);
+    const restoreBaseline = () => agent.post(path + '/versions/baseline/rollback').set('X-Requested-With', 'nless');
+    await restoreBaseline().send({ expectedActiveVersionId: null }).expect(409);
+    const { body: baseline } = await restoreBaseline().send({ expectedActiveVersionId: published.data.id }).expect(200);
+    expect(baseline.data).toMatchObject({
+      parentVersionId: published.data.id, restoredFromVersionId: null, candidateId: null, instruction: null,
+    });
+    expect(await readActiveShopInstruction(owner.businessId)).toBeNull();
+    expect(await readActiveShopInstruction(staff.businessId)).toBeNull();
+    expect((await listShopInstructions(owner)).activeVersionId).toBe(baseline.data.id);
     const otherShop = path.replace(owner.businessId, staff.businessId);
     await agent.get(otherShop).expect(404);
   });
