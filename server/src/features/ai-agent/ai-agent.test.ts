@@ -647,19 +647,28 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     expect(channels.sendToCustomer).not.toHaveBeenCalled();
   });
 
-  it('sends the queued acknowledgement at its F11 version and suppresses it after a staff claim', async () => {
+  it('sends the queued acknowledgement only at its original F11 assignment version', async () => {
     vi.spyOn(channels, 'sendToCustomer').mockImplementation(originalSend);
     const current = await incoming('Can I talk to a real person please?');
     const claimed = await incoming('Can I speak to a human?');
+    const returned = await incoming('Can I speak to a real person?');
     await execute(current);
     await execute(claimed);
+    await execute(returned);
     expect((await replies(current.conversation.id))[0].delivery.state).toBe('pending');
     expect((await replies(claimed.conversation.id))[0].delivery.state).toBe('pending');
+    const [queued] = await replies(returned.conversation.id);
+    expect(queued.delivery.state).toBe('pending');
 
     await assignConversation(claimed.conversation.id, seedId('staff_a'), { businessId });
+    await assignConversation(returned.conversation.id, null, { businessId });
+    expect(await inbox.getConversation(returned.conversation.id, { businessId })).toMatchObject({ handler: 'ai' });
     await drainJobs({ type: 'core.deliver' });
     expect((await replies(current.conversation.id))[0].delivery.state).toBe('sent');
     expect((await replies(claimed.conversation.id))[0].delivery).toMatchObject({ state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' });
+    expect(await replies(returned.conversation.id)).toEqual([
+      expect.objectContaining({ id: queued.id, delivery: expect.objectContaining({ state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' }) }),
+    ]);
   });
 
   it('opens a scoped fallback wait and sends no version marker when F11 throws', async () => {
