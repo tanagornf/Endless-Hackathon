@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 export interface DisplayedInstruction {
   versionLabel: string;
-  instruction: string;
+  instruction: string | null;
 }
 
 interface ComparisonProps {
@@ -37,9 +37,9 @@ function InstructionText({ title, instruction, compareTo }: InstructionTextProps
           <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
             {instruction.versionLabel}
           </Typography>
-          <Typography dir="auto" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-            {instruction.instruction}
-          </Typography>
+          {instruction.instruction === null
+            ? <Typography color="text.secondary">{t('shopInstructions.noCurrent')}</Typography>
+            : <Typography dir="auto" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{instruction.instruction}</Typography>}
           {compareTo !== undefined && (
             <Typography variant="caption" color="text.secondary">
               {t(instruction.instruction === compareTo?.instruction ? 'shopInstructions.unchanged' : 'shopInstructions.changed')}
