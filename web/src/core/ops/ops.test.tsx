@@ -214,4 +214,36 @@ describe('operations console', () => {
     await act(async () => { await i18n.changeLanguage('th'); });
     expect(screen.getByText('ยังส่งข้อความ LINE ซ้ำจากหน้านี้ไม่ได้')).toBeTruthy();
   });
+
+  it('explains and refreshes after the API rejects a stale resend as LINE', async () => {
+    const row = {
+      messageId: 'stale-fixture', deliveryState: 'unknown', channel: 'facebook', businessId: 'shop-fixture', createdAt: job.createdAt,
+    };
+    let refused = false;
+    const request = vi.fn(async (_path: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        refused = true;
+        return Response.json({
+          error: { code: 'POLICY_BLOCKED', message: 'Synthetic policy block', retryable: false, details: {
+            reason: 'line_resend_unavailable',
+          } },
+          meta: { requestId: 'fixture' },
+        }, { status: 422 });
+      }
+      return response({ items: [{ ...row, channel: refused ? 'line' : row.channel }], nextCursor: null });
+    });
+    vi.stubGlobal('fetch', request);
+    show('deliveries');
+    fireEvent.click(await screen.findByRole('button', { name: 'Resend' }));
+    const dialog = screen.getByRole('dialog');
+    expect(request.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Resend' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Resend' })).toBeNull();
+      expect(screen.getByRole('row', { name: /line.*Resend is unavailable for LINE\./i })).toBeTruthy();
+      expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes('Resend is unavailable for LINE.'))).toBe(true);
+    });
+    expect(request.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+  });
 });
