@@ -47,6 +47,8 @@ The expected F11 version is stored before apply. If the worker restarts before t
 
 After three definite enqueue failures, the generated turn remains complete and keeps the saved reply ID. Its owner trace reports `DELIVERY_ENQUEUE_FAILED` from the scoped F09 delivery state. A committed job with a lost acknowledgement continues to dispatch the same reply. [Independent worker replay](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058708480)
 
+The F30 server read adapter uses the verified shop, customer and open conversation, current F04 policy and existing tool argument schemas. It supports knowledge lookup, exact catalog pricing and localized totals. B2 scoped reads passed 3/3 locally and 65/65 with the complete F10 reply suite in Google. C2 owns private call history and recall.
+
 In the earlier production gate, the unknown explicit SKU received the previous known product's price. The fix requires an active product match for price and total tools and limits historical prefetch to explicit or unambiguous follow-ups. It also omits a staff-held request from the first later AI quote after handback while retaining superseded messages in the normal unanswered backlog. [Production owner trace evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058840936)
 
 The subsequent deployed check confirmed the unknown SKU declined without a price. F10 now selects the required reply language from the latest decisive buyer message. A neutral input uses the nearest decisive message. Older unanswered questions stay in model context. [Production visitor evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059123386)
