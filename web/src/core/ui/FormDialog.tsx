@@ -3,7 +3,7 @@ import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, 
 import { useTranslation } from 'react-i18next';
 import type { FormDialogProps } from '../types';
 
-export function FormDialog({ open, title, submitLabel, submitting = false, error, onSubmit, onClose, children }: FormDialogProps) {
+export function FormDialog({ open, title, submitLabel, submitDisabled = false, submitting = false, error, onSubmit, onClose, children }: FormDialogProps) {
   const { t } = useTranslation('common');
   const id = useId();
   const pending = useRef(false);
@@ -12,7 +12,7 @@ export function FormDialog({ open, title, submitLabel, submitting = false, error
     onClose={() => { if (!submitting && !pending.current) onClose(); }}>
     <form noValidate onSubmit={(event) => {
       event.preventDefault();
-      if (submitting || pending.current) return;
+      if (submitDisabled || submitting || pending.current) return;
       pending.current = true;
       void Promise.resolve().then(onSubmit).catch(() => {}).finally(() => { pending.current = false; });
     }}>
@@ -20,7 +20,7 @@ export function FormDialog({ open, title, submitLabel, submitting = false, error
       <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>{error && <Alert severity="error">{error}</Alert>}{children}</Stack></DialogContent>
       <DialogActions>
         <Button disabled={submitting} onClick={onClose}>{t('actions.cancel')}</Button>
-        <Button type="submit" variant="contained" disabled={submitting} startIcon={submitting ? <CircularProgress size={16} /> : undefined}>{submitLabel ?? t('actions.save')}</Button>
+        <Button type="submit" variant="contained" disabled={submitDisabled || submitting} startIcon={submitting ? <CircularProgress size={16} /> : undefined}>{submitLabel ?? t('actions.save')}</Button>
       </DialogActions>
     </form>
   </Dialog>;
