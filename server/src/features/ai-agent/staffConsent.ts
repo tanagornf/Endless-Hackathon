@@ -38,7 +38,7 @@ export function classifyStaffConsentReply(text: string): ConsentReply {
   if (/^(?:talk to (?:a person|staff|a human)|(?:please )?connect me (?:to|with) (?:a person|staff|a human)|คุยกับพนักงาน|คุยกับคน|คุยกับเจ้าหน้าที่)(?:\s*(?:ค่ะ|ครับ|คะ))?$/u.test(normalized)) {
     return 'choose_staff';
   }
-  if (/^(?:yes(?:,? please)?|yep|sure|ใช่|ได้เลย|ต้องการ|ส่งต่อเลย)(?:\s*(?:ค่ะ|ครับ|คะ))?$/u.test(normalized)) {
+  if (/^(?:yes(?:,? please)?|yep|sure|ใช่|ได้เลย|ต้องการ|ส่งต่อเลย|เอา)(?:\s*(?:ค่ะ|ครับ|คะ))?$/u.test(normalized)) {
     return 'affirmative';
   }
   if (/^(?:no(?:,? thanks)?|nope|cancel|keep chatting with the bot|keep chatting|ไม่|ไม่เอา|ไม่ต้อง|ไม่เป็นไร|ยกเลิก|คุยกับบอทต่อ)(?:\s*(?:ค่ะ|ครับ|คะ))?$/u.test(normalized)) {

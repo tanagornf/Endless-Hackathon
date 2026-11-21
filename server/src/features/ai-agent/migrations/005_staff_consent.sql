@@ -14,3 +14,5 @@ CREATE TABLE ai_staff_consents (
   CHECK ((response_turn_id IS NULL AND response_message_id IS NULL AND resolution IS NULL AND resolved_at IS NULL)
     OR (response_turn_id IS NOT NULL AND response_message_id IS NOT NULL AND resolution IS NOT NULL AND resolved_at IS NOT NULL))
 );
+ALTER TABLE ai_turns ADD COLUMN staff_consent_kind text
+  CHECK (staff_consent_kind IN ('customer_request', 'staff_offer', 'voice_unavailable'));

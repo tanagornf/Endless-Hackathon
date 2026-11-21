@@ -11,6 +11,8 @@ import { beginHandoff, canRequestHandoff, persistHandoff, recoverHandoff, staffH
 import { isOrderSummary, materializeOrder } from './orderProposal';
 import { claimTurn, finishTurn, LEASE_RENEW_MS, MAX_ATTEMPTS, readDraft, releaseClaim, renewClaim, storeDraft } from './repo';
 import type { HandoffCheckpoint, TurnDraft, TurnLease } from './repo';
+import { classifyStaffConsentReply, recordStaffConsentPrompt, resolveStaffConsent } from './staffConsent';
+import type { StaffConsentDecision } from './staffConsent';
 
 const delayRetry = (ms: number) => new Date(Date.now() + ms).toISOString();
 const elapsed = (start: number) => Math.round(performance.now() - start);
@@ -112,6 +114,10 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
     return { response: result(claim.turnId, 'pending'), retryAt: claim.retryAt };
   }
   const { turn } = claim;
+  const staffScope = { businessId: conversation.businessId, customerId: conversation.customerId, conversationId,
+    turnId: turn.id, inboundMessageId: inbound.id };
+  const consentText = inbound.parts.length === 1 && inbound.parts[0].type === 'text' ? inbound.parts[0].text : '';
+  const consentEnabled = request.deliver && mode === 'reply' && classifyStaffConsentReply(consentText) !== 'continue';
   let handoff: HandoffCheckpoint | undefined = turn.escalated
     ? { turnId: turn.id, version: turn.handoff_assignment_version }
     : undefined;
@@ -134,8 +140,14 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
   try {
     const start = performance.now();
     const preparedReason = previousDraft?.handoffReason;
+    let consent: StaffConsentDecision | undefined;
+    if (consentEnabled && preparedReason === 'customer_request' && expectedHandoffVersion !== null) {
+      consent = await resolveStaffConsent(staffScope);
+    }
+    const lineEvidence = (decision?: StaffConsentDecision) =>
+      conversation.channel === 'line' && decision?.status === 'confirmed' ? decision.origin : undefined;
     const recovered = request.deliver && !handoff && expectedHandoffVersion !== null && preparedReason
-      ? await recoverHandoff(turn, preparedReason, expectedHandoffVersion) : null;
+      ? await recoverHandoff(turn, preparedReason, expectedHandoffVersion, lineEvidence(consent)) : null;
     if (recovered) handoff = recovered;
     const gate = recovered
       ? await currentGate(conversation, inbound, mode, recovered)
@@ -147,10 +159,14 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
     if (recovered && preparedReason && !(await persistHandoff(turn, preparedReason, recovered))) {
       return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
     }
+    if (consentEnabled && !consent) consent = await resolveStaffConsent(staffScope);
     const gate1Ms = elapsed(start);
-    const generated = previousDraft
+    const staleConsentDraft = consent?.status === 'confirmed'
+      ? previousDraft?.handoffReason !== 'customer_request'
+      : previousDraft?.handoffReason === 'customer_request' && !handoff;
+    const generated = previousDraft && !staleConsentDraft
       ? { state: previousDraft.handoffReason ? 'handoff' as const : 'completed' as const, draft: previousDraft }
-      : await generateDraft(turn.id, conversation, history, inbound, gate.settings, signal, mode);
+      : await generateDraft(turn.id, conversation, history, inbound, gate.settings, signal, mode, consent);
     const { draft } = generated;
     draft.timings.gate1Ms = gate1Ms;
     if (signal.aborted) {
@@ -223,6 +239,7 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
           expectedHandoffVersion ??= finalGate.conversation.version;
           const transfer = await beginHandoff(
             turn, finalGate.conversation, draft.handoffReason, expectedHandoffVersion, finalGate.settings.language, signal,
+            draft.handoffReason === 'customer_request' ? lineEvidence(consent) : undefined,
           );
           if (transfer.status === 'lost') return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
           if (transfer.status === 'stale') {
@@ -240,7 +257,8 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       }
       if (handoff && draft.handoffReason) {
         if (handoff.version !== null && expectedHandoffVersion !== null &&
-            (await recoverHandoff(turn, draft.handoffReason, expectedHandoffVersion))?.version !== handoff.version) {
+            (await recoverHandoff(turn, draft.handoffReason, expectedHandoffVersion,
+              draft.handoffReason === 'customer_request' ? lineEvidence(consent) : undefined))?.version !== handoff.version) {
           await closeTurn(turn, { state: 'skipped', reason: 'takeover_during_generation', timings: draft.timings });
           return { response: result(turn.id, 'failed') };
         }
@@ -282,6 +300,14 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
         replyMessageId = saved.message.id;
         parts = saved.message.parts;
         draft.timings.persistMs = elapsed(persistStart);
+      }
+      if (draft.staffConsentKind && !(await recordStaffConsentPrompt(staffScope, draft.staffConsentKind, replyMessageId))) {
+        await closeTurn(turn, { state: 'skipped', reason: 'superseded', replyMessageId, timings: draft.timings });
+        return { response: result(turn.id, 'failed') };
+      }
+      if (signal.aborted) {
+        await releaseClaim(turn);
+        return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
       }
       const sendStart = performance.now();
       try {
