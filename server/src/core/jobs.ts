@@ -1,8 +1,7 @@
-import { setTimeout as sleep } from 'node:timers/promises';
-import pg from 'pg';
+import type { FeatureId } from '@nless/shared/core/features';
 import type { JobState } from '@nless/shared/core/types';
 import { config } from './config';
-import { db, dbUrl } from './db';
+import { db } from './db';
 import { AppError } from './errors';
 import { JOBS_PAYLOAD_MAX_BYTES } from './jobs-config';
 import { log } from './log';
@@ -11,7 +10,8 @@ import { publish } from './realtime';
 import type { DbExecutor, EnqueueOptions, JobHandler, JobsApi, ScheduleDefinition } from './types';
 
 const handlers = new Map<string, JobHandler>();
-const schedules = new Map<string, ScheduleDefinition>();
+interface RegisteredSchedule extends ScheduleDefinition { ownerFeature: FeatureId }
+const schedules = new Map<string, RegisteredSchedule>();
 const wakeListeners = new Set<() => void>();
 
 export function registerJob(type: string, handler: JobHandler): void {
@@ -25,11 +25,21 @@ export function subscribeJobWake(listener: () => void): () => void {
   wakeListeners.add(listener);
   return () => { wakeListeners.delete(listener); };
 }
-export function registerSchedule(schedule: ScheduleDefinition): void {
-  if (schedule.everySeconds < 1) throw new Error('Invalid schedule frequency: ' + schedule.name);
+export function registerSchedule(schedule: ScheduleDefinition, ownerFeature: FeatureId): void {
+  if (!Number.isInteger(schedule.everySeconds) || schedule.everySeconds < 10 || schedule.everySeconds > 604_800) {
+    throw new Error('Invalid schedule frequency: ' + schedule.name);
+  }
+  if (!/^[a-z][a-z0-9_.-]{1,79}$/.test(schedule.name)) throw new Error('Invalid schedule job type: ' + schedule.name);
+  const previous = schedules.get(schedule.name);
+  if (previous) throw new Error('Duplicate schedule ' + schedule.name + ' from ' + previous.ownerFeature + ' and ' + ownerFeature);
   registerJob(schedule.name, schedule.handler);
-  schedules.set(schedule.name, schedule);
+  schedules.set(schedule.name, { ...schedule, ownerFeature });
 }
+
+export function registeredSchedules(): readonly RegisteredSchedule[] {
+  return [...schedules.values()];
+}
+
 export function publishJob(job: { id: string; type: string; business_id: string | null },
   state: JobState, progress?: { done: number; total: number }): void {
   if (job.business_id) publish(job.business_id, { type: 'job.updated', jobId: job.id, jobType: job.type, state, progress });
@@ -106,48 +116,3 @@ export const jobs: JobsApi = {
     );
   },
 };
-
-let scheduler: { controller: AbortController; finished: Promise<void> } | undefined;
-export function startScheduler(): void {
-  if (scheduler) return;
-  const controller = new AbortController();
-  const run = async () => {
-    while (!controller.signal.aborted) {
-      try {
-        const client = new pg.Client({ connectionString: dbUrl(), connectionTimeoutMillis: 10000, statement_timeout: config.DB_STATEMENT_TIMEOUT_MS });
-        let locked = false;
-        let destroy = false;
-        const markLost = () => { destroy = true; };
-        client.on('error', markLost);
-        try {
-          await client.connect();
-          const value = await client.query("SELECT pg_try_advisory_lock(hashtext('nless.scheduler')) AS locked");
-          locked = Boolean(value.rows[0]?.locked);
-          log.info({ locked }, 'Scheduler lock');
-          while (locked && !destroy && !controller.signal.aborted) {
-            await client.query('SELECT 1');
-            for (const schedule of schedules.values()) {
-              const interval = schedule.everySeconds * 1000;
-              const slot = new Date(Math.floor(Date.now() / interval) * interval).toISOString();
-              await jobs.enqueue(schedule.name, { slot }, { dedupKey: schedule.name + '@' + slot });
-            }
-            await sleep(30000, undefined, { signal: controller.signal });
-          }
-        } finally {
-          if (locked && !destroy) await client.query("SELECT pg_advisory_unlock(hashtext('nless.scheduler'))").catch(() => { destroy = true; });
-          client.off('error', markLost);
-          await client.end().catch(() => {});
-        }
-      } catch {
-        if (!controller.signal.aborted) log.warn('Scheduler will retry');
-      }
-      if (!controller.signal.aborted) await sleep(30000, undefined, { signal: controller.signal }).catch(() => {});
-    }
-  };
-  scheduler = { controller, finished: run() };
-}
-export async function stopScheduler(): Promise<void> {
-  scheduler?.controller.abort();
-  await scheduler?.finished;
-  scheduler = undefined;
-}
