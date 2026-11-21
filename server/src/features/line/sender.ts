@@ -5,7 +5,7 @@ import { MAX_MESSAGES_PER_CALL, MAX_MESSAGES_PER_DELIVERY } from './config';
 import { getAccessToken, isRejectedCredential, markConnectionError } from './connection';
 import { lineErrorMessage, lineRequest, type LineResponse } from './lineApi';
 import { toLineText } from './outbound';
-import { clearReplyBatch, completeDeliveryBatch, findContact, findDeliveryBatch, findOutboundConnection, reserveReplyBatch } from './repo';
+import { clearReplyBatch, completeDeliveryBatch, findContact, findDeliveryBatch, findOutboundConnection, reservePushBatch, reserveReplyBatch } from './repo';
 import { notifyQuota } from './usage';
 
 function retryKeyFor(messageId: string, index: number) {
@@ -34,13 +34,14 @@ function fail(error: string, retryable = false): DeliveryResult {
   return { mode: 'real', state: 'failed', error, retryable };
 }
 
+const PUSH_RETRY_TTL_MS = 24 * 60 * 60 * 1_000;
 const unknown: DeliveryResult = { mode: 'real', state: 'unknown', error: 'line_delivery_unknown' };
 
 export function makeLineSender(now = Date.now): ChannelSender {
   return {
     channel: 'line', mode: 'real',
     async send(delivery) {
-      let mayHaveReplied = false;
+      let ambiguousDelivery = false;
       try {
         const connection = await findOutboundConnection(delivery.businessId, delivery.channelAccountId);
         if (!connection) return fail('CHANNEL_NOT_CONNECTED: line connection missing or disconnected');
@@ -84,24 +85,34 @@ export function makeLineSender(now = Date.now): ChannelSender {
           const replyUntil = Date.parse(meta?.replyTokenExpiresAt ?? '');
           let mode: 'reply' | 'push' = 'push';
           let response: LineResponse | null = null;
-          if (index === 0 && replyToken && now() < replyUntil &&
+          if (!prior && index === 0 && replyToken && now() < replyUntil &&
             await reserveReplyBatch(key, createHash('sha256').update(replyToken).digest('hex'))) {
             mode = 'reply';
-            mayHaveReplied = true;
+            ambiguousDelivery = true;
             response = await lineRequest('/v2/bot/message/reply', { method: 'POST', token, timeoutMs: 10_000, json: { replyToken, messages: batch } });
             // An upstream 5xx can arrive after LINE accepted a Reply. Keep the reservation and never fall back to Push.
             if (!response || response.status >= 500) return unknown;
             if (response.status !== 200) {
-              mayHaveReplied = false;
+              ambiguousDelivery = false;
               await clearReplyBatch(key);
               if (response.status === 400 && /reply token/i.test(lineErrorMessage(response.body))) mode = 'push';
             }
           }
           if (mode === 'push') {
+            // A reservation pins the batch to Push before LINE can accept it.
+            const pending = await reservePushBatch(key);
+            if (!pending) return unknown;
+            key.retryKey = pending.retry_key;
+            if (now() - pending.created_at.getTime() >= PUSH_RETRY_TTL_MS) {
+              ambiguousDelivery = true;
+              await completeDeliveryBatch(key, mode, { state: 'unknown', sent_ids: [], request_id: null });
+              return unknown;
+            }
             response = await lineRequest('/v2/bot/message/push', {
               method: 'POST', token, timeoutMs: 10_000, retryKey: key.retryKey, json: { to: delivery.customerExternalId, messages: batch },
             });
             if (!response) {
+              ambiguousDelivery = true;
               await completeDeliveryBatch(key, mode, { state: 'unknown', sent_ids: [], request_id: null });
               return unknown;
             }
@@ -112,7 +123,7 @@ export function makeLineSender(now = Date.now): ChannelSender {
           if (status === 200 || (mode === 'push' && status === 409 && response.headers.has('x-line-accepted-request-id'))) {
             const accepted = acknowledgedBatch(response);
             await completeDeliveryBatch(key, mode, accepted, mode === 'push' && status === 200 ? batch.length : 0);
-            mayHaveReplied = false;
+            ambiguousDelivery = false;
             externalRef = accepted.sent_ids[0] ?? accepted.request_id;
             continue;
           }
@@ -134,7 +145,7 @@ export function makeLineSender(now = Date.now): ChannelSender {
         return { mode: 'real', state: 'sent', externalRef };
       } catch {
         log.warn({ messageId: delivery.messageId }, 'LINE delivery state could not be persisted');
-        return mayHaveReplied ? unknown : fail('line_delivery_unavailable', true);
+        return ambiguousDelivery ? unknown : fail('line_delivery_unavailable', true);
       }
     },
   };
