@@ -2,7 +2,7 @@ import type { FeaturePages, MenuEntry, PageRoute } from '@nless/shared/core/load
 import { screens } from './screens';
 
 const load = () => import('./PreparedPage');
-/** Lane-owned screens always win. Only generated scaffold loaders carry this marker. */
+/** Only used by the planned-workspace preview. The native build uses the lane registrations directly. */
 export function registerPreparedScreens(lane: FeaturePages): FeaturePages {
   const planned = screens.filter(screen => screen.id === lane.featureId);
   const routes = [...lane.routes];
@@ -14,6 +14,8 @@ export function registerPreparedScreens(lane: FeaturePages): FeaturePages {
     const route: PageRoute = { path: screen.path, auth: screen.auth, layout: screen.layout, permission: screen.permission, titleKey, load };
     if (existing < 0) routes.push(route);
     else if (scaffold) routes[existing] = route;
+    // Keep the approved Shop overview available for comparison with the native analytics screen.
+    else if (screen.id === 'F27' && screen.path === '/dashboard') routes[existing] = { ...routes[existing], load };
     if (!screen.group) continue;
     const item: MenuEntry = { path: screen.path, group: screen.group, icon: screen.icon ?? 'Extension', labelKey: titleKey,
       order: (index + 1) * 10, permission: screen.permission, platformAdminOnly: screen.auth === 'platform_admin',

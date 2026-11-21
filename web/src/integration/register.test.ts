@@ -38,6 +38,13 @@ describe('frontend integration', () => {
     const auth = registerPreparedScreens({featureId:'F02',slug:'auth',routes:[]});
     expect(auth.routes.map(route => route.path)).not.toContain('/verify-email');
   });
+  test('keeps the approved overview in the design preview and preserves the native route metadata', () => {
+    const native = {path:'/dashboard',permission:'insights.read' as const,titleKey:'analytics:dashboard.title',load:async () => ({default:() => null})};
+    const planned = registerPreparedScreens({featureId:'F27',slug:'analytics',routes:[native]});
+    const overview = planned.routes.find(route => route.path === native.path);
+    expect(overview).toMatchObject({permission:native.permission,titleKey:native.titleKey});
+    expect(overview?.load).not.toBe(native.load);
+  });
   test('replaces a generated scaffold and preserves stricter lane metadata on a real route', () => {
     const load = Object.assign(async () => ({default:() => null}),{endlessScaffold:true});
     const merged = registerPreparedScreens({...lane,routes:[{path:'/chat',load}]});
