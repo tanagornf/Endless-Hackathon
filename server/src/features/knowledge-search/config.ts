@@ -6,6 +6,7 @@ export const MAX_CHUNKS_PER_ITEM = 200;
 export const ROW_MODE_MAX_ROWS = 500;
 export const EMBED_BATCH = 64;
 export const INDEX_DIMENSIONS = 1536;
+export const QUERY_CACHE_TTL_DAYS = 14;
 export const VEC_CANDIDATES = 30;
 export const LEX_CANDIDATES = 60;
 export const W_VEC = 0.6;

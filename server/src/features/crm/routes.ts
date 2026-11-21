@@ -3,7 +3,8 @@ import type { RouteContext } from '../../core';
 import { getConversation } from '../inbox/service';
 import { assignTag, createTag, deleteTag, setMarketingConsent, unassignTag, updateTag } from './mutations';
 import { customerList, detail, missing, tags } from './repo';
-import { AssignTagBody, CreateTagBody, ListCustomersQuery, SetConsentBody, UpdateTagBody } from './schemas';
+import { updateProfile } from './profile';
+import { AssignTagBody, CreateTagBody, ListCustomersQuery, SetConsentBody, UpdateProfileBody, UpdateTagBody } from './schemas';
 
 const root = '/businesses/:businessId/crm';
 const customers = root + '/customers';
@@ -59,6 +60,8 @@ export default defineFeatureRoutes({
       await deleteTag(actor(ctx), ctx.params.tagId);
       return { kind: 'no_content' };
     });
+    api.patch(customer + '/profile', { ...reply, body: UpdateProfileBody, summary: 'Update customer contact details' }, async ctx =>
+      updateProfile(ctx.business!.id, ctx.params.customerId, ctx.user!.id, ctx.body));
     api.post(customer + '/tags', { ...reply, body: AssignTagBody, summary: 'Assign customer tag' }, async ctx => {
       if ('name' in ctx.body) requirePermission(ctx.scope!, 'broadcast.tags');
       await assignTag(actor(ctx), ctx.params.customerId, ctx.body);

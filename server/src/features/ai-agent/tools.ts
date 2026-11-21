@@ -12,6 +12,7 @@ import { searchKnowledge } from '../knowledge-search/service';
 import type { KnowledgeEvidence, PriceEvidence } from './context';
 import { maskCardNumbers } from './mask';
 import { moneyInWords, moneyMentions } from './money';
+import type { OrderDraft, prepareOrder } from './orderProposal';
 
 export const TOOL_BUDGET = 4;
 const toolTimeoutMs = 3000;
@@ -64,6 +65,25 @@ const tools: ModelTool[] = [
     },
   },
   {
+    name: 'propose_order',
+    description: 'Prepare an order summary for a clear purchase request with explicitly stated products, quantities, and shipping or pickup. The shop validates the basket. The customer places the order by pressing confirm.',
+    parameters: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array', minItems: 1, maxItems: 10,
+          items: {
+            type: 'object',
+            properties: { ...productProperties, quantity: { type: 'integer' } },
+            required: productFields, additionalProperties: false,
+          },
+        },
+        delivery_method: { type: 'string', enum: ['shipping', 'pickup'] },
+      },
+      required: ['items', 'delivery_method'], additionalProperties: false,
+    },
+  },
+  {
     name: 'handoff_to_staff',
     description: 'Ask for staff help. If the customer clearly asks for a person, use customer_request. For missing information, complaints or payment problems, answer what you can before asking. The application decides whether to offer or transfer. Never promise a response time or claim staff have taken over.',
     parameters: {
@@ -83,6 +103,7 @@ const priceArgs = z.strictObject({ ...product, quantity: quantity.nullable() }).
 const totalArgs = z.strictObject({
   items: z.array(z.strictObject({ ...product, quantity }).refine(hasProduct)).min(1).max(10),
 });
+const orderArgs = totalArgs.extend({ delivery_method: z.enum(['shipping', 'pickup']) });
 const handoffArgs = z.strictObject({ reason: z.enum(handoffReasons), note: z.string().max(200) });
 
 interface ToolContext {
@@ -90,6 +111,7 @@ interface ToolContext {
   language: CustomerLanguage;
   rules: EffectiveAnswerRules;
   allowHandoff?: boolean;
+  preparePurchase?: (args: z.infer<typeof orderArgs>) => ReturnType<typeof prepareOrder>;
 }
 type ToolError = { ok: false; error: string } & Record<string, unknown>;
 type ToolOutput = ({ ok: true } & Record<string, unknown>) | ToolError;
@@ -103,6 +125,7 @@ type ToolResult = {
   knowledge?: KnowledgeEvidence[];
   total?: TotalEvidence;
   offerHandoff?: boolean;
+  order?: OrderDraft;
 };
 export type ExecutedTool = ToolResult & { trace: AiToolTrace };
 
@@ -111,9 +134,10 @@ const normalize = (value: string) => value.normalize('NFKC').trim().toLocaleLowe
 const displayName = (item: CatalogItem, lang: CustomerLanguage) => (lang === 'en' ? item.nameEn : item.name) || item.name;
 const toolNames = new Set(tools.map(({ name }) => name));
 
-export function availableTools(rules: EffectiveAnswerRules, allowHandoff: boolean): ModelTool[] {
+export function availableTools(rules: EffectiveAnswerRules, allowHandoff: boolean, allowOrder = false): ModelTool[] {
   return tools.filter(({ name }) => {
     if (name === 'handoff_to_staff') return allowHandoff;
+    if (name === 'propose_order') return allowOrder && rules.orders && rules.price === 'always';
     return name === 'search_knowledge' || rules.price === 'always';
   });
 }
@@ -191,6 +215,17 @@ async function executeTool(context: ToolContext, call: ModelToolCall): Promise<T
       return evidence ? [evidence] : [];
     });
     return { output: { ok: true, hits: knowledge }, knowledge };
+  }
+  if (call.name === 'propose_order') {
+    if (!context.preparePurchase || !rules.orders || rules.price !== 'always') return { output: failure('UNKNOWN_TOOL') };
+    const parsed = orderArgs.safeParse(call.arguments);
+    if (!parsed.success) return { output: failure('VALIDATION_ERROR') };
+    const purchase = await context.preparePurchase(parsed.data);
+    if ('error' in purchase) return { output: failure(purchase.error) };
+    return {
+      output: { ok: true, state: 'prepared', lines: purchase.prices.map((price) => quoteForModel(price, language, rules)) },
+      prices: purchase.prices, order: purchase.order,
+    };
   }
   if ((call.name !== 'get_price' && call.name !== 'calculate_total') || rules.price !== 'always') return { output: failure('UNKNOWN_TOOL') };
   if (call.name === 'get_price') {

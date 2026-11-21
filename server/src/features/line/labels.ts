@@ -2,7 +2,7 @@ export type LineLanguage = 'th' | 'en';
 
 export const lineLabels = {
   th: {
-    sticker: '[สติกเกอร์]', pictureAlt: 'รูปภาพจากลูกค้า', picture: '[รูปภาพ]',
+    sticker: '[สติกเกอร์]', pictureAlt: 'รูปภาพจากลูกค้า', picture: '[รูปภาพ]', pictureUnavailable: '[ส่งรูปภาพไม่ได้]',
     externalPicture: '[รูปภาพ (ลิงก์ภายนอก)]', voice: '[ข้อความเสียง]', video: '[วิดีโอ]', file: '[ไฟล์]',
     location: '[ตำแหน่ง]', tooLarge: '[ไฟล์ใหญ่เกินกำหนด ระบบไม่ได้บันทึก]', unavailable: '[ไฟล์จาก LINE ไม่พร้อมใช้งาน]',
     failed: '[ข้อความจาก LINE ที่ระบบรับไม่สำเร็จ]',
@@ -21,7 +21,7 @@ export const lineLabels = {
     },
   },
   en: {
-    sticker: '[Sticker]', pictureAlt: 'Picture from customer', picture: '[Picture]',
+    sticker: '[Sticker]', pictureAlt: 'Picture from customer', picture: '[Picture]', pictureUnavailable: '[Image unavailable]',
     externalPicture: '[Picture (external link)]', voice: '[Voice message]', video: '[Video]', file: '[File]',
     location: '[Location]', tooLarge: '[File exceeds the upload limit and was not saved]', unavailable: '[LINE attachment unavailable]',
     failed: '[LINE message that could not be received]',
