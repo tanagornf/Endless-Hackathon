@@ -6,8 +6,9 @@ import { getConversation, getHistory, saveMessage } from '../inbox/service';
 import { fallbacks } from './fallbacks';
 import { finalSkipReason, isAiAllowed } from './gate';
 import { generateDraft } from './generation';
+import { beginHandoff, canRequestHandoff, staffHandoffTitle } from './handoff';
 import { claimTurn, finishTurn, LEASE_RENEW_MS, MAX_ATTEMPTS, readDraft, releaseClaim, renewClaim, storeDraft } from './repo';
-import type { TurnDraft, TurnLease } from './repo';
+import type { HandoffCheckpoint, TurnDraft, TurnLease } from './repo';
 
 const delayRetry = (ms: number) => new Date(Date.now() + ms).toISOString();
 const elapsed = (start: number) => Math.round(performance.now() - start);
@@ -54,6 +55,22 @@ async function closeTurn(turn: TurnLease, outcome: Parameters<typeof finishTurn>
   }
 }
 
+async function currentGate(
+  conversation: ConversationRecord,
+  inbound: MessageRecord,
+  mode: 'reply' | 'suggest',
+  handoff?: HandoffCheckpoint,
+) {
+  const { businessId, id } = conversation;
+  const [current, latest] = await Promise.all([
+    getConversation(id, { businessId }),
+    getHistory(id, { businessId, limit: 12 }),
+  ]);
+  if (!current) return { allowed: false as const, reason: 'business_inactive' as const };
+  const gate = await isAiAllowed(current, inbound, latest.items, mode, handoff);
+  return gate.allowed ? { ...gate, conversation: current } : gate;
+}
+
 export async function runAiTurn(conversationId: string, request: TurnRequest): Promise<TurnExecution> {
   const conversation = await getConversation(conversationId, { businessId: request.businessId });
   if (!conversation) {
@@ -68,6 +85,9 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
     return { response: result(claim.turnId, 'pending'), retryAt: claim.retryAt };
   }
   const { turn } = claim;
+  let handoff: HandoffCheckpoint | undefined = turn.escalated
+    ? { turnId: turn.id, version: turn.handoff_assignment_version }
+    : undefined;
   const previousDraft = readDraft(turn);
   if (claim.status === 'finished') {
     const state = turn.state === 'completed' || turn.state === 'handoff' || turn.state === 'awaiting_confirmation' ? turn.state : 'failed';
@@ -82,15 +102,15 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
   heartbeat.unref();
   try {
     const start = performance.now();
-    const gate = await isAiAllowed(conversation, inbound, history, mode);
+    const gate = await isAiAllowed(conversation, inbound, history, mode, handoff);
     if (!gate.allowed) {
       await closeTurn(turn, { state: gate.reason === 'superseded' ? 'superseded' : 'skipped', reason: gate.reason, timings: { gate1Ms: elapsed(start) } });
       return { response: result(turn.id, 'failed') };
     }
     const gate1Ms = elapsed(start);
     const generated = previousDraft
-      ? { state: 'completed' as const, draft: previousDraft }
-      : await generateDraft(turn.id, conversation, history, inbound, gate.settings, signal);
+      ? { state: previousDraft.handoffReason ? 'handoff' as const : 'completed' as const, draft: previousDraft }
+      : await generateDraft(turn.id, conversation, history, inbound, gate.settings, signal, mode);
     const { draft } = generated;
     draft.timings.gate1Ms = gate1Ms;
     if (signal.aborted) {
@@ -105,14 +125,17 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
         if (await storeDraft(turn, draft)) await closeTurn(turn, { state: 'failed', retryAt });
         return { response: result(turn.id, 'failed'), retryAt };
       }
-      // S1 can safely apologize on exhausted retries. The team handoff is implemented in S3.
-      state = 'completed';
-      draft.parts = [{ type: 'text', text: fallbacks.ai_failed_retry[draft.language] }];
+      const canHandoff = await canRequestHandoff(conversation.businessId).catch(() => false);
+      state = canHandoff ? 'handoff' : 'completed';
+      if (canHandoff) {
+        draft.handoffReason = 'ai_failed';
+        draft.intent = 'ESCALATION';
+      }
+      draft.parts = [{ type: 'text', text: fallbacks[canHandoff ? 'ai_failed' : 'ai_failed_retry'][draft.language] }];
       log.error({ turnId: turn.id, errorCode: draft.errorCode }, 'AI turn exhausted its retries');
     }
-    if (generated.state === 'handoff' && request.deliver) {
-      state = 'completed';
-      draft.parts = [{ type: 'text', text: fallbacks.ai_failed_retry[draft.language] }];
+    if (draft.handoffReason === 'budget_exhausted') {
+      draft.intent = 'ESCALATION';
       log.error({ turnId: turn.id, errorCode: draft.errorCode }, 'AI provider budget exhausted');
     }
     if (!(await storeDraft(turn, draft))) {
@@ -120,11 +143,7 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
     }
 
     const gate2Start = performance.now();
-    const [current, latest] = await Promise.all([
-      getConversation(conversationId, { businessId: conversation.businessId }),
-      getHistory(conversationId, { businessId: conversation.businessId, limit: 12 }),
-    ]);
-    const finalGate = current ? await isAiAllowed(current, inbound, latest.items, mode) : { allowed: false as const, reason: 'business_inactive' as const };
+    const finalGate = await currentGate(conversation, inbound, mode, handoff);
     draft.timings.gate2Ms = elapsed(gate2Start);
     if (!finalGate.allowed) {
       await closeTurn(turn, {
@@ -139,6 +158,41 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
     }
     let replyMessageId = turn.reply_message_id ?? undefined;
     if (request.deliver) {
+      if (draft.handoffReason && !handoff) {
+        if (await canRequestHandoff(conversation.businessId).catch(() => false)) {
+          const transfer = await beginHandoff(turn, finalGate.conversation, draft.handoffReason, finalGate.settings.language, signal);
+          if (transfer.status === 'lost') return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
+          if (transfer.status === 'stale') {
+            await closeTurn(turn, { state: 'skipped', reason: 'takeover_during_generation', timings: draft.timings });
+            return { response: result(turn.id, 'failed') };
+          }
+          handoff = transfer.checkpoint;
+        } else {
+          const fallback = draft.handoffReason === 'customer_request' ? 'contact_hidden' : 'ai_failed_retry';
+          draft.parts = [{ type: 'text', text: fallbacks[fallback][draft.language] }];
+          draft.handoffReason = null;
+          state = 'completed';
+          if (!(await storeDraft(turn, draft))) return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
+        }
+      }
+      if (handoff && draft.handoffReason) {
+        const ackGate = await currentGate(conversation, inbound, mode, handoff);
+        if (!ackGate.allowed) {
+          await closeTurn(turn, { state: 'skipped', reason: finalSkipReason(ackGate.reason), timings: draft.timings });
+          return { response: result(turn.id, 'failed') };
+        }
+        if (!(await renewClaim(turn)) || signal.aborted) {
+          await releaseClaim(turn);
+          return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
+        }
+        if (!replyMessageId) {
+          await saveMessage({
+            businessId: conversation.businessId, conversationId, direction: 'outbound', author: 'system', origin: 'system',
+            triggerAi: false, clientRequestId: 'ai.handoff.note:' + turn.id,
+            parts: [{ type: 'text', text: staffHandoffTitle(draft.handoffReason, ackGate.settings.language) }],
+          });
+        }
+      }
       let parts = draft.parts;
       if (!replyMessageId) {
         const persistStart = performance.now();
@@ -146,6 +200,7 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
           businessId: conversation.businessId, conversationId, direction: 'outbound', author: 'ai',
           parts, origin: conversation.channel === 'web' ? 'demo' : 'live',
           triggerAi: false, groupId: turn.id, clientRequestId: 'ai.reply:' + turn.id,
+          ...(handoff?.version != null ? { providerMeta: { nlessHandoffAckVersion: handoff.version } } : {}),
         });
         replyMessageId = saved.message.id;
         parts = saved.message.parts;

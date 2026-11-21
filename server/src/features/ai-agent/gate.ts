@@ -3,6 +3,7 @@ import type { ConversationRecord, MessageRecord } from '@nless/shared/features/i
 import { db } from '../../core';
 import { getBusinessSettings } from '../business-settings/service';
 import { isHumanTakeover } from '../team/service';
+import type { HandoffCheckpoint } from './repo';
 
 export type SkipReason =
   | 'business_inactive' | 'ai_off' | 'takeover' | 'handoff_waiting' | 'conversation_closed'
@@ -15,6 +16,7 @@ export async function isAiAllowed(
   inbound: MessageRecord,
   history: readonly MessageRecord[],
   mode: 'reply' | 'suggest',
+  handoff?: HandoffCheckpoint,
 ): Promise<TurnGate> {
   const { businessId, id: conversationId } = conversation;
   const business = await db.maybeOne<{ status: string }>('SELECT status FROM businesses WHERE id = $1', [businessId]);
@@ -22,11 +24,16 @@ export async function isAiAllowed(
   const settings = await getBusinessSettings(businessId);
   if (mode === 'reply') {
     if (!settings.aiEnabled) return { allowed: false, reason: 'ai_off' };
-    if (await isHumanTakeover(conversationId)) {
-      await db.query(
-        "UPDATE ai_handoff_waits SET released_at = now(), release_reason = 'takeover' WHERE business_id = $1 AND conversation_id = $2 AND released_at IS NULL",
-        [businessId, conversationId],
-      );
+    const takeover = await isHumanTakeover(conversationId);
+    const versioned = handoff?.version != null;
+    const ownHandoff = versioned && takeover && conversation.handler === 'human' && conversation.version === handoff.version;
+    if ((takeover || versioned) && !ownHandoff) {
+      if (takeover) {
+        await db.query(
+          "UPDATE ai_handoff_waits SET released_at = now(), release_reason = 'takeover' WHERE business_id = $1 AND conversation_id = $2 AND released_at IS NULL",
+          [businessId, conversationId],
+        );
+      }
       return { allowed: false, reason: 'takeover' };
     }
     if (conversation.status === 'closed') return { allowed: false, reason: 'conversation_closed' };
@@ -36,11 +43,11 @@ export async function isAiAllowed(
   }
   if (mode === 'suggest') return { allowed: true, settings };
 
-  const wait = await db.maybeOne<{ id: string; created_at: Date; expired: boolean }>(
-    "SELECT id, created_at, created_at <= now() - interval '12 hours' AS expired FROM ai_handoff_waits WHERE business_id = $1 AND conversation_id = $2 AND released_at IS NULL",
+  const wait = await db.maybeOne<{ id: string; turn_id: string; created_at: Date; expired: boolean }>(
+    "SELECT id, turn_id, created_at, created_at <= now() - interval '12 hours' AS expired FROM ai_handoff_waits WHERE business_id = $1 AND conversation_id = $2 AND released_at IS NULL",
     [businessId, conversationId],
   );
-  if (wait) {
+  if (wait && wait.turn_id !== handoff?.turnId) {
     const hasStaffReply = history.some((message) =>
       message.author === 'staff' && message.direction === 'outbound'
       && Date.parse(message.createdAt) > wait.created_at.getTime(),
@@ -51,6 +58,7 @@ export async function isAiAllowed(
       [businessId, wait.id, hasStaffReply ? 'staff_replied' : 'expired'],
     );
   }
+  if (handoff) return { allowed: true, settings };
 
   const hasNewerInbound = history.some((message) =>
     message.author === 'customer' && message.direction === 'inbound' && message.seq > inbound.seq,

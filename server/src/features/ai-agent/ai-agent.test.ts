@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EffectiveAnswerRules } from '@nless/shared/features/business-settings/types';
 import type { AiReplyJobPayload, MessageRecord, SaveMessageResult } from '@nless/shared/features/inbox/types';
-import { AppError, db, model } from '../../core';
+import { AppError, db, drainJobs, model } from '../../core';
 import type { JobContext, ModelChatInput, ModelToolCall } from '../../core';
 import * as channels from '../../core/channels';
 import { closeDb } from '../../core/db';
@@ -11,6 +11,8 @@ import * as settings from '../business-settings/service';
 import * as catalog from '../catalog/service';
 import * as inbox from '../inbox/service';
 import * as knowledge from '../knowledge-search/service';
+import * as notifications from '../notifications/service';
+import * as team from '../team/service';
 import { getHistory, saveMessage } from '../inbox/service';
 import { assignConversation } from '../team/service';
 import { fallbacks } from './fallbacks';
@@ -23,6 +25,7 @@ const allow: EffectiveAnswerRules = {
 const businessId = seedId('biz_demo_a');
 const originalChat = model.chat.bind(model);
 const originalSettings = settings.getBusinessSettings;
+const originalOpenState = settings.getBusinessOpenState;
 const originalSend = channels.sendToCustomer;
 
 type TraceRow = {
@@ -39,6 +42,10 @@ type TraceRow = {
   attempts: number;
   usage_summary: { inputTokens: number | null; calls: number } | null;
   error_code: string | null;
+  intent: string | null;
+  intent_source: string | null;
+  escalated: boolean;
+  handoff_assignment_version: number | null;
 };
 
 async function incoming(text: string, thread?: SaveMessageResult): Promise<SaveMessageResult> {
@@ -94,6 +101,10 @@ const priceArguments = (sku: string | null, name: string | null, quantity: numbe
 
 beforeEach(() => {
   vi.spyOn(settings, 'getEffectiveAnswerRules').mockResolvedValue(allow);
+  vi.spyOn(settings, 'getBusinessOpenState').mockResolvedValue({
+    open: true, reason: 'open', timezone: 'Asia/Bangkok', nextOpenAt: null, closure: null,
+    localDate: '2026-11-21', localTime: '12:00',
+  });
   // These direct-handler tests share the lane DB with the real delivery integration.
   // Keep their unrelated sends out of the integration queue.
   vi.spyOn(channels, 'sendToCustomer').mockImplementation(async (conversationId, _parts, options) => ({
@@ -535,5 +546,163 @@ describe('F10 S2 tools loop', { timeout: 15_000 }, () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
+  it('G9 acknowledges Thai once, calls F11 once and goes silent while staff holds the thread', async () => {
+    const inbound = await incoming('ขอคุยกับพนักงานหน่อยครับ');
+    const chat = vi.spyOn(model, 'chat');
+    const assignment = vi.spyOn(team, 'requestHumanHandoff');
+    const writes = vi.spyOn(inbox, 'saveMessage');
+    const notify = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
+    await execute(inbound);
+    await execute(inbound);
+    const next = await incoming('A-GAME-01 ราคาเท่าไหร่', inbound);
+    await execute(next);
+
+    const stored = await replies(inbound.conversation.id);
+    const turn = await trace(inbound.message.id);
+    expect(stored.map(({ text }) => text)).toEqual([fallbacks.escalation_ack.th]);
+    expect(turn).toMatchObject({ state: 'handoff', reply_language: 'th', intent: 'ESCALATION', intent_source: 'regex', escalated: true,
+      reply_message_id: stored[0].id, handoff_assignment_version: expect.any(Number) });
+    expect(writes.mock.calls.filter(([input]) => input.author === 'ai').map(([input]) => input.providerMeta))
+      .toEqual([{ nlessHandoffAckVersion: turn.handoff_assignment_version }]);
+    expect(await trace(next.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'takeover' });
+    expect(assignment).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(chat).not.toHaveBeenCalled();
+    expect(await db.one<{ count: number }>(
+      "SELECT count(*)::int AS count FROM ai_handoff_waits WHERE business_id = $1 AND turn_id = $2 AND release_reason = 'handed_to_team'",
+      [businessId, turn.id],
+    )).toEqual({ count: 1 });
+
+    await assignConversation(inbound.conversation.id, null, { businessId });
+    await execute(await incoming('A-GAME-01 ราคาเท่าไหร่คะ', inbound));
+    expect((await replies(inbound.conversation.id)).at(-1)!.text).toContain('1,490 บาท');
+  });
+
+  it('G15 uses the English acknowledgement for an explicit human request', async () => {
+    const chat = vi.spyOn(model, 'chat');
+    const inbound = await incoming('Can I talk to a real person please?');
+    await execute(inbound);
+    expect((await replies(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.escalation_ack.en]);
+    expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', reply_language: 'en', intent_source: 'regex' });
+    expect(chat).not.toHaveBeenCalled();
+  });
+
+  it('G22 uses the closed-shop acknowledgement instead of promising an immediate answer', async () => {
+    vi.spyOn(settings, 'getBusinessOpenState').mockImplementationOnce((id) => originalOpenState(id, '2026-11-21T21:00:00+07:00'));
+    const inbound = await incoming('ขอคุยกับพนักงานค่ะ');
+    await execute(inbound);
+    expect((await replies(inbound.conversation.id))[0].text).toBe(fallbacks.escalation_ack_closed.th);
+  });
+
+  it('retries delivery using the same saved acknowledgement and the same successful F11 version', async () => {
+    const inbound = await incoming('Can I speak to a human?');
+    const assignment = vi.spyOn(team, 'requestHumanHandoff');
+    const writes = vi.spyOn(inbox, 'saveMessage');
+    const sends = vi.spyOn(channels, 'sendToCustomer')
+      .mockRejectedValueOnce(new AppError('SERVICE_NOT_READY', 'Synthetic retryable delivery error', { retryable: true }));
+    expect(await execute(inbound)).toHaveProperty('retryAt');
+    const first = await trace(inbound.message.id);
+    expect(first).toMatchObject({ state: 'failed', reply_message_id: expect.any(String), handoff_assignment_version: expect.any(Number) });
+    await db.query("UPDATE ai_turns SET retry_after = now() - interval '1 second' WHERE business_id = $1 AND id = $2", [businessId, first.id]);
+    await execute(inbound);
+
+    expect(assignment).toHaveBeenCalledTimes(1);
+    expect(sends.mock.calls.map(([, , opts]) => opts?.messageId)).toEqual([first.reply_message_id, first.reply_message_id]);
+    expect(writes.mock.calls.filter(([input]) => input.author === 'ai').map(([input]) => input.providerMeta))
+      .toEqual([{ nlessHandoffAckVersion: first.handoff_assignment_version }]);
+    expect((await replies(inbound.conversation.id))).toHaveLength(1);
+    expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', reply_message_id: first.reply_message_id, attempts: 2 });
+  });
+
+  it('drops the acknowledgement when AI is disabled before its save', async () => {
+    const inbound = await incoming('Can I speak to a human?');
+    const handoff = team.requestHumanHandoff;
+    let enabled = true;
+    vi.spyOn(settings, 'getBusinessSettings').mockImplementation(async (id) => ({ ...(await originalSettings(id)), aiEnabled: enabled }));
+    vi.spyOn(team, 'requestHumanHandoff').mockImplementationOnce(async (...input) => {
+      const result = await handoff(...input);
+      enabled = false;
+      return result;
+    });
+    await execute(inbound);
+    expect(await trace(inbound.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'ai_off_during_generation' });
+    expect(await replies(inbound.conversation.id)).toEqual([]);
+    expect(channels.sendToCustomer).not.toHaveBeenCalled();
+  });
+
+  it('does not acknowledge a manual assignment that raced with the F11 handoff', async () => {
+    const inbound = await incoming('Can I speak to a human?');
+    const handoff = team.requestHumanHandoff;
+    vi.spyOn(team, 'requestHumanHandoff').mockImplementationOnce(async (...input) => {
+      await assignConversation(inbound.conversation.id, seedId('staff_a'), { businessId });
+      return handoff(...input);
+    });
+    await execute(inbound);
+    expect(await trace(inbound.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'takeover_during_generation', handoff_assignment_version: null });
+    expect(await replies(inbound.conversation.id)).toEqual([]);
+    expect(channels.sendToCustomer).not.toHaveBeenCalled();
+  });
+
+  it('sends the queued acknowledgement only at its original F11 assignment version', async () => {
+    vi.spyOn(channels, 'sendToCustomer').mockImplementation(originalSend);
+    const current = await incoming('Can I talk to a real person please?');
+    const claimed = await incoming('Can I speak to a human?');
+    const returned = await incoming('Can I speak to a real person?');
+    await execute(current);
+    await execute(claimed);
+    await execute(returned);
+    expect((await replies(current.conversation.id))[0].delivery.state).toBe('pending');
+    expect((await replies(claimed.conversation.id))[0].delivery.state).toBe('pending');
+    const [queued] = await replies(returned.conversation.id);
+    expect(queued.delivery.state).toBe('pending');
+
+    await assignConversation(claimed.conversation.id, seedId('staff_a'), { businessId });
+    await assignConversation(returned.conversation.id, null, { businessId });
+    expect(await inbox.getConversation(returned.conversation.id, { businessId })).toMatchObject({ handler: 'ai' });
+    await drainJobs({ type: 'core.deliver' });
+    expect((await replies(current.conversation.id))[0].delivery.state).toBe('sent');
+    expect((await replies(claimed.conversation.id))[0].delivery).toMatchObject({ state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' });
+    expect(await replies(returned.conversation.id)).toEqual([
+      expect.objectContaining({ id: queued.id, delivery: expect.objectContaining({ state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' }) }),
+    ]);
+  });
+
+  it('opens a scoped fallback wait and sends no version marker when F11 throws', async () => {
+    const inbound = await incoming('ขอคุยกับพนักงานค่ะ');
+    const notify = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
+    vi.spyOn(team, 'requestHumanHandoff').mockRejectedValueOnce(new AppError('SERVICE_NOT_READY'));
+    const writes = vi.spyOn(inbox, 'saveMessage');
+    await execute(inbound);
+    const next = await incoming('A-GAME-01 ราคาเท่าไหร่', inbound);
+    await execute(next);
+    const turn = await trace(inbound.message.id);
+    expect(turn).toMatchObject({ state: 'handoff', escalated: true, handoff_assignment_version: null });
+    expect(await trace(next.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'handoff_waiting' });
+    expect(await db.one<{ created: boolean }>(
+      'SELECT released_at IS NULL AS created FROM ai_handoff_waits WHERE business_id = $1 AND turn_id = $2', [businessId, turn.id],
+    )).toEqual({ created: true });
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(writes.mock.calls.find(([input]) => input.author === 'ai')?.[0].providerMeta).toBeUndefined();
+  });
+
+  it('G18 hands off once and sends a fixed apology after three failed model attempts', async () => {
+    const inbound = await incoming('A-GAME-01 ราคาเท่าไหร่');
+    const chat = vi.spyOn(model, 'chat').mockRejectedValue(new AppError('PROVIDER_UNAVAILABLE', 'Synthetic model error', { retryable: true }));
+    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    for (const attempt of [1, 2]) {
+      expect(await execute(inbound)).toHaveProperty('retryAt');
+      const failed = await trace(inbound.message.id);
+      expect(failed).toMatchObject({ state: 'failed', attempts: attempt, reply_message_id: null });
+      await db.query("UPDATE ai_turns SET retry_after = now() - interval '1 second' WHERE business_id = $1 AND id = $2", [businessId, failed.id]);
+    }
+    await execute(inbound);
+    expect(chat).toHaveBeenCalledTimes(3);
+    expect(handoff).toHaveBeenCalledExactlyOnceWith(inbound.conversation.id, { reason: 'ai_failed', actor: 'ai' }, { businessId });
+    expect((await replies(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.ai_failed.th]);
+    expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', error_code: 'PROVIDER_UNAVAILABLE', attempts: 3, escalated: true });
   });
 });

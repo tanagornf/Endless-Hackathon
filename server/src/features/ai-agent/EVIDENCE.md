@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | 2f3cca0 | S2, F10 trace and core loop 63/63. Real dev generation 9/9. Typecheck and ownership passed. | 2026-11-21 12:41 +07:00 | Production smoke and team handoff pending. |
+| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | 33c1d28 | F10, core loop and channels 84/84 with explicit handoff and queued handback tests. Real dev S2 generation 9/9. Typecheck and ownership passed. | 2026-11-21 13:10 +07:00 | Production smoke and remaining S3 intents pending. |
 
 ## Log
 
@@ -17,6 +17,9 @@
 | 2026-11-21 12:35 | S1 dev evidence on the merged worker and single-turn GET. | B0 verified both synthetic turns. | a13a7ed | English quoted 1,490 baht with versioned catalog evidence. The next Thai turn answered 10:00–20:00 with knowledge evidence. Both turn details matched sent F09 messages. | Real dev OpenAI. End-to-end 9.84s and 4.35s, provider 5.27s and 1.52s. |
 | 2026-11-21 12:37 | Added strict search, quote and total tools. Shared one four-call budget across reply and repair. Code produced the localized receipt and retained provider state. | — | 26f5348 | `npm test -- ai-agent loop.test.ts` passed 63/63 on the S1 merge plus current F07/F08/F09/F35. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
 | 2026-11-21 12:42 | Rebasing onto F11 `ee891ac` verified the real takeover and handback contract. | — | 2f3cca0 | `npm test -- ai-agent loop.test.ts` passed 63/63, including takeover before and during generation. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 12:55 | Fixed the trace fixture to correlate exact message IDs for two same-shop turns and finish both queued deliveries. | — | 6ec0792 | Trace and channels 5/5 and required PR CI passed. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 13:01 | Added the explicit request path, F11 handoff checkpoint, versioned acknowledgement and fallback after exhausted retries. | — | be677e7 | `npm test -- ai-agent loop.test.ts channels.test.ts` passed 84/84. Includes current-version queue send and suppression after a subsequent staff claim. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 13:10 | Verified the explicit handoff against the real F04 hours service and F35's queued delivery guard. | — | 33c1d28 | `npm test -- ai-agent loop.test.ts channels.test.ts` passed 84/84 on core c291657. A queued acknowledgement sent at the matching version and was suppressed after either staff claim or handback to AI. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
 
 S1 serializes direct and queued turns with a short `ai.turn:<conversationId>` transaction lock and a fenced lease. The tests exercise a stale holder, a duplicate inbound, overlapping direct and queued turns, and four queued conversations with the default five-connection pool. The focused expired-lease test on the F35 base passed and verified exactly one AI save and one delivery enqueue call after a replacement holder finished.
 
@@ -24,7 +27,9 @@ After the reply is saved, the shop subscription receives `ai.turn` with `data.tu
 
 The S2 tests cover G2, G3, G4, G5, G13, G14 and G16. They use scripted OpenAI responses and the F07 and F08 application services. The dev S1 observations are recorded separately. [B0 gate evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058026663)
 
-The trace list, metrics and `/ai-settings` remain in S5. Intent routing, staff handoff and G15 remain in S3. S1/S2 retry transient failures and use a localized apology if generation retries are exhausted. Production provider usage and timing are pending.
+The trace list, metrics and `/ai-settings` remain in S5. The first S3 slice covers explicit Thai and English requests, the closed-shop acknowledgement, the fallback wait when F11 fails, and handoff after exhausted model retries. Broader intent classification and offers remain in S3. Production evidence is pending.
+
+F10 saves a version marker only after a successful F11 assignment and reuses the same saved acknowledgement on delivery retry. Tests cover AI-off before save, a manual takeover race, and suppression after a later staff claim or handback to AI. [Core delivery guard](https://github.com/tanagornf/Endless-Hackathon/pull/26)
 
 ## S2 OpenAI development acceptance
 
