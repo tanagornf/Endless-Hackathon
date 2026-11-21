@@ -34,9 +34,11 @@ function CatalogResults({ filters, add }: { filters: Filters; add: React.ReactNo
     <DataTable rows={items} loading={query.loading || (!data && !query.error && !items.length)}
       rowKey={(item) => item.id} onRowClick={(item) => navigate('/catalog/' + item.id)} empty={<EmptyState title={t('list.empty')} action={add} />}
       columns={[
-        { key: 'name', header: t('table.name'), render: (item) => <Stack data-user-content sx={{ whiteSpace: 'normal' }}>
-          <Typography>{item.name}</Typography>
-          {item.nameEn && <Typography variant="body2" color="text.secondary">{item.nameEn}</Typography>}
+          { key: 'name', header: t('table.name'), render: (item) => <Stack direction="row" spacing={1} data-user-content sx={{ whiteSpace: 'normal', alignItems: 'center' }}>
+            {item.imageUrl && <img src={item.imageUrl} alt="" width={40} height={40} loading="lazy" style={{ objectFit: 'contain' }} />}
+            <Stack><Typography>{item.name}</Typography>
+              {item.nameEn && <Typography variant="body2" color="text.secondary">{item.nameEn}</Typography>}
+            </Stack>
         </Stack> },
         { key: 'sku', header: t('table.sku') },
         { key: 'category', header: t('form.category') },

@@ -3,16 +3,18 @@ import { unlink } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import sharp from 'sharp';
 import { SEED } from '@nless/shared/core/fixtures';
+import type { FeatureId } from '@nless/shared/core/features';
 import { formatMoneyText } from '@nless/shared/core/language';
 import { audit } from './audit';
 import { config } from './config';
-import { assertSafeDbName, db, dbUrl } from './db';
+import { assertSafeDbName, db, dbPool, dbUrl } from './db';
+import { DEMO_BUSINESS_IDS, DEMO_RESET_LOCK } from './demo-scope';
 import { AppError } from './errors';
 import { log } from './log';
+import { withModelCallsDisabled } from './model';
 import { featureSeeds, seed, seedContext, seedId } from './seed';
 import { storage, uploadDirectory } from './storage';
 
-const shops = SEED.businesses.map((shop) => shop.id);
 const mainShop = seedId('biz_demo_a');
 const extras = [
   ['ของเล่นไม้', 29000], ['ชุดบอร์ดเกม', 69000], ['การ์ดภาพ', 39000],
@@ -59,7 +61,7 @@ async function createImages() {
   }
 }
 
-export async function seedDemoData(): Promise<void> {
+export async function seedDemoData(onFeatureError?: (featureId: FeatureId, error: unknown) => void): Promise<void> {
   await db.withAdvisoryLock('nless.demo.seed', async () => {
     await createImages();
     await db.tx(async (tx) => {
@@ -84,28 +86,62 @@ export async function seedDemoData(): Promise<void> {
     });
     for (const module of await featureSeeds()) {
       try { await module.runDemo?.(seedContext); }
-      catch { log.warn({ featureId: module.default.featureId }, 'Demo seed did not complete'); }
+      catch (error) {
+        log.warn({ featureId: module.default.featureId }, 'Demo seed did not complete');
+        onFeatureError?.(module.default.featureId, error);
+      }
     }
   });
 }
 
-export async function resetDemoData(): Promise<void> {
+function assertDemoResetAllowed(): void {
   if (config.NODE_ENV === 'production') {
     if (!config.DEMO_RESET_ENABLED) throw new AppError('PERMISSION_DENIED', 'Demo reset is disabled');
   } else assertSafeDbName(decodeURIComponent(new URL(dbUrl()).pathname.slice(1)));
-  const modules = (await featureSeeds()).reverse();
-  for (const module of modules) await module.resetDemo?.(seedContext);
+}
+
+export async function withDemoResetLock<T>(work: () => Promise<T>): Promise<T> {
+  assertDemoResetAllowed();
+  const client = await dbPool().connect();
+  let held = false;
+  let disconnected = false;
+  const onError = () => { disconnected = true; };
+  client.on('error', onError);
+  try {
+    const result = await client.query<{ held: boolean }>('SELECT pg_try_advisory_lock(hashtext($1)) AS held', [DEMO_RESET_LOCK]);
+    held = result.rows[0]?.held === true;
+    if (!held) throw new AppError('POLICY_BLOCKED', 'Demo reset is already running', { details: { reason: 'reset_in_progress' } });
+    return await work();
+  } finally {
+    if (held && !disconnected) {
+      await client.query('SELECT pg_advisory_unlock(hashtext($1))', [DEMO_RESET_LOCK]).catch(() => { disconnected = true; });
+    }
+    client.off('error', onError);
+    client.release(disconnected);
+  }
+}
+
+export async function clearDemoData(): Promise<void> {
+  assertDemoResetAllowed();
   const files = await db.tx(async (tx) => {
-    for (const table of ['jobs', 'messages', 'conversations', 'customers']) await tx.query('DELETE FROM ' + table + ' WHERE business_id = ANY($1::uuid[])', [shops]);
+    for (const table of ['jobs', 'messages', 'conversations', 'customers']) await tx.query('DELETE FROM ' + table + ' WHERE business_id = ANY($1::uuid[])', [DEMO_BUSINESS_IDS]);
     const deleted = await tx.query<{ storage_path: string }>(`DELETE FROM files WHERE business_id = ANY($1::uuid[])
-      AND NOT EXISTS(SELECT 1 FROM seed_aliases WHERE seed_aliases.id=files.id AND kind='files') RETURNING storage_path`, [shops]);
+      AND NOT EXISTS(SELECT 1 FROM seed_aliases WHERE seed_aliases.id=files.id AND kind='files') RETURNING storage_path`, [DEMO_BUSINESS_IDS]);
     return deleted.rows;
   });
   for (const file of files) {
     const path = resolve(uploadDirectory, file.storage_path);
     if (path.startsWith(uploadDirectory + sep)) await unlink(path).catch(() => {});
   }
-  await seed();
-  await seedDemoData();
-  await audit({ action: 'core.demo.reset', actorUserId: null });
+}
+
+export async function resetDemoData(): Promise<void> {
+  await withDemoResetLock(() => withModelCallsDisabled(async () => {
+    const modules = (await featureSeeds()).reverse();
+    for (const module of modules) await module.resetDemo?.(seedContext);
+    await clearDemoData();
+    await seed((featureId) => log.warn({ featureId }, 'Demo reset seed did not complete'));
+    await seedDemoData();
+    await audit({ action: 'core.demo.reset', actorUserId: null });
+  }));
 }

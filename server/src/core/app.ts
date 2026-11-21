@@ -6,6 +6,7 @@ import { config, rootDir } from './config';
 import { mountDev } from './dev';
 import { AppError } from './errors';
 import { featureFlags, initializeFlags, loadFeatures, setFeatureFlag, visiblePublicFeatures } from './features';
+import { registerOpsRoutes } from './ops';
 import { createHttpApp, httpError } from './http';
 import { mountMeta } from './meta';
 import { mountSpa } from './spa';
@@ -33,6 +34,7 @@ export async function createApp() {
   api.get('/_meta/routes', { auth: 'user' }, async () => routes);
   mountDev(app);
   const loaded = await loadFeatures(http);
+  registerOpsRoutes(http.api('F35'), routes, () => loaded.size);
   await initializeFlags();
   mountMeta(app, () => loaded.size);
   app.use(['/api', '/webhooks', '/mcp'], (_req, _res, next) => next(new AppError('NOT_FOUND', 'Route not found')));

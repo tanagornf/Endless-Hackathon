@@ -91,7 +91,7 @@ function detailView(row: ItemRow): CatalogItemDetail {
   const item = itemView(row);
   return {
     ...item, description: row.description, category: row.category, unit: row.unit,
-    images: row.images.map(({ fileId, alt }) => ({ fileId, alt })),
+    images: row.images.filter((image) => !image.flagged).map(({ fileId, alt }) => ({ fileId, alt })),
     variants: item.variants.map((variant) => ({
       ...variant, effectivePriceMinor: variant.priceMinor ?? item.priceMinor, effectiveStock: variant.stock ?? item.stock,
     })),

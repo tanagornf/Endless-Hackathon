@@ -4,7 +4,7 @@ import type { DbExecutor } from '../../core';
 import type { Page } from '@nless/shared/core/types';
 import type {
   KnowledgeFileTag, KnowledgeIndexView, KnowledgeItemDetail, KnowledgeItemRow,
-  KnowledgeModeration, KnowledgeRevisionDetail, KnowledgeRevisionRow,
+  KnowledgeModeration, KnowledgeRevisionDetail, KnowledgeRevisionRow, WebKnowledgeSuggestion,
 } from '@nless/shared/features/knowledge/types';
 import { normalizeContent } from './hash';
 import { getIndexStates } from './index-port';
@@ -23,6 +23,7 @@ export interface Item {
   folder_name?: string | null;
   files: FileTag[];
   source: KnowledgeItemRow['source'];
+  web_suggestion: WebKnowledgeSuggestion | null;
   content_hash: string;
   moderation: KnowledgeModeration | null;
   created_at: Date;
@@ -70,6 +71,7 @@ export async function listItems(businessId: string, query: ListQuery): Promise<P
   const bind = (value: unknown) => '$' + values.push(value);
   if (query.status) filters.push('i.status=' + bind(query.status));
   else if (!query.includeDeleted) filters.push("i.status<>'deleted'");
+  if (query.pendingWebSuggestions) filters.push("i.source='web' AND i.status IN ('draft','reviewed')");
   if (query.kind) filters.push('i.kind=' + bind(query.kind));
   if (query.folderId === 'unfiled') filters.push('i.folder_id IS NULL');
   else if (query.folderId) filters.push('i.folder_id=' + bind(query.folderId));
@@ -157,7 +159,7 @@ export async function itemDetail(item: Item): Promise<KnowledgeItemDetail> {
   ]);
   const index = stateOf(item, states);
   return {
-    ...itemView(item, index), body: item.body, files, moderation: item.moderation, index,
+    ...itemView(item, index), body: item.body, webSuggestion: item.web_suggestion, files, moderation: item.moderation, index,
     mutable: item.status !== 'deleted', warnings,
     createdAt: item.created_at.toISOString(), submittedAt: item.submitted_at?.toISOString() ?? null,
     activatedAt: item.activated_at?.toISOString() ?? null, deletedAt: item.deleted_at?.toISOString() ?? null,

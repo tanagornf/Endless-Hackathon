@@ -1,4 +1,4 @@
-import { Alert, Button, LinearProgress, MenuItem, Stack, TextField } from '@mui/material';
+import { Alert, Button, LinearProgress, Link as ExternalLink, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -29,10 +29,11 @@ function Editor({ id }: { id: string }) {
   const deactivate = useApiMutation<Expected, KnowledgeItemDetail>('POST', path + '/deactivate', { toastOnError: false });
   const reindex = useApiMutation<Record<string, never>, KnowledgeItemDetail>('POST', path + '/reindex', { toastOnError: false });
   const remove = useApiMutation<void, unknown>('DELETE', path);
+  const reject = useApiMutation<Expected, unknown>('POST', path + '/reject', { toastOnError: false });
   const [item, setItem] = useState<KnowledgeItemDetail>();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [conflict, setConflict] = useState(false);
-  const [confirmation, setConfirmation] = useState<'activate' | 'delete' | 'leave' | null>(null);
+  const [confirmation, setConfirmation] = useState<'activate' | 'delete' | 'leave' | 'reject' | null>(null);
   const received = query.data;
   useEffect(() => { if (received) setItem(received); }, [received]);
   useRealtime('knowledge.status', (event) => { if (event.knowledgeItemId === id) query.reload(); });
@@ -103,13 +104,19 @@ function Editor({ id }: { id: string }) {
 
   const fields: Fields = draft ?? item;
   const editable = canWrite && item.mutable;
-  const busy = patch.running || submit.running || activate.running || deactivate.running || reindex.running || remove.running;
+  const webSuggestion = item.webSuggestion;
+  const pendingSuggestion = !!webSuggestion && (item.status === 'draft' || item.status === 'reviewed');
+  const canEditContent = editable && !(webSuggestion && item.status === 'active');
+  const busy = patch.running || submit.running || activate.running || deactivate.running || reindex.running || remove.running || reject.running;
   function update(change: Partial<Fields>) {
     setDraft((current) => ({ kind: item!.kind, title: item!.title, body: item!.body, folderId: item!.folderId,
       expectedRevision: item!.revision, ...current, ...change }));
   }
-  const action = item.status === 'draft' ? 'submit' : item.status === 'active' ? 'deactivate' : 'activate';
+  const action = item.status === 'draft' && !webSuggestion ? 'submit' : item.status === 'active' ? 'deactivate' : 'activate';
+  const actionLabel = t(webSuggestion && action === 'activate' ? 'web.activate' : 'actions.' + action);
   const missingContent = !fields.title.trim() || !fields.body.trim();
+  const requiresContent = action === 'submit' || (!!webSuggestion && action === 'activate');
+  const requiresIndex = action === 'activate' && !webSuggestion;
   function handleTransition() {
     if (action === 'activate' && item?.moderation?.status === 'flagged') setConfirmation('activate');
     else void transition(action).catch(() => {});
@@ -132,23 +139,36 @@ function Editor({ id }: { id: string }) {
         <Button component={Link} to={'/knowledge/' + warning.itemId} disabled={dirty}>{warning.title}</Button>
       </Alert>)}
       {item.mutable && waiting && <Alert severity="info">
-        {t(item.status === 'active' ? 'index.pendingRevision' : 'index.indexing')}
+        {t(item.status === 'active' ? webSuggestion ? 'web.indexing' : 'index.pendingRevision' : 'index.indexing')}
       </Alert>}
       {item.indexState === 'failed' && <Alert severity="warning">{t('index.failed')}</Alert>}
+      {webSuggestion && <SectionCard>
+        <Stack spacing={1} sx={{ overflowWrap: 'anywhere' }}>
+          <Typography variant="h6">{t(pendingSuggestion ? 'web.pending' : 'web.label')}</Typography>
+          <Typography variant="body2">{webSuggestion.question}</Typography>
+          <Typography variant="subtitle2">{t('web.sources')}</Typography>
+          <Stack component="ul" spacing={0.5} sx={{ m: 0, pl: 3 }}>
+            {webSuggestion.citations.map(({ url, title }) => <li key={url}>
+              <ExternalLink href={url} target="_blank" rel="noopener noreferrer">{title}</ExternalLink>
+            </li>)}
+          </Stack>
+          {item.status === 'active' && canWrite && <Typography variant="body2" color="text.secondary">{t('web.editActive')}</Typography>}
+        </Stack>
+      </SectionCard>}
       <SectionCard>
         <Stack spacing={2}>
-          <TextField select label={t('table.kind')} value={fields.kind} disabled={!editable || busy}
+          <TextField select label={t('table.kind')} value={fields.kind} disabled={!canEditContent || busy}
             onChange={(event) => update({ kind: event.target.value as Fields['kind'] })}>
             <MenuItem value="faq">{t('kind.faq')}</MenuItem>
             <MenuItem value="article">{t('kind.article')}</MenuItem>
           </TextField>
           <TextField label={t(fields.kind === 'faq' ? 'form.question' : 'form.title')} value={fields.title}
             onChange={(event) => update({ title: event.target.value })}
-            slotProps={{ input: { readOnly: !editable || busy }, htmlInput: { maxLength: 255 } }} />
+            slotProps={{ input: { readOnly: !canEditContent || busy }, htmlInput: { maxLength: 255 } }} />
           <TextField multiline minRows={6} label={t(fields.kind === 'faq' ? 'form.answer' : 'form.body')} value={fields.body}
             helperText={t('form.count', { n: fields.body.length })}
             onChange={(event) => update({ body: event.target.value })}
-            slotProps={{ input: { readOnly: !editable || busy }, htmlInput: { maxLength: 20000 } }} />
+            slotProps={{ input: { readOnly: !canEditContent || busy }, htmlInput: { maxLength: 20000 } }} />
 
           <TextField select label={t('filter.folder')} value={fields.folderId ?? ''} disabled={!editable || busy || !!folders.error}
             onChange={(event) => update({ folderId: event.target.value || null })}>
@@ -160,12 +180,14 @@ function Editor({ id }: { id: string }) {
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             {editable && <>
               <Button variant="contained" disabled={busy || !dirty} onClick={() => void save()}>{t('actions.save')}</Button>
-              <Button variant="outlined" disabled={busy || dirty || (action === 'submit' && missingContent) ||
-                (action === 'activate' && item.indexState !== 'ready')} onClick={handleTransition}>{t('actions.' + action)}</Button>
+              <Button variant="outlined" disabled={busy || dirty || (requiresContent && missingContent) ||
+                (requiresIndex && item.indexState !== 'ready')} onClick={handleTransition}>{actionLabel}</Button>
               {item.status !== 'draft' && (item.indexState === 'failed' || item.indexState === 'not_started') &&
                 <Button disabled={busy || dirty} onClick={() => void transition('reindex').catch(() => {})}>{t('actions.reindex')}</Button>}
             </>}
-            {canDelete && item.mutable && <Button color="error" disabled={busy} onClick={() => setConfirmation('delete')}>{t('actions.delete')}</Button>}
+            {pendingSuggestion && editable && <Button color="error" disabled={busy} onClick={() => setConfirmation('reject')}>{t('web.reject')}</Button>}
+            {!pendingSuggestion && canDelete && item.mutable &&
+              <Button color="error" disabled={busy} onClick={() => setConfirmation('delete')}>{t('actions.delete')}</Button>}
           </Stack>
         </Stack>
       </SectionCard>
@@ -177,7 +199,15 @@ function Editor({ id }: { id: string }) {
         navigate('/knowledge');
       }} />
     <ConfirmDialog open={confirmation === 'activate'} title={t('moderation.confirmTitle')} message={t('moderation.confirmMessage')}
-      confirmLabel={t('actions.activate')} onClose={() => setConfirmation(null)} onConfirm={() => transition('activate')} />
+      confirmLabel={actionLabel} onClose={() => setConfirmation(null)} onConfirm={() => transition('activate')} />
+    <ConfirmDialog open={confirmation === 'reject'} title={t('web.reject')} message={t('web.rejectMessage')}
+      confirmLabel={t('web.reject')} danger onClose={() => setConfirmation(null)} onConfirm={async () => {
+        try {
+          await reject.run({ expectedRevision: item.revision });
+          toast.success(t('web.rejected'));
+          navigate('/knowledge');
+        } catch (error) { showError(error); throw error; }
+      }} />
     <ConfirmDialog open={confirmation === 'leave'} title={t('form.unsaved')} message={t('form.unsavedMessage')} confirmLabel={t('actions.leave')}
       onClose={() => setConfirmation(null)} onConfirm={() => navigate('/knowledge')} />
   </>;
