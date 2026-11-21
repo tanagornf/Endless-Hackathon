@@ -7,6 +7,19 @@ import { maskCardNumbers } from './mask';
 import type { TurnDraft } from './repo';
 
 const consultIntents = new Set<AiIntent>(['QUESTION', 'PRODUCT_FILTER', 'BUSINESS_HOURS']);
+const productCare = /\b(?:wash(?:ing)?|launder(?:ing)?|clean(?:ing)?|care instructions|washing instructions)\b|ซัก|ทำความสะอาด|ดูแลรักษา/iu;
+const shopProduct = /\b(?:your (?:shop|store|brand)(?:'s|’s)?|from (?:this|your) (?:shop|store)|your (?:bag|shirt|fabric|product|item))\b|ของ(?:ทาง)?ร้าน|จากร้าน|ของคุณ/iu;
+const englishClarification = /^(?:(?:can|could|would) you (?:share|tell me|send)|(?:what|which) (?:material|fabric|care label|model|item)).*(?:\?|？)$/iu;
+const thaiClarification = /^(?:(?:ขอทราบ|รบกวน(?:ส่ง|แจ้ง|บอก))[^.!?？]*(?:ป้าย|รุ่น|วัสดุ|เนื้อผ้า)|(?:รุ่น|วัสดุ|เนื้อผ้า)[^.!?？]*(?:อะไร|ไหน)).*(?:คะ|ครับ|\?|？)$/u;
+
+export function needsProductCareConsult(question: string, reply: string, evidenceIds: readonly string[]): boolean {
+  if (evidenceIds.length || !productCare.test(question) || !shopProduct.test(question)) return false;
+  const text = reply.trim();
+  // A short question can obtain missing label details. Product-specific
+  // instructions require some evidence from the current shop or cited source.
+  const clarification = !/[.!?？]\s+\S/u.test(text) && (englishClarification.test(text) || thaiClarification.test(text));
+  return !clarification;
+}
 
 export async function openConsultOnShopMiss(
   conversation: ConversationRecord, inbound: MessageRecord, draft: TurnDraft, signal: AbortSignal,
