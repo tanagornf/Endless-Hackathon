@@ -32,6 +32,7 @@ export default function PublicPayment() {
           <Typography variant="h4">{formatMoney(value.amountMinor)}</Typography>
           <Typography>{t('settings.receiver')} · {value.receiverName} {value.receiverMasked}</Typography>
           <Typography>{t('states.'+value.state)} · {t('columns.expires')} {formatDateTime(value.expiresAt)}</Typography>
+          {value.receipt && <Typography>{t('slips.receipt', { number: value.receipt.receiptNo })}</Typography>}
           {value.qrImageBase64 && <><Box component="img" src={'data:image/png;base64,'+value.qrImageBase64} alt={t('pay.qr')} sx={{maxWidth:'100%',width:300,alignSelf:'center'}}/>
             <Button component="a" href={'data:image/png;base64,'+value.qrImageBase64} download="payment-qr.png" variant="outlined">{t('pay.download')}</Button></>}
         </Stack></SectionCard>}

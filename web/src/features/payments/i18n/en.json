@@ -61,5 +61,31 @@
   "loading": "Loading",
   "failed": "Could not load payments.",
   "retry": "Retry",
-  "empty": "No payment requests in this view"
+  "empty": "No payment requests in this view",
+  "slips": {
+    "title": "Slip review",
+    "open": "View slips",
+    "details": "Details",
+    "close": "Close",
+    "conversation": "Open conversation",
+    "empty": "No slips received for this order.",
+    "preliminary": "Check the incoming transfer in your bank before confirming payment.",
+    "accept": "Confirm bank transfer",
+    "reject": "Reject slip",
+    "accepted": "Approved by staff",
+    "rejected": "Rejected by staff",
+    "bankConfirmed": "I checked the incoming transfer in the bank and confirmed the amount and recipient.",
+    "rejectConfirm": "Reject this slip and keep the order unpaid.",
+    "receipt": "Receipt {{number}}",
+    "verdict": {
+      "verified": "Preliminary checks passed",
+      "wrong_amount": "Amount does not match",
+      "wrong_account": "Recipient does not match",
+      "wrong_date": "Transfer time does not match",
+      "duplicate": "Reference already seen",
+      "unreadable": "Could not read all details",
+      "suspected_forgery": "Slip details are inconsistent",
+      "technical": "The automatic check could not finish"
+    }
+  }
 }

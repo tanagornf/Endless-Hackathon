@@ -17,3 +17,8 @@
 - Missing QR, lower confidence or a name-only match requires staff review. A malformed model result or exhausted provider budget returns a technical verdict. The sandbox simulator labels its result. A unique tenant/reference claim prevents two concurrent analyses from accepting the same transfer reference.
 - A2 ran 51/51 focused tests in fake model mode, with actual PNG/JPEG processing, published QR vectors, both languages on the payment request path, tenant isolation, dry runs, concurrent claims and budget errors. Typecheck, ownership and diff checks passed on the rebased implementation.
 - Live OpenAI slip reading, bank confirmation, public/staff slip submission and settlement have no production evidence in this slice. Overall feature status stays A.
+
+## LINE slip review
+
+- A LINE slip is attached only to one eligible payment request for the same shop, conversation, and customer. An ambiguous match asks for an order number and alerts staff. The existing OCR and code checks inform review. Authorized staff must explicitly confirm the bank transfer before the order is marked paid and a receipt is recorded.
+- Targeted PostgreSQL integration and regression suites passed 28/28 in fake model mode. The same inbound cannot create duplicate slip records, payment stays pending before staff approval, and an order without an unambiguous match is unchanged. The production web build and Thai/English locale parity passed. Real OpenAI, LINE handset, and production evidence remain pending.

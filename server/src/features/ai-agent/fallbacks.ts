@@ -31,8 +31,16 @@ export const fallbacks = {
     en: "Got it. The shop is closed right now. I've left a note for our staff and they'll reply here when the shop opens. Feel free to add more details in the meantime.",
   },
   image_only: {
-    th: 'ได้รับรูปแล้วค่ะ ตอนนี้ผู้ช่วยอ่านได้เฉพาะข้อความ ถ้าเป็นสลิปโอนเงิน ส่งผ่านปุ่มชำระเงินในแชตนี้ได้เลยนะคะ หรือพิมพ์บอกได้ว่าต้องการให้ช่วยเรื่องอะไรค่ะ',
-    en: 'Thanks, I got your picture. I can only read text for now. If it is a payment slip, please send it with the payment button in this chat, or tell me in words how I can help.',
+    th: 'ได้รับรูปแล้วค่ะ อยากให้ร้านช่วยดูหรือถามอะไรเกี่ยวกับรูปนี้คะ',
+    en: 'I got your picture. What would you like the shop to help you with?',
+  },
+  slip_received: {
+    th: 'ได้รับรูปสลิปแล้วค่ะ ร้านจะตรวจสอบยอดเข้าบัญชีอีกครั้งนะคะ',
+    en: 'I received your slip. The shop will check whether the transfer reached its account.',
+  },
+  slip_order_unclear: {
+    th: 'ได้รับสลิปแล้วค่ะ ยังระบุออเดอร์ไม่ได้ รบกวนพิมพ์เลขออเดอร์ให้ร้านตรวจสอบนะคะ',
+    en: 'I received your slip and could not match it to one order. Please reply with your order number so the shop can check it.',
   },
   price_hidden: {
     th: 'สอบถามราคากับร้านโดยตรงนะคะ',

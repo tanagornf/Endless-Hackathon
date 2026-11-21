@@ -64,7 +64,7 @@ export function evaluate(input:SlipAnalysisInput,vision:Vision,qr:ParsedQr,dupli
     qr:{found:qr.kind==='slip',sendingBank:qr.sendingBank,transactionRef:qr.transactionRef},checks,
     autoAcceptable:verdict==='verified' && reason===null,needsStaffReason:reason};
 }
-export async function runSlipPipeline(input:SlipAnalysisInput):Promise<SlipAnalysis> {
+export async function runSlipPipeline(input:SlipAnalysisInput, signal?:AbortSignal):Promise<SlipAnalysis> {
   const stored=await storage.read(input.fileId,{businessId:input.businessId});
   if(!stored) throw new AppError('NOT_FOUND','Slip image not found');
   if(!['image/png','image/jpeg','image/webp'].includes(stored.file.mimeType)) throw new AppError('VALIDATION_ERROR','Unsupported slip image');
@@ -81,8 +81,11 @@ export async function runSlipPipeline(input:SlipAnalysisInput):Promise<SlipAnaly
   }
   let qr:ParsedQr,vision:Vision|null;
   try {
-    [qr,vision]=await Promise.all([decodeQr(stored.bytes),readVision(input.businessId,stored.bytes)]);
+    signal?.throwIfAborted();
+    [qr,vision]=await Promise.all([decodeQr(stored.bytes),readVision(input.businessId,stored.bytes,signal)]);
+    signal?.throwIfAborted();
   } catch(error) {
+    signal?.throwIfAborted();
     return blank('vision',error instanceof AppError && error.code==='PROVIDER_BUDGET_EXHAUSTED'?'provider_budget':'vision_failed');
   }
   if(!vision) return blank('vision','vision_failed');
