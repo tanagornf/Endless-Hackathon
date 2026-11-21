@@ -60,7 +60,9 @@ test('a buyer sees a sourced product fact and the next buyer sees the merchant c
   }
   const before = new Set((await drafts()).map(item => item.id));
   const question = 'What is A-CARD-01 made of?';
+  const firstStartedAt = performance.now();
   const first = await ask(question);
+  console.info('Sourced answer round trip', Math.round(performance.now() - firstStartedAt), 'ms');
   expect(search).toHaveBeenCalledTimes(1);
   expect(textOf(first.reply)).toContain('glossy cardstock');
   expect(JSON.stringify(first.reply.parts)).toContain(url);
@@ -84,7 +86,7 @@ test('a buyer sees a sourced product fact and the next buyer sees the merchant c
     expect(textOf(repeat.reply)).not.toContain('glossy cardstock');
     expect(search).toHaveBeenCalledTimes(1);
   } finally {
-    await owner.delete(detail).set(writeHeader).expect(204);
+    await owner.delete(detail).set(writeHeader).expect(200);
   }
 }, 40000);
 
