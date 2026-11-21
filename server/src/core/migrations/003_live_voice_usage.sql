@@ -1,3 +1,4 @@
+-- dependsOn:
 ALTER TABLE model_usage
   ADD COLUMN audio_active_seconds numeric,
   ADD COLUMN audio_paused_seconds numeric;
