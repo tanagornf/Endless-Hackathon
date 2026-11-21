@@ -29,6 +29,7 @@ export interface TurnDraft {
   intent?: AiIntent | null;
   intentSource?: AiTurnTrace['intentSource'];
   intentConfidence?: number | null;
+  handoffOffered?: boolean;
 }
 
 interface TurnRow {
@@ -56,6 +57,7 @@ interface TurnRow {
   intent: AiIntent | null;
   intent_source: AiTurnTrace['intentSource'];
   intent_confidence: string | null;
+  handoff_offered: boolean;
 }
 
 export type TurnLease = Pick<TurnRow, 'id' | 'business_id' | 'conversation_id' | 'attempts' | 'mode'>;
@@ -121,6 +123,21 @@ export async function releaseClaim(turn: TurnLease): Promise<void> {
   await db.query('UPDATE ai_turns SET lease_until = now() WHERE ' + owned, leaseParams(turn));
 }
 
+export async function priorSavedReply(conversation: ConversationRecord, inbound: MessageRecord): Promise<{
+  offeredHandoff: boolean;
+  recentlySentNonTextNotice: boolean;
+} | null> {
+  return db.maybeOne(String.raw`
+    SELECT handoff_offered AS "offeredHandoff",
+      COALESCE(timings ? 'nonTextNotice' AND finished_at > $3::timestamptz - interval '10 minutes', false)
+        AS "recentlySentNonTextNotice"
+    FROM ai_turns
+    WHERE business_id = $1 AND conversation_id = $2 AND mode = 'reply' AND state = 'completed'
+      AND inbound_created_at <= $3 AND inbound_message_id <> $4 AND reply_message_id IS NOT NULL
+    ORDER BY inbound_created_at DESC, started_at DESC LIMIT 1
+  `, [conversation.businessId, conversation.id, inbound.createdAt, inbound.id]);
+}
+
 export function readDraft(turn: TurnRow): TurnDraft | null {
   if (!turn.reply_language || !turn.reply_parts?.length) return null;
   return {
@@ -138,6 +155,7 @@ export function readDraft(turn: TurnRow): TurnDraft | null {
     intent: turn.intent,
     intentSource: turn.intent_source,
     intentConfidence: turn.intent_confidence === null ? null : Number(turn.intent_confidence),
+    handoffOffered: turn.handoff_offered,
   };
 }
 
@@ -147,11 +165,13 @@ export async function storeDraft(turn: TurnLease, draft: TurnDraft): Promise<boo
       product_refs = $8::jsonb, tools = $9::jsonb, guard_actions = $10::jsonb, usage_summary = $11::jsonb,
       timings = $12::jsonb, retry_used = $13, error_code = $14, reply_group_id = id,
       handoff_reason = $15, intent = $16, intent_source = $17, intent_confidence = $18,
+      handoff_offered = $19,
       lease_until = now() + interval '60 seconds'
     WHERE ` + owned, [
     ...leaseParams(turn), draft.language, JSON.stringify(draft.parts), draft.evidenceIds, JSON.stringify(draft.productRefs),
     JSON.stringify(draft.tools), JSON.stringify(draft.guardActions), JSON.stringify(draft.usage), JSON.stringify(draft.timings),
     draft.retryUsed, draft.errorCode, draft.handoffReason ?? null, draft.intent ?? null, draft.intentSource ?? null, draft.intentConfidence ?? null,
+    draft.handoffOffered ?? false,
   ]);
   return result.rowCount === 1;
 }

@@ -19,9 +19,10 @@ export async function runModelLoop(
   call: Call,
   started: number,
   signal: AbortSignal,
+  options: { tools: boolean; handoff: boolean },
 ): Promise<ModelChatResult> {
-  const tools = availableTools(context.rules);
-  const canCall = () => state.executedCalls < TOOL_BUDGET && performance.now() - started < 12000;
+  const tools = options.tools ? availableTools(context.rules, options.handoff) : [];
+  const canCall = () => options.tools && state.executedCalls < TOOL_BUDGET && performance.now() - started < 12000;
   const callModel = (allowTools: boolean) => call({
     messages: [...state.messages], tools,
     providerState: state.providerState, toolChoice: allowTools ? 'auto' : 'none',
@@ -35,7 +36,9 @@ export async function runModelLoop(
     const { toolCalls } = response;
     state.executedCalls += Math.min(allowance, toolCalls.length);
     const outcomes = await Promise.all(toolCalls.map((tool, index) =>
-      index < allowance ? runTool({ businessId, language: context.language, rules: context.rules }, tool, signal) : declinedTool(tool),
+      index < allowance ? runTool({
+        businessId, language: context.language, rules: context.rules, allowHandoff: options.handoff,
+      }, tool, signal) : declinedTool(tool),
     ));
     signal.throwIfAborted();
     state.messages.push({ role: 'assistant', content: maskCardNumbers(response.text), toolCalls });
@@ -55,6 +58,7 @@ export async function runModelLoop(
         }
       }
       if (result.total) context.totals.push(result.total);
+      if (result.offerHandoff) context.offeredByTool = true;
     }
     if (!allowance) break;
     allowTools = canCall();

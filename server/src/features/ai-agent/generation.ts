@@ -6,26 +6,55 @@ import type { ConversationRecord, MessageRecord } from '@nless/shared/features/i
 import { AppError, config, model } from '../../core';
 import type { ModelChatInput, ModelChatResult } from '../../core';
 import { getBusinessOpenState } from '../business-settings/service';
-import { buildReplyContext, turnLanguage, unansweredCustomerText } from './context';
+import { casualIntent, catalogPriceIntent, classifyIntent, unknownIntent } from './classifier';
+import type { IntentScore } from './classifier';
+import { buildReplyContext, turnLanguage, unansweredCustomerMessages } from './context';
 import type { ReplyContext } from './context';
 import { fallbacks } from './fallbacks';
 import { codeFallback, inspectReply, isPriceQuestion, mentionsProduct, receiptText, renderCatalogQuotes, shapeReply, stripUnsafeSentences } from './guards';
 import { canRequestHandoff } from './handoff';
-import { explicitlyRequestsStaff } from './intents';
+import { explicitlyRequestsStaff, replyToStaffOffer } from './intents';
 import { runModelLoop } from './loop';
 import { arabicDigits, maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
 import { repairPrompt } from './prompt';
+import { priorSavedReply } from './repo';
 import type { TurnDraft } from './repo';
 
 type Generation =
   | { state: 'completed' | 'handoff'; draft: TurnDraft }
+  | { state: 'skipped'; draft: TurnDraft; reason: 'non_text_repeat' }
   | { state: 'failed'; draft: TurnDraft; retryable: boolean };
 
 const output = z.string().max(8000);
 const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
 const commonEvidenceWords = new Set(['ราคา', 'สินค้า', 'ค่ะ', 'ครับ', 'บาท', 'baht', 'price', 'costs', 'shop']);
 const elapsed = (start: number) => Math.round(performance.now() - start);
+const ungroundedOfferIntents = new Set(['QUESTION', 'STATUS_CHECK', 'PRICE_CALC', 'PRODUCT_FILTER', 'BOOKING_AVAILABILITY', 'FEEDBACK']);
+
+function rememberIntent(draft: TurnDraft, { label, source, confidence }: IntentScore): void {
+  draft.intent = label;
+  draft.intentSource = source;
+  draft.intentConfidence = confidence;
+}
+
+function staffAcknowledgement(draft: TurnDraft, score: IntentScore, shopOpen: boolean | null): Generation {
+  rememberIntent(draft, score);
+  draft.handoffReason = 'customer_request';
+  draft.parts = [{ type: 'text', text: fallbacks[shopOpen === false ? 'escalation_ack_closed' : 'escalation_ack'][draft.language] }];
+  return { state: 'handoff', draft };
+}
+
+function appendHandoffOffer(draft: TurnDraft): void {
+  const offer = fallbacks.handoff_offer[draft.language];
+  const last = draft.parts.at(-1);
+  if (draft.parts.length >= 4 && last?.type === 'text') {
+    last.text = [...last.text].slice(0, 998 - [...offer].length).join('') + '\n\n' + offer;
+  } else {
+    draft.parts.push({ type: 'text', text: offer });
+  }
+  draft.handoffOffered = true;
+}
 
 function summarizeUsage(calls: readonly ModelChatResult[]): AiTurnUsage | null {
   if (!calls.length) return null;
@@ -112,29 +141,39 @@ export async function generateDraft(
   let context: ReplyContext | undefined;
   try {
     signal.throwIfAborted();
-    if (mode === 'reply' && explicitlyRequestsStaff(unansweredCustomerText(history, inbound)) &&
+    const unanswered = unansweredCustomerMessages(history, inbound);
+    const prior = mode === 'reply' ? await withinDeadline(priorSavedReply(conversation, inbound), signal) : null;
+    const offerPending = prior?.offeredHandoff === true;
+    const offerReply = offerPending && unanswered.length === 1 ? replyToStaffOffer(unanswered[0]) : null;
+    if (mode === 'reply' && (explicitlyRequestsStaff(unanswered.join('\n')) || offerReply === 'accepted') &&
         await withinDeadline(canRequestHandoff(conversation.businessId), signal)) {
       const opening = await withinDeadline(getBusinessOpenState(conversation.businessId).catch(() => null), signal);
-      draft.handoffReason = 'customer_request';
-      draft.intent = 'ESCALATION';
-      draft.intentSource = 'regex';
-      draft.intentConfidence = 1;
-      draft.parts = [{ type: 'text', text: fallbacks[opening?.open === false ? 'escalation_ack_closed' : 'escalation_ack'][language] }];
-      return { state: 'handoff', draft };
+      return staffAcknowledgement(draft, { label: 'ESCALATION', source: 'regex', confidence: 1 }, opening?.open ?? null);
     }
-    context = await withinDeadline(buildReplyContext(conversation, history, inbound, settings, language, signal), signal);
+    const casual = casualIntent(unanswered);
+    if (mode === 'reply' && !unanswered.length && prior?.recentlySentNonTextNotice) {
+      return { state: 'skipped', draft, reason: 'non_text_repeat' };
+    }
+    context = await withinDeadline(buildReplyContext(conversation, history, inbound, settings, language, signal, {
+      skipLookups: Boolean(casual) || !unanswered.length, offerPending,
+    }), signal);
     draft.timings.contextMs = elapsed(started);
     draft.tools = context.tools;
     if (context.cardMasked) draft.timings.cardMasked = 1;
+    const canEscalate = mode === 'reply' && context.rules.handoff && process.env.ESCALATION_ENABLED !== '0';
     if (!context.unanswered.length) {
-      draft.parts = shapeReply(fallbacks.text_only[language]);
+      draft.timings.nonTextNotice = 1;
+      draft.parts = shapeReply(fallbacks[inbound.parts.some(({ type }) => type === 'image') ? 'image_only' : 'text_only'][language]);
+      if (canEscalate && !offerPending) appendHandoffOffer(draft);
       return { state: 'completed', draft };
     }
     const draftContext = context;
+    const modelAbort = new AbortController();
+    const modelSignal = AbortSignal.any([signal, modelAbort.signal]);
     const call = (purpose: 'reply' | 'repair') => async (
       round: Pick<ModelChatInput, 'messages' | 'tools' | 'toolChoice' | 'providerState'>,
     ) => {
-      signal.throwIfAborted();
+      modelSignal.throwIfAborted();
       const requestedAt = performance.now();
       try {
         const response = await withinDeadline(model.chat({
@@ -143,10 +182,12 @@ export async function generateDraft(
           reasoningEffort: purpose === 'reply' ? 'low' : 'medium',
           maxOutputTokens: 2000,
           timeoutMs: Math.max(1, config.MODEL_TIMEOUT_MS - elapsed(started)),
-          signal,
-          fake: { text: codeFallback(draftContext, true) },
+          signal: modelSignal,
+          fake: {
+            text: casual ? fallbacks[casual.label === 'GREETING' ? 'greeting' : 'goodbye'][language] : codeFallback(draftContext, true),
+          },
           ...round,
-        }), signal);
+        }), modelSignal);
         calls.push(response);
         return response;
       } finally {
@@ -154,7 +195,32 @@ export async function generateDraft(
       }
     };
     const loop = { messages: [...context.messages], executedCalls: 0 };
-    let raw = draftText(await runModelLoop(loop, context, conversation.businessId, call('reply'), started, signal));
+    const toolOptions = { tools: !casual, handoff: canEscalate };
+    const firstReply = runModelLoop(loop, context, conversation.businessId, call('reply'), started, modelSignal, toolOptions)
+      .then((response) => ({ response } as const), (error: unknown) => ({ error } as const));
+    const price = catalogPriceIntent(context.unanswered.join(' '), context.prices.map(({ quote }) => quote));
+    const classifierTimeout = Math.min(8000, config.MODEL_TIMEOUT_MS - elapsed(started) - 1500);
+    let score = casual ?? price ?? unknownIntent;
+    if (!casual && !price && classifierTimeout > 0) {
+      const classifyStarted = performance.now();
+      const classifierSignal = AbortSignal.any([signal, AbortSignal.timeout(classifierTimeout)]);
+      score = await withinDeadline(classifyIntent({
+        turnId, businessId: conversation.businessId, conversationId: conversation.id, history, inbound, offerPending,
+        timeoutMs: classifierTimeout, signal: classifierSignal,
+      }), classifierSignal).catch(() => unknownIntent);
+      draft.timings.classifyMs = elapsed(classifyStarted);
+      if (score.response) calls.push(score.response);
+    }
+    rememberIntent(draft, score);
+    if (canEscalate && offerReply !== 'declined' && score.label === 'ESCALATION' && (score.confidence ?? 0) >= 0.85) {
+      modelAbort.abort();
+      await firstReply;
+      draft.tools = [];
+      return staffAcknowledgement(draft, score, context.shopOpen);
+    }
+    const first = await firstReply;
+    if ('error' in first) throw first.error;
+    let raw = draftText(first.response);
     const guardStart = performance.now();
     let checked = inspectReply(raw, context);
     draft.guardActions.push(...checked.actions);
@@ -166,7 +232,7 @@ export async function generateDraft(
       try {
         if (raw) loop.messages.push({ role: 'assistant', content: maskCardNumbers(raw) });
         loop.messages.push({ role: 'developer', content: note });
-        raw = draftText(await runModelLoop(loop, context, conversation.businessId, call('repair'), started, signal));
+        raw = draftText(await runModelLoop(loop, context, conversation.businessId, call('repair'), started, modelSignal, toolOptions));
         checked = inspectReply(raw, context);
         draft.guardActions.push(...checked.actions);
       } catch (error) {
@@ -199,6 +265,12 @@ export async function generateDraft(
     Object.assign(draft, usedEvidence(text, context, receipt));
     draft.parts = shapeReply(text);
     if (receipt) draft.parts.push({ type: 'text', text: receipt });
+    const noGrounding = !draft.evidenceIds.length && !context.tools.some(({ ok }) => ok) &&
+      ungroundedOfferIntents.has(score.label) && !/[?？]$/u.test(text.trim());
+    if (canEscalate && !offerPending && !casual && (context.offeredByTool || score.label === 'ESCALATION' ||
+        text === fallbacks.no_answer[language] || noGrounding)) {
+      appendHandoffOffer(draft);
+    }
     draft.timings.guardMs = elapsed(guardStart);
     return { state: 'completed', draft };
   } catch (error) {

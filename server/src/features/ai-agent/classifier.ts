@@ -3,7 +3,9 @@ import type { AiIntent } from '@nless/shared/features/ai-agent/types';
 import type { MessageRecord } from '@nless/shared/features/inbox/types';
 import { model } from '../../core';
 import type { ModelChatResult } from '../../core';
+import type { PriceQuote } from '@nless/shared/features/catalog/types';
 import { maskCardNumbers } from './mask';
+import { skuPattern } from './money';
 import { classifierPrompt } from './prompt';
 
 const labels = [
@@ -43,7 +45,7 @@ export interface IntentScore {
   response?: ModelChatResult;
 }
 
-const fallback: IntentScore = { label: 'UNKNOWN', source: 'fallback', confidence: null };
+export const unknownIntent: IntentScore = { label: 'UNKNOWN', source: 'fallback', confidence: null };
 const greeting = /^(?:สวัสดี|หวัดดี|ดีค่ะ|ดีครับ|ดีจ้า|ดีคะ|hello|hi|hey|good (?:morning|afternoon|evening)|sawasdee)[\s!.,ค่ะครับคะจ้านะ]*$/iu;
 const goodbye = /^(?:บาย|บ๊ายบาย|ไว้คุยกันใหม่|แค่นี้(?:ก่อน)?|ขอบคุณ(?:ค่ะ|ครับ|คะ)?(?:มาก)?(?:ค่ะ|ครับ|คะ|นะ)*|ขอบใจ|bye|goodbye|thanks?|thank you)[\s!.,]*$/iu;
 
@@ -53,6 +55,13 @@ export function casualIntent(unanswered: readonly string[]): IntentScore | null 
   if (message.length <= 25 && greeting.test(message)) return { label: 'GREETING', source: 'regex', confidence: 1 };
   if (message.length <= 30 && goodbye.test(message)) return { label: 'GOODBYE', source: 'regex', confidence: 1 };
   return null;
+}
+
+export function catalogPriceIntent(text: string, quotes: readonly PriceQuote[]): IntentScore | null {
+  if (!/(?:ราคา|เท่าไหร่|เท่าไร|กี่บาท|กี่บ\.?|how much|price|รวม|ทั้งหมด)/iu.test(text)) return null;
+  const skus = new Set([...text.matchAll(skuPattern)].map(([sku]) => sku.toUpperCase()));
+  const quote = quotes.find(({ sku }) => skus.has(sku.toUpperCase()));
+  return quote ? { label: quote.quantity > 1 ? 'PRICE_CALC' : 'QUESTION', source: 'regex', confidence: 1 } : null;
 }
 
 function textOf(message: MessageRecord, limit: number): string {
@@ -69,7 +78,7 @@ export async function classifyIntent(input: {
   timeoutMs: number;
   signal: AbortSignal;
 }): Promise<IntentScore> {
-  if (input.signal.aborted || input.timeoutMs <= 0) return fallback;
+  if (input.signal.aborted || input.timeoutMs <= 0) return unknownIntent;
   const prior = input.history.filter((message) => message.seq < input.inbound.seq && message.author !== 'system')
     .map((message) => ({ role: message.author === 'customer' ? 'customer' : 'shop', text: textOf(message, 500) }))
     .filter(({ text }) => text).slice(-2).map(({ role, text }) => role + ': ' + text);
@@ -85,9 +94,9 @@ export async function classifyIntent(input: {
       timeoutMs: Math.min(8000, input.timeoutMs), signal: input.signal,
     });
     const parsed = classification.safeParse(reply.json);
-    if (!parsed.success || reply.finishReason !== 'stop') return { ...fallback, response: reply };
+    if (!parsed.success || reply.finishReason !== 'stop') return { ...unknownIntent, response: reply };
     return { label: parsed.data.label, confidence: parsed.data.confidence, source: 'classifier', response: reply };
   } catch {
-    return fallback;
+    return unknownIntent;
   }
 }

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MessagePart } from '@nless/shared/core/types';
+import type { AiIntent } from '@nless/shared/features/ai-agent/types';
 import type { EffectiveAnswerRules } from '@nless/shared/features/business-settings/types';
 import type { AiReplyJobPayload, MessageRecord, SaveMessageResult } from '@nless/shared/features/inbox/types';
 import { AppError, db, drainJobs, model } from '../../core';
@@ -45,16 +47,22 @@ type TraceRow = {
   error_code: string | null;
   intent: string | null;
   intent_source: string | null;
+  intent_confidence: string | null;
+  handoff_offered: boolean;
   escalated: boolean;
   handoff_assignment_version: number | null;
 };
 
-async function incoming(text: string, thread?: SaveMessageResult): Promise<SaveMessageResult> {
+async function incomingParts(parts: MessagePart[], thread?: SaveMessageResult): Promise<SaveMessageResult> {
   return saveMessage({
     businessId, conversationId: thread?.conversation.id,
     customer: thread ? undefined : { channel: 'web', externalId: 'f10-test-' + randomUUID() },
-    direction: 'inbound', author: 'customer', origin: 'demo', parts: [{ type: 'text', text }], triggerAi: false,
+    direction: 'inbound', author: 'customer', origin: 'demo', parts, triggerAi: false,
   });
+}
+
+function incoming(text: string, thread?: SaveMessageResult): Promise<SaveMessageResult> {
+  return incomingParts([{ type: 'text', text }], thread);
 }
 
 function execute(inbound: SaveMessageResult) {
@@ -88,9 +96,20 @@ function waitableChat() {
 }
 
 function scriptedModel(...rounds: NonNullable<ModelChatInput['fake']>[]) {
-  const spy = vi.spyOn(model, 'chat');
-  for (const fake of rounds) spy.mockImplementationOnce((input) => originalChat({ ...input, fake }));
-  return spy;
+  let round = 0;
+  return vi.spyOn(model, 'chat').mockImplementation((input) =>
+    input.usage.purpose === 'classify' ? originalChat(input) : originalChat({ ...input, fake: rounds[round++] ?? input.fake }),
+  );
+}
+
+function replyCalls(spy: ReturnType<typeof scriptedModel>): ModelChatInput[] {
+  return spy.mock.calls.map(([input]) => input).filter(({ usage }) => usage.purpose !== 'classify');
+}
+
+function classifyAs(input: ModelChatInput, label: AiIntent, confidence: number) {
+  return originalChat({
+    ...input, fake: { json: { label, confidence, price_items: null, max_price_baht: null, query: null } },
+  });
 }
 
 function call(id: string, name: string, args: Record<string, unknown>): ModelToolCall {
@@ -131,13 +150,13 @@ describe('F10 S1 reply and gates', { timeout: 15_000 }, () => {
     expect(messages.every(({ text }) => text.includes('1,490 บาท') && !text.includes('100 บาท'))).toBe(true);
     expect(result).toMatchObject({
       state: 'completed', inbound_message_id: attack.message.id, reply_message_id: messages[1].id,
-      reply_language: 'th', usage_summary: { inputTokens: null, calls: 2 },
+      reply_language: 'th', usage_summary: { inputTokens: null, calls: 3 },
     });
     expect(result.evidence_ids).toEqual([expect.stringMatching(/^catalog:.*:v\d+$/)]);
     expect(result.product_refs).toEqual([expect.objectContaining({ sku: 'A-GAME-01' })]);
     expect(result.tools).toContainEqual(expect.objectContaining({ name: 'get_price', ok: true, prefetch: true }));
     expect(result.guard_actions).toContainEqual(expect.objectContaining({ guard: 'price', action: 'repair' }));
-    expect(chat.mock.calls.map(([input]) => input.usage.purpose)).toEqual(['reply', 'reply', 'repair']);
+    expect(chat.mock.calls.map(([input]) => input.usage.purpose)).toEqual(['reply', 'reply', 'classify', 'repair']);
   }, 15_000);
 
   it('G6 disabled web AI stores the inbound but makes no model call', async () => {
@@ -442,9 +461,9 @@ describe('F10 S2 tools loop', { timeout: 15_000 }, () => {
       product_refs: [expect.objectContaining({ sku: 'A-CARD-01' })],
       tools: expect.arrayContaining([expect.objectContaining({ name: 'calculate_total', ok: true })]),
     });
-    const toolMessage = spy.mock.calls[1][0].messages.find((message) => message.role === 'tool' && message.toolCallId === 'total');
+    const toolMessage = replyCalls(spy)[1].messages.find((message) => message.role === 'tool' && message.toolCallId === 'total');
     expect(JSON.parse(toolMessage!.content as string)).toMatchObject({ subtotalMinor: 19800, shippingIncluded: false });
-    expect(spy.mock.calls[1][0].providerState).toEqual({ fake: true });
+    expect(replyCalls(spy)[1].providerState).toEqual({ fake: true });
   });
 
   it('G3 does not invent products or amounts when the tenant lookup is empty', async () => {
@@ -458,7 +477,7 @@ describe('F10 S2 tools loop', { timeout: 15_000 }, () => {
     const [reply] = await replies(inbound.conversation.id);
     expect(reply.text).toBe(fallbacks.product_not_found.th);
     expect(await trace(inbound.message.id)).toMatchObject({ evidence_ids: [], product_refs: [] });
-    expect(spy.mock.calls[2][0]).toMatchObject({ providerState: { fake: true }, usage: { purpose: 'repair' } });
+    expect(replyCalls(spy)[2]).toMatchObject({ providerState: { fake: true }, usage: { purpose: 'repair' } });
   });
 
   it('G4 discards a draft that treats sold-out stock as available', async () => {
@@ -507,7 +526,7 @@ describe('F10 S2 tools loop', { timeout: 15_000 }, () => {
     await execute(inbound);
     const [reply] = await replies(inbound.conversation.id);
     expect(reply.text).toContain('1,490 baht');
-    const tool = spy.mock.calls[1][0].messages.find((message) => message.role === 'tool');
+    const tool = replyCalls(spy)[1].messages.find((message) => message.role === 'tool');
     expect(JSON.parse(tool!.content as string)).toMatchObject({ name: 'Demo Quest board game', unitPrice: '1,490 baht' });
     expect(await trace(inbound.message.id)).toMatchObject({ reply_language: 'en', evidence_ids: [expect.stringMatching(/^catalog:/)] });
   });
@@ -559,7 +578,7 @@ describe('F10 S2 tools loop', { timeout: 15_000 }, () => {
     const spy = scriptedModel({ toolCalls: calls }, { text: 'คืนสินค้าได้ภายใน 7 วันค่ะ' });
     const inbound = await incoming('ขอทราบเงื่อนไขคืนสินค้าค่ะ');
     await execute(inbound);
-    const secondRound = spy.mock.calls[1][0];
+    const secondRound = replyCalls(spy)[1];
     expect(secondRound.toolChoice).toBe('none');
     expect(secondRound.providerState).toEqual({ fake: true });
     const results = secondRound.messages.flatMap((message) => message.role === 'tool'
@@ -576,7 +595,7 @@ describe('F10 S2 tools loop', { timeout: 15_000 }, () => {
     );
     const inbound = await incoming('How much does the game cost?');
     await execute(inbound);
-    const tool = spy.mock.calls[1][0].messages.find((message) => message.role === 'tool');
+    const tool = replyCalls(spy)[1].messages.find((message) => message.role === 'tool');
     expect(JSON.parse(tool!.content as string)).toEqual({ ok: false, error: 'VALIDATION_ERROR' });
     expect((await trace(inbound.message.id)).evidence_ids).toEqual([]);
   });
@@ -589,7 +608,7 @@ describe('F10 S2 tools loop', { timeout: 15_000 }, () => {
       { text: 'Which product did you mean, Demo Quest board game or Demo Cards set?' },
     );
     await execute(await incoming('How much is Demo?'));
-    const tool = spy.mock.calls[1][0].messages.find((message) => message.role === 'tool');
+    const tool = replyCalls(spy)[1].messages.find((message) => message.role === 'tool');
     expect(JSON.parse(tool!.content as string)).toEqual({
       ok: false, error: 'AMBIGUOUS',
       candidates: candidates.items.map(({ name, nameEn, sku }) => ({ name: nameEn || name, sku })),
@@ -771,5 +790,87 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     expect(handoff).toHaveBeenCalledExactlyOnceWith(inbound.conversation.id, { reason: 'ai_failed', actor: 'ai' }, { businessId });
     expect((await replies(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.ai_failed.th]);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', error_code: 'PROVIDER_UNAVAILABLE', attempts: 3, escalated: true });
+  });
+});
+
+describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
+  it('uses the greeting fast path and describes the live LINE scope in the prompt', async () => {
+    const search = vi.spyOn(knowledge, 'searchKnowledge');
+    const chat = vi.spyOn(model, 'chat');
+    const inbound = await incoming('สวัสดีค่ะ');
+    await execute(inbound);
+    expect(search).not.toHaveBeenCalled();
+    expect(chat).toHaveBeenCalledTimes(1);
+    const [request] = chat.mock.calls[0];
+    expect(request).toMatchObject({ usage: { purpose: 'reply' }, toolChoice: 'none', tools: [] });
+    expect(request.messages[0].content).toContain('Customers write to the shop on LINE. The shop uses Demo Chat for internal testing.');
+    expect(request.messages[0].content).not.toMatch(/Messenger|Instagram/u);
+    expect((await replies(inbound.conversation.id))[0].text).toBe(fallbacks.greeting.th);
+    expect(await trace(inbound.message.id)).toMatchObject({ intent: 'GREETING', intent_source: 'regex', handoff_offered: false });
+  });
+
+  it('offers staff after a low-confidence result and honors a Thai confirmation without a second model call', async () => {
+    const chat = vi.spyOn(model, 'chat').mockImplementation((input) => input.usage.purpose === 'classify'
+      ? classifyAs(input, 'ESCALATION', 0.6)
+      : originalChat({ ...input, fake: { text: 'I can check what happened.' } }));
+    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    const first = await incoming('I need more help with this.');
+    await execute(first);
+    expect((await replies(first.conversation.id))[0].parts.at(-1)).toEqual({ type: 'text', text: fallbacks.handoff_offer.en });
+    expect(await trace(first.message.id)).toMatchObject({ intent: 'ESCALATION', intent_source: 'classifier', handoff_offered: true });
+    expect(handoff).not.toHaveBeenCalled();
+
+    const confirmation = await incoming('เอาค่ะ', first);
+    await execute(confirmation);
+    expect((await replies(first.conversation.id)).at(-1)!.text).toBe(fallbacks.escalation_ack.th);
+    expect(await trace(confirmation.message.id)).toMatchObject({ state: 'handoff', intent_source: 'regex', handoff_offered: false });
+    expect(handoff).toHaveBeenCalledTimes(1);
+    expect(chat.mock.calls.map(([input]) => input.usage.purpose)).toEqual(['reply', 'classify']);
+  });
+
+  it('cancels an outstanding main reply once the classifier finds a confident request', async () => {
+    let replySignal: AbortSignal | undefined;
+    vi.spyOn(model, 'chat').mockImplementation((input) => {
+      if (input.usage.purpose === 'classify') return classifyAs(input, 'ESCALATION', 0.93);
+      replySignal = input.signal;
+      return new Promise(() => undefined);
+    });
+    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    const inbound = await incoming('Can a member of your team help me directly?');
+    await execute(inbound);
+    expect(replySignal?.aborted).toBe(true);
+    expect(handoff).toHaveBeenCalledTimes(1);
+    expect((await replies(inbound.conversation.id))[0].text).toBe(fallbacks.escalation_ack.en);
+    expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', intent_source: 'classifier', evidence_ids: [], tools: [] });
+  });
+
+  it('never treats the model tool as consent and suppresses a second offer after a decline', async () => {
+    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    scriptedModel(
+      { toolCalls: [call('staff', 'handoff_to_staff', { reason: 'customer_request', note: 'Need staff.' })] },
+      { text: 'I can help with shop questions.' },
+      { text: 'Of course.' },
+    );
+    const first = await incoming('What do you do?');
+    await execute(first);
+    expect(await trace(first.message.id)).toMatchObject({ state: 'completed', handoff_offered: true, escalated: false });
+    const declined = await incoming('No, thanks.', first);
+    await execute(declined);
+    expect((await replies(first.conversation.id)).at(-1)!.text).toBe('Of course.');
+    expect(await trace(declined.message.id)).toMatchObject({ state: 'completed', handoff_offered: false });
+    expect(handoff).not.toHaveBeenCalled();
+  });
+
+  it('G21 acknowledges an image once and suppresses a repeated non-text notice', async () => {
+    const chat = vi.spyOn(model, 'chat');
+    const first = await incomingParts([{ type: 'image', fileId: randomUUID() }]);
+    await execute(first);
+    const second = await incomingParts([{ type: 'image', fileId: randomUUID() }], first);
+    await execute(second);
+    const stored = await replies(first.conversation.id);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].text).toContain('ได้รับรูปแล้วค่ะ');
+    expect(await trace(second.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'non_text_repeat', reply_message_id: null });
+    expect(chat).not.toHaveBeenCalled();
   });
 });

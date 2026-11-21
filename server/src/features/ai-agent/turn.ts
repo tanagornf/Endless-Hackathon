@@ -144,6 +144,10 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       await releaseClaim(turn);
       return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
     }
+    if (generated.state === 'skipped') {
+      if (await storeDraft(turn, draft)) await closeTurn(turn, { state: 'skipped', reason: generated.reason, timings: draft.timings });
+      return { response: result(turn.id, 'failed') };
+    }
 
     let state = generated.state;
     if (generated.state === 'failed') {
