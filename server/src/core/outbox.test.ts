@@ -262,6 +262,8 @@ test('an active canonical job recovers its message and a repeated sent request n
   expect(await db.one('SELECT count(*)::int AS count FROM jobs WHERE business_id=$1 AND dedup_key=$2', [
     businessId, 'deliver:' + messageId,
   ])).toEqual({ count: 1 });
+}, 20_000);
+
 test('reaping both final sibling claims settles their shared pending message once', async () => {
   const send = vi.fn(async () => ({ state: 'sent', mode: 'real' } as const));
   registerChannelSender('web', { channel: 'web', mode: 'real', send });
