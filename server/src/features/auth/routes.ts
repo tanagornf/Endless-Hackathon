@@ -1,6 +1,7 @@
 import type { AuthStatus } from '@nless/shared/features/auth/types';
 import { audit, db, defineFeatureRoutes, destroySession, log } from '../../core';
 import { assertSameOriginRequest } from './csrf';
+import { resendVerification, verifyEmail } from './email-verification';
 import { login } from './login';
 import { PASSWORD_MIN } from './password';
 import { syncSeedPasswords } from './seed-passwords';
@@ -21,6 +22,10 @@ export default defineFeatureRoutes({
       async () => ({ emailMode: 'sandbox' as const, passwordMinLength: PASSWORD_MIN }));
     api.post('/auth/login', { auth: 'none', summary: 'Sign in with email and password' },
       ({ req, res, body }) => login(req, res, body));
+    api.post('/auth/email/verify', { auth: 'none', summary: 'Confirm an email address from a one-time link' },
+      ({ req, body }) => verifyEmail(req, body));
+    api.post('/auth/email/resend', { auth: 'user', summary: 'Queue a new email confirmation link' },
+      ({ req, user }) => resendVerification(req, user!.id));
     api.post('/auth/logout', { auth: 'user', summary: 'Revoke the current session' }, async ({ req, res, user }) => {
       assertSameOriginRequest(req);
       await destroySession(req, res);
