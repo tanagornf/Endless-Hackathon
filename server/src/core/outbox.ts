@@ -3,7 +3,7 @@ import { audit } from './audit';
 import { db } from './db';
 import { log } from './log';
 import { publish } from './realtime';
-import type { ChannelSender, DeliveryResult, OutboundDelivery } from './types';
+import type { ChannelSender, DbExecutor, DeliveryResult, OutboundDelivery } from './types';
 
 const DELIVERY_TIMEOUT_MS = 15_000;
 export const INTERRUPTED_DELIVERY = 'interrupted: previous attempt may have been sent';
@@ -59,7 +59,7 @@ export const SETTLE_DEAD_DELIVERIES_SQL = `
         THEN substring(m.delivery_error FROM 7)
       ELSE '${INTERRUPTED_DELIVERY}' END
     FROM settled_jobs j
-    WHERE j.state='dead' AND j.type='core.deliver' AND m.business_id=j.business_id
+    WHERE j.state IN ('dead','cancelled') AND j.type='core.deliver' AND m.business_id=j.business_id
       AND m.id::text=(j.payload->>'messageId') AND m.direction='outbound' AND m.delivery_state='pending'
     RETURNING j.id AS "jobId", m.id AS "messageId", m.business_id AS "businessId",
       m.conversation_id AS "conversationId", m.channel, m.delivery_state AS state, m.delivery_mode AS mode, m.delivery_error AS error
@@ -67,6 +67,13 @@ export const SETTLE_DEAD_DELIVERIES_SQL = `
   SELECT j.id,j.type,j.business_id,j.attempts,to_jsonb(d) AS delivery FROM settled_jobs j
     LEFT JOIN dead_delivery d ON d."jobId"=j.id
 `;
+
+export async function settleCancelledDelivery(transaction: DbExecutor, jobId: string): Promise<DeliveryChange | null> {
+  const settled = await transaction.maybeOne<SettledDeliveryJob>(`
+    WITH settled_jobs AS (SELECT id,type,business_id,attempts,payload,state FROM jobs WHERE id=$1 AND state='cancelled')
+    ${SETTLE_DEAD_DELIVERIES_SQL}`, [jobId]);
+  return settled?.delivery ?? null;
+}
 
 export async function publishDeliveryChange(change: DeliveryChange): Promise<void> {
   const { businessId, conversationId, messageId, state, mode, channel, error } = change;
