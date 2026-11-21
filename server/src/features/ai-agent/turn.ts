@@ -291,10 +291,20 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       }
       let parts = draft.parts;
       if (!replyMessageId) {
-        await openConsultOnShopMiss(finalGate.conversation, inbound, draft, signal);
+        const consultOpened = await openConsultOnShopMiss(finalGate.conversation, inbound, draft, signal);
         if (signal.aborted) {
           await releaseClaim(turn);
           return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
+        }
+        if (consultOpened) {
+          // The owner can answer this case without a separate staff handoff.
+          draft.parts = [{ type: 'text', text: fallbacks.no_answer[draft.language] }];
+          draft.handoffOffered = false;
+          draft.staffConsentKind = null;
+          if (!(await storeDraft(turn, draft))) {
+            return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
+          }
+          parts = draft.parts;
         }
         const persistStart = performance.now();
         const saved = await saveMessage({

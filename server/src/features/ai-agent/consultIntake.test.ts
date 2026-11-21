@@ -9,6 +9,7 @@ import { getHistory, saveMessage } from '../inbox/service';
 import { fallbacks } from './fallbacks';
 import { needsProductCareConsult } from './consultIntake';
 import { OWNER_CONSULT_RESUME_JOB } from './ownerConsult';
+import { getTurnTrace } from './service';
 import { runAiTurn } from './turn';
 
 const shop = seedId('biz_demo_a');
@@ -42,8 +43,10 @@ async function openFixture(asked = question, language: 'en' | 'th' = 'en', propo
     direction: 'inbound', author: 'customer', parts: [{ type: 'text', text: asked }], triggerAi: false,
   });
   const produce = () => runAiTurn(input.conversation.id, { businessId: shop, triggerMessageId: input.message.id, deliver: true });
-  expect((await produce()).response.state).toBe('completed');
-  expect((await produce()).response.state).toBe('completed');
+  const first = (await produce()).response;
+  expect(first).toMatchObject({ state: 'completed', reply: { parts: [{ type: 'text', text: fallbacks.no_answer[language] }] } });
+  expect((await produce()).response.reply).toEqual(first.reply);
+  expect(await getTurnTrace(shop, first.turnId)).toMatchObject({ handoffOffered: false, escalated: false });
   expect(opened).toHaveBeenCalledOnce();
   expect(opened).toHaveBeenCalledWith({
     businessId: shop, conversationId: input.conversation.id, triggerMessageId: input.message.id, question: asked, language,
