@@ -201,3 +201,23 @@ it('blocks LINE resend without changing the ambiguous message or enqueuing a job
   const resolution = await admin.post(route).set('X-Requested-With', 'nless').send({ resolution: 'failed' }).expect(200);
   expect(resolution.body.data.deliveryState).toBe('failed');
 });
+
+it.each([
+  ['queued', null, 'failed'],
+  ['running', 'inflight:1', 'unknown'],
+] as const)('settles a cancelled %s delivery job with checkpoint %s as %s', async (jobState, checkpoint, deliveryState) => {
+  const conversationId = SEED.conversations[0].id;
+  const messageId = randomUUID();
+  await db.query(`INSERT INTO messages
+      (id,business_id,conversation_id,seq,direction,author,parts,channel,delivery_state,delivery_error)
+    SELECT $1,$2,$3,COALESCE(max(seq),0)+1,'outbound','system','[]'::jsonb,'web','pending',$4
+    FROM messages WHERE conversation_id=$3`, [messageId, businessId, conversationId, checkpoint]);
+  const job = await db.one<{ id: string }>(`INSERT INTO jobs (type,business_id,state,payload,dedup_key)
+    VALUES ('core.deliver',$1,$2,jsonb_build_object('messageId',$3::text),$4) RETURNING id`,
+    [businessId, jobState, messageId, 'deliver:' + messageId]);
+  const cancelled = await admin.post(base + '/jobs/' + job.id + '/cancel').set('X-Requested-With', 'nless').expect(200);
+  expect(cancelled.body.data.state).toBe('cancelled');
+  expect(await db.one('SELECT delivery_state FROM messages WHERE id=$1', [messageId])).toEqual({
+    delivery_state: deliveryState,
+  });
+});

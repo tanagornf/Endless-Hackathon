@@ -7,6 +7,7 @@ import { AppError } from './errors';
 import { publishJob } from './jobs';
 import { opsAudit, opsPolicy, safeOpsText } from './ops-audit';
 import { createdAtForCursor, cursorPage, readOpsCursor } from './ops-page';
+import { publishDeliveryChange, settleCancelledDelivery } from './outbox';
 import { redactObject } from './redact';
 
 const jobColumns = `j.id,j.type,j.state,j.business_id AS "businessId",
@@ -55,7 +56,7 @@ export async function getOpsJob(id: string): Promise<OpsJobDetail> {
 
 export async function changeOpsJob(id: string, kind: 'retry' | 'cancel', actorUserId: string): Promise<OpsJobRow> {
   const retry = kind === 'retry';
-  const row = await db.tx(async (tx) => {
+  const { row, delivery } = await db.tx(async (tx) => {
     const current = await tx.maybeOne<{ state: JobState }>('SELECT state FROM jobs WHERE id=$1 FOR UPDATE', [id]);
     if (!current) throw new AppError('NOT_FOUND', 'Job not found');
     if (retry && (current.state === 'running' || current.state === 'succeeded')) throw opsPolicy('job_running');
@@ -64,13 +65,15 @@ export async function changeOpsJob(id: string, kind: 'retry' | 'cancel', actorUs
       ? await tx.one<OpsJobRow>(`UPDATE jobs j SET ${resetJob},retried_by=$2 WHERE j.id=$1 RETURNING ${jobColumns}`, [id, actorUserId])
       : await tx.one<OpsJobRow>(`UPDATE jobs j SET state='cancelled',updated_at=now(),finished_at=now(),
           claim_token=NULL,locked_by=NULL,locked_until=NULL WHERE j.id=$1 RETURNING ${jobColumns}`, [id]);
+    const delivery = retry ? null : await settleCancelledDelivery(tx, id);
     await opsAudit(tx, {
       action: retry ? 'ops.job.retry' : 'ops.job.cancel', actorUserId,
       businessId: updated.businessId, targetType: 'job', targetId: id,
     });
-    return updated;
+    return { row: updated, delivery };
   });
   publishJob({ id: row.id, type: row.type, business_id: row.businessId }, row.state);
+  if (delivery) await publishDeliveryChange(delivery);
   return safeJob(row);
 }
 
