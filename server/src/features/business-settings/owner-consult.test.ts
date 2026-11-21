@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { SEED } from '@nless/shared/core/fixtures';
+import { OWNER_CONSULT_ANSWER_JOB } from '@nless/shared/features/business-settings/types';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { db, createSession } from '../../core';
 import { createTestAgent, loginAs } from '../../core/test-utils';
 import { saveMessage } from '../inbox/service';
 import { takeoverConversation } from '../team/service';
-import { getBusinessSettings, isOwnerConsultActionPending, openOwnerConsult, readOwnerConsultAnswer } from './service';
+import { getBusinessSettings, isOwnerConsultActionPending, openOwnerConsult, readOwnerConsultAnswer, registerOwnerConsultAnswerConsumer } from './service';
+import { flushOwnerConsultAnswerOutbox } from './owner-consult-answer-outbox';
 import { flushOwnerConsultOutbox } from './owner-consult-outbox';
 
 const mocks = vi.hoisted(() => ({ notify: vi.fn() }));
@@ -219,3 +221,36 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
     expect(mocks.notify.mock.calls[0][0].dedupKey).toBe(mocks.notify.mock.calls[1][0].dedupKey);
   });
 });
+
+  it('hands one registered F10 job a scoped receipt without putting the answer in the job', async () => {
+    const { staffCookie: _cookie, staffId: _staffId, ...input } = await fixture();
+    const opened = await openOwnerConsult(input);
+    const answer = 'We replace missing pieces with proof of purchase.';
+    const response = await owner.post(root(input.businessId) + opened.caseId + '/answer').set(...writeHeader).send({
+      actionStepId: opened.actionStepId, expectedVersion: opened.version, clientRequestId: randomUUID(), answer,
+    });
+    expect(response.status).toBe(200);
+    const key = {
+      businessId: input.businessId, caseId: opened.caseId, actionStepId: opened.actionStepId,
+      answerReceiptId: response.body.data.answerReceiptId,
+    };
+    const jobsForShop = () => db.query(
+      'SELECT id,payload,dedup_key,lock_key FROM jobs WHERE business_id=$1 AND type=$2',
+      [input.businessId, OWNER_CONSULT_ANSWER_JOB],
+    );
+    await flushOwnerConsultAnswerOutbox();
+    expect((await jobsForShop()).rows).toEqual([]);
+    registerOwnerConsultAnswerConsumer();
+    await Promise.all([flushOwnerConsultAnswerOutbox(), flushOwnerConsultAnswerOutbox()]);
+    await flushOwnerConsultAnswerOutbox();
+    const { rows } = await jobsForShop();
+    expect(rows).toEqual([{
+      id: expect.any(String), payload: key, dedup_key: 'ai-owner-answer:' + input.businessId + ':' + key.answerReceiptId,
+      lock_key: 'conversation:' + input.conversationId,
+    }]);
+    expect(await db.one('SELECT job_id FROM owner_consult_answer_outbox WHERE business_id=$1 AND answer_receipt_id=$2',
+      [input.businessId, key.answerReceiptId])).toMatchObject({ job_id: (rows[0] as { id: string }).id });
+    expect(await readOwnerConsultAnswer(key)).toMatchObject({
+      answer, conversationId: input.conversationId, triggerMessageId: input.triggerMessageId,
+    });
+  });
