@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError, defineFeatureRoutes } from '../../core';
 import type { RouteContext } from '../../core';
 import { getConversation } from '../inbox/service';
+import { retryDueAiHandoffNotifications } from './aiHandoff';
 import { getConversationTeamState, releaseConversation, takeoverConversation } from './service';
 import { ReleaseBody, TakeoverBody, uuid } from './validation';
 
@@ -24,6 +25,7 @@ const root = '/conversations/:conversationId';
 export default defineFeatureRoutes({
   featureId: 'F11',
   slug: 'team',
+  schedules: [{ name: 'team.handoff-notifications', everySeconds: 60, handler: retryDueAiHandoffNotifications }],
   register(api) {
     api.get(root + '/team', { auth: 'user', query: scopeQuery }, async (ctx) => {
       const { conversationId, business, scope } = await authorize(ctx, 'chat.read');
