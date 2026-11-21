@@ -1,0 +1,18 @@
+[
+  { "id": "th-direct", "language": "th", "kind": "direct request", "expectedHandoff": true, "expectedPath": "regex", "text": "ขอคุยกับพนักงานหน่อยค่ะ" },
+  { "id": "th-accept", "language": "th", "kind": "accept staff offer", "expectedHandoff": true, "expectedPath": "regex", "text": "ได้เลยค่ะ", "previousShop": "ให้พนักงานเข้ามาช่วยไหมคะ", "offerPending": true },
+  { "id": "th-indirect", "language": "th", "kind": "indirect request", "expectedHandoff": true, "expectedPath": "classifier", "text": "มีใครที่ร้านว่างมารับช่วงแชตนี้ต่อบ้างคะ" },
+  { "id": "th-accept-context", "language": "th", "kind": "contextual acceptance", "expectedHandoff": true, "expectedPath": "classifier", "text": "ถ้าเจ้าของร้านว่าง ทางนั้นน่าจะสะดวกกว่าค่ะ รบกวนด้วย", "previousShop": "ต้องการให้เจ้าของร้านเข้ามาช่วยต่อไหมคะ", "offerPending": true },
+  { "id": "th-negation", "language": "th", "kind": "negation", "expectedHandoff": false, "expectedPath": "classifier", "text": "ไม่ต้องคุยกับพนักงานค่ะ แค่บอกว่าส่งได้วันไหนก็พอ" },
+  { "id": "th-mention", "language": "th", "kind": "staff mention without request", "expectedHandoff": false, "expectedPath": "classifier", "text": "แอดมินเคยบอกว่ามีรุ่นสีฟ้า สีนี้ยังขายอยู่หรือเปล่าคะ" },
+  { "id": "th-status", "language": "th", "kind": "order status", "expectedHandoff": false, "expectedPath": "classifier", "text": "ออเดอร์ตัวอย่าง DEMO-105 ส่งออกจากร้านหรือยังคะ" },
+  { "id": "th-greeting", "language": "th", "kind": "greeting", "expectedHandoff": false, "expectedPath": "regex", "text": "สวัสดีค่ะ" },
+  { "id": "en-direct", "language": "en", "kind": "direct request", "expectedHandoff": true, "expectedPath": "regex", "text": "I need to speak with a human, please." },
+  { "id": "en-accept", "language": "en", "kind": "accept staff offer", "expectedHandoff": true, "expectedPath": "regex", "text": "Yes, please.", "previousShop": "Would you like me to bring a member of staff into this chat?", "offerPending": true },
+  { "id": "en-indirect", "language": "en", "kind": "indirect request", "expectedHandoff": true, "expectedPath": "classifier", "text": "Could someone at the shop take over this conversation?" },
+  { "id": "en-accept-context", "language": "en", "kind": "contextual acceptance", "expectedHandoff": true, "expectedPath": "classifier", "text": "If the owner is free, that would work better for me, thanks.", "previousShop": "Would you like me to bring the shop owner into this chat?", "offerPending": true },
+  { "id": "en-negation", "language": "en", "kind": "negation", "expectedHandoff": false, "expectedPath": "classifier", "text": "I don't need to speak with a person. Can you tell me when it ships?" },
+  { "id": "en-mention", "language": "en", "kind": "staff mention without request", "expectedHandoff": false, "expectedPath": "classifier", "text": "Your staff mentioned a blue version. Is it still available?" },
+  { "id": "en-status", "language": "en", "kind": "order status", "expectedHandoff": false, "expectedPath": "classifier", "text": "Has sample order DEMO-105 left the shop yet?" },
+  { "id": "en-greeting", "language": "en", "kind": "greeting", "expectedHandoff": false, "expectedPath": "regex", "text": "Hello!" }
+]
