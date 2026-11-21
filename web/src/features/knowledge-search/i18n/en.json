@@ -80,7 +80,19 @@
     "noCases": "This shop has no available sample or saved cases.",
     "error": "Could not complete the quality check.",
     "date": "Date",
-    "count": "Cases"
+    "count": "Cases",
+    "coverageTitle": "Case coverage",
+    "coverage": "{{evaluated}} of {{planned}} applicable fixture cases",
+    "savedCount": "{{count}} saved cases",
+    "coverageUnknown": "Coverage unavailable",
+    "methodCount": "{{method}} {{count}}",
+    "methodsUnknown": "Methods unavailable",
+    "unresolvedForbid": "{{count}} forbidden-item cases were skipped because an expected source could not be resolved."
+  },
+  "comparison": {
+    "different_scope": "The previous run used different cases or indexed sources.",
+    "unknown": "The previous run has no comparable scope information.",
+    "scope_changed": "Indexed sources changed during this run. Comparison is unavailable."
   },
   "group": {
     "all": "All groups",

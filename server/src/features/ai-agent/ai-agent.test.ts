@@ -386,7 +386,7 @@ describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
     expect(saved.map(({ id }) => id)).toEqual([first.reply_message_id]);
     expect(saved[0].parts).toEqual([
       { type: 'text', text: expect.stringContaining('1,490 baht') },
-      { type: 'image', fileId: file.id, alt: 'Demo Quest' },
+      { type: 'image', fileId: file.id, alt: details.nameEn ?? details.name },
     ]);
     expect(media).toHaveBeenCalledExactlyOnceWith(businessId, [product.id]);
     expect(sends.mock.calls.map(([, parts]) => parts)).toEqual([saved[0].parts, saved[0].parts]);
