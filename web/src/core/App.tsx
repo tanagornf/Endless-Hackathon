@@ -1,4 +1,4 @@
-import { Alert, Box, LinearProgress, Switch, Typography } from '@mui/material';
+import { Alert, Box, LinearProgress, Switch, ThemeProvider } from '@mui/material';
 import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
@@ -16,6 +16,7 @@ import { featurePages, registryErrors } from './registry';
 import { useSession } from './session';
 import { useSlot } from './slots';
 import { DataTable, LanguageSwitch, useToast } from './ui';
+import { inboxTheme } from './theme';
 
 const routes = featurePages.flatMap((entry) => entry.routes.map((route) => ({ ...route, id: entry.featureId, Component: lazy(route.load) })));
 if (registryErrors.length && import.meta.env.DEV) console.error(registryErrors.join('\n'));
@@ -70,9 +71,7 @@ function Ops() {
 }
 function Home() {
   const { search } = useLocation();
-  const { t } = useTranslation('common');
-  if (new URLSearchParams(search).get('view') === 'workspace') return <WorkspaceHome />;
-  return <><PageHeader title={t('pages.home')} /><Typography>{t('pages.welcome')}</Typography></>;
+  return <WorkspaceHome showDirectory={new URLSearchParams(search).get('view') === 'workspace'} />;
 }
 
 function SessionHome({ children }: { children: ReactNode }) {
@@ -101,7 +100,8 @@ export default function App() {
             {loading ? <LinearProgress aria-label={t('pages.loading')} /> : available ? <Component /> : <NotFound />}
           </Guard>;
           const bare = layout === 'public' || layout === 'bare';
-          return <Route key={path} path={path} element={bare ? <Box component="main" sx={{ p: 2 }}>{content}</Box> : <AppShell>{content}</AppShell>} />;
+          const page = path === '/chat' ? <ThemeProvider theme={inboxTheme}>{content}</ThemeProvider> : content;
+          return <Route key={path} path={path} element={bare ? <Box component="main" sx={{ p: 2 }}>{page}</Box> : <AppShell>{page}</AppShell>} />;
         })}
         <Route path="*" element={<Box component="main" sx={{ p: 3 }}><LanguageSwitch compact /><NotFound /></Box>} />
       </Routes>

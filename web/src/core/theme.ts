@@ -1,7 +1,8 @@
 import { createTheme } from '@mui/material/styles';
+import type { ThemeOptions } from '@mui/material/styles';
 
-const heading = { fontFamily: '"Prompt","Noto Sans Thai",sans-serif', fontWeight: 600 };
-export const theme = createTheme({
+const heading = { fontWeight: 600 };
+const options: ThemeOptions = {
   palette: {
     primary: { main: '#0F766E', dark: '#0D514F', light: '#DEEFEB' },
     secondary: { main: '#B45309' },
@@ -11,7 +12,7 @@ export const theme = createTheme({
   },
   shape: { borderRadius: 10 },
   typography: {
-    fontFamily: '"Noto Sans Thai","Inter",system-ui,sans-serif',
+    fontFamily: '"Inter","Noto Sans Thai",system-ui,sans-serif',
     h1: heading, h2: heading, h3: heading, h4: heading, h5: heading,
     h6: { ...heading, fontSize: '1.05rem' }, button: { ...heading, textTransform: 'none' },
   },
@@ -25,7 +26,27 @@ export const theme = createTheme({
       head: { color: '#476162', backgroundColor: '#F1F6F5', fontWeight: 600, fontSize: '.8rem' },
     } },
     MuiTableRow: { styleOverrides: { root: { '&:last-child td': { borderBottom: 0 } } } },
-    MuiChip: { defaultProps: { size: 'small' }, styleOverrides: { root: { fontWeight: 600 } } },
+    MuiChip: {
+      defaultProps: { size: 'small' },
+      styleOverrides: { root: {
+        fontWeight: 600,
+        '&[aria-pressed]': {
+          height: 28,
+          minHeight: 28,
+          minWidth: 44,
+          '@media (any-pointer: coarse)': {
+            // Reserve the full tap target even when the filters wrap.
+            position: 'relative',
+            overflow: 'visible',
+            marginBlock: 8,
+            '&::after': {
+              content: '""', position: 'absolute', insetInline: 0,
+              top: '50%', height: 44, transform: 'translateY(-50%)',
+            },
+          },
+        },
+      } },
+    },
     MuiTab: { styleOverrides: { root: { textTransform: 'none', minHeight: 44 } } },
     MuiTextField: { defaultProps: { size: 'small' } },
     MuiCssBaseline: { styleOverrides: {
@@ -34,4 +55,13 @@ export const theme = createTheme({
       'body, button, input, textarea': { WebkitFontSmoothing: 'antialiased' },
     } },
   },
+};
+
+export const theme = createTheme(options);
+
+// The inbox and its team controls share the md breakpoint. Allow room for
+// the navigation, conversation list, transcript and team panel before splitting.
+export const inboxTheme = createTheme({
+  ...options,
+  breakpoints: { values: { ...theme.breakpoints.values, md: 1360, lg: 1440 } },
 });
