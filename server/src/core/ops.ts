@@ -32,15 +32,16 @@ function resourceId(input: string) {
 }
 
 async function getOpsSummary(): Promise<OpsSummary> {
-  const [stats, deliveries] = await Promise.all([
+  const [stats, deliveries, demoResetting] = await Promise.all([
     summarizeOpsJobs(),
     db.one<{ count: number }>(`SELECT count(*)::int AS count FROM messages
       WHERE direction='outbound' AND delivery_state='unknown' AND created_at>=now()-interval '7 days'`),
+    isDemoResetting(),
   ]);
   const { enabled, holdsLock, lastTickAt } = schedulerState();
   return {
     ...stats, worker: workerState(), scheduler: { enabled, holdsLock, lastTickAt },
-    deliveriesNeedingAttention: deliveries.count, demoResetting: isDemoResetting(),
+    deliveriesNeedingAttention: deliveries.count, demoResetting,
   };
 }
 

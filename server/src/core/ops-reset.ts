@@ -1,18 +1,30 @@
 import { setTimeout as sleep } from 'node:timers/promises';
-import { SEED } from '@nless/shared/core/fixtures';
 import type { DemoResetResult } from '@nless/shared/core/ops';
 import { config } from './config';
-import { assertSafeDbName, db, dbUrl } from './db';
+import { db } from './db';
 import { clearDemoData, seedDemoData, withDemoResetLock } from './demo';
+import { DEMO_BUSINESS_IDS, DEMO_RESET_LOCK } from './demo-scope';
 import { opsAudit, opsPolicy } from './ops-audit';
 import { assertRateLimit } from './ratelimit';
 import { redactText } from './redact';
 import { featureSeeds, seed, seedContext } from './seed';
 
-const demoBusinessIds = SEED.businesses.map(({ id }) => id);
 let demoResetting = false;
 
-export function isDemoResetting(): boolean { return demoResetting; }
+export async function isDemoResetting(): Promise<boolean> {
+  if (demoResetting) return true;
+  // PostgreSQL stores the bigint advisory-lock key in the high/low OID fields.
+  const { resetting } = await db.one<{ resetting: boolean }>(`
+    WITH reset_key AS (SELECT hashtext($1)::bigint AS value)
+    SELECT EXISTS (
+      SELECT 1 FROM pg_locks,reset_key
+      WHERE locktype='advisory' AND mode='ExclusiveLock' AND granted
+        AND database=(SELECT oid FROM pg_database WHERE datname=current_database())
+        AND objsubid=1 AND classid::bigint=((value >> 32) & 4294967295)
+        AND objid::bigint=(value & 4294967295)
+    ) AS resetting`, [DEMO_RESET_LOCK]);
+  return resetting;
+}
 
 async function waitForDemoJobs() {
   const deadline = performance.now() + 10000;
@@ -20,7 +32,7 @@ async function waitForDemoJobs() {
     const active = await db.maybeOne<{ uncertain: boolean }>(`SELECT
       COALESCE(locked_until<=now(), true) AS uncertain
       FROM jobs WHERE business_id=ANY($1::uuid[]) AND state='running'
-      ORDER BY locked_until ASC NULLS FIRST LIMIT 1`, [demoBusinessIds]);
+      ORDER BY locked_until ASC NULLS FIRST LIMIT 1`, [DEMO_BUSINESS_IDS]);
     if (!active) return;
     const remaining = deadline - performance.now();
     // An expired lease does not prove the handler stopped or lost access to the fixture.
@@ -32,12 +44,11 @@ async function waitForDemoJobs() {
 async function cancelQueuedDemoJobs() {
   await db.query(`UPDATE jobs SET state='cancelled',updated_at=now(),finished_at=now(),
     claim_token=NULL,locked_by=NULL,locked_until=NULL
-    WHERE business_id=ANY($1::uuid[]) AND state='queued'`, [demoBusinessIds]);
+    WHERE business_id=ANY($1::uuid[]) AND state='queued'`, [DEMO_BUSINESS_IDS]);
 }
 
 export async function runDemoReset(actorUserId: string): Promise<DemoResetResult> {
   if (!config.DEMO_RESET_ENABLED) throw opsPolicy('demo_reset_disabled');
-  if (config.NODE_ENV !== 'production') assertSafeDbName(decodeURIComponent(new URL(dbUrl()).pathname.slice(1)));
   assertRateLimit({ key: 'demo-reset:global', limit: 3, windowSeconds: 600 });
 
   return withDemoResetLock(async () => {
