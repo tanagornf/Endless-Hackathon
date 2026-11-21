@@ -261,6 +261,7 @@ export function updateLocale(
 export { answerOwnerConsult, isOwnerConsultActionPending, openOwnerConsult } from './owner-consult';
 export { readOwnerConsultAnswer, withOwnerConsultDraftConsent } from './owner-consult-answer';
 export { registerOwnerConsultAnswerConsumer } from './owner-consult-answer-outbox';
+export { prepareOwnerLearningDraft } from './owner-learning-draft';
 
 export { getShopInstructionReplayTarget, readActiveShopInstruction, recordInstructionReplay } from './shop-instructions-repo';
 export { readShopInstructionAnalysisTarget } from './shop-instructions-staging';
