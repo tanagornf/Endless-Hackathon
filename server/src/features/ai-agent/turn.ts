@@ -4,6 +4,7 @@ import type { ConversationRecord, MessageRecord } from '@nless/shared/features/i
 import { AppError, log, publish, sendToCustomer } from '../../core';
 import { getConversation, getHistory, saveMessage } from '../inbox/service';
 import { notify } from '../notifications/service';
+import { submitLineSlip } from '../payments/service';
 import { openConsultOnShopMiss } from './consultIntake';
 import { fallbacks } from './fallbacks';
 import { finalSkipReason, isAiAllowed } from './gate';
@@ -216,6 +217,26 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
     if (!(await renewClaim(turn)) || signal.aborted) {
       await releaseClaim(turn);
       return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
+    }
+    if (request.deliver && draft.pendingSlipFileId) {
+      const slipInbound = history.find((message) => message.seq <= inbound.seq && message.author === 'customer' &&
+        message.direction === 'inbound' && message.parts.some((part) => part.type === 'image' && part.fileId === draft.pendingSlipFileId));
+      const orderNumbers = [...new Set(consentText.toUpperCase().match(/\bNL-\d{2}[A-Z]{3}\d{2}-[A-Z]{4}-[A-Z]{4}\b/g) ?? [])];
+      const orderNumber = orderNumbers.length === 1 ? orderNumbers[0] : undefined;
+      const matched = slipInbound && await submitLineSlip(
+        conversation, slipInbound, draft.pendingSlipFileId, draft.language, signal, orderNumber,
+      );
+      draft.parts = [{ type: 'text', text: fallbacks[matched ? 'slip_received' : 'slip_order_unclear'][draft.language] }];
+      draft.pendingSlipFileId = null;
+      if (!(await storeDraft(turn, draft)) || signal.aborted) {
+        await releaseClaim(turn);
+        return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
+      }
+      const afterSlip = await currentGate(conversation, inbound, mode);
+      if (!afterSlip.allowed) {
+        await closeTurn(turn, { state: 'skipped', reason: finalSkipReason(afterSlip.reason), timings: draft.timings });
+        return { response: result(turn.id, 'failed') };
+      }
     }
     if (draft.order?.kind === 'prepare_order') {
       await materializeOrder(draft, draft.order, conversation.businessId, conversationId, turn.id, signal);
