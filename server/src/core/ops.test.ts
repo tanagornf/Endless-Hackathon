@@ -184,3 +184,20 @@ it('resolves ambiguous deliveries atomically and redacts the response and audit'
   expect(audit.body.data.items.filter((row: { targetId: string }) => row.targetId === id)).toHaveLength(3);
   expect(audit.text).not.toContain('testonly-secret-marker');
 });
+
+it('blocks LINE resend without changing the ambiguous message or enqueuing a job', async () => {
+  const conversation = SEED.conversations.find((entry) => entry.channel === 'line' && entry.businessAlias === 'biz_demo_a')!;
+  const messageId = randomUUID();
+  await db.query(`INSERT INTO messages
+      (id,business_id,conversation_id,seq,direction,author,parts,channel,delivery_state)
+    SELECT $1,$2,$3,COALESCE(max(seq),0)+1,'outbound','system','[]'::jsonb,'line','unknown'
+    FROM messages WHERE conversation_id=$3`, [messageId, businessId, conversation.id]);
+  const route = base + '/deliveries/' + messageId + '/resolve';
+  const denied = await admin.post(route).set('X-Requested-With', 'nless').send({ resolution: 'resend' }).expect(422);
+  expect(denied.body.error.details.reason).toBe('line_resend_unavailable');
+  expect(await db.one('SELECT delivery_state FROM messages WHERE id=$1', [messageId])).toEqual({ delivery_state: 'unknown' });
+  expect(await db.maybeOne("SELECT id FROM jobs WHERE type='core.deliver' AND payload->>'messageId'=$1", [messageId])).toBeNull();
+  expect(await db.maybeOne("SELECT id FROM audit_events WHERE action='core.delivery.resolve' AND target_id=$1", [messageId])).toBeNull();
+  const resolution = await admin.post(route).set('X-Requested-With', 'nless').send({ resolution: 'failed' }).expect(200);
+  expect(resolution.body.data.deliveryState).toBe('failed');
+});
