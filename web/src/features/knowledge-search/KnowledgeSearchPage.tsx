@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import type { IndexStatus, KnowledgeHit, SourceView, WorkbenchSearchOptions, WorkbenchSearchResult } from '@nless/shared/features/knowledge-search/types';
 import { DataTable, EmptyState, PageHeader, SectionCard, useApiMutation, useApiQuery, useSession } from '../../core';
 import RetrievalEvaluationPanel from './RetrievalEvaluationPanel';
+import SavedRetrievalCases from './SavedRetrievalCases';
 
 const root = '/knowledge-search';
 const counts = ['ready', 'indexing', 'failed', 'not_started'] as const;
@@ -142,6 +143,7 @@ function Workbench() {
       </Stack>}
     </SectionCard>
     <RetrievalEvaluationPanel strategy={strategy === 'auto' ? 'hybrid' : strategy} minScore={minimum} valid={validMinimum} />
+    <SavedRetrievalCases query={query.trim()} />
     {source && <SourceDrawer key={source.knowledgeItemId + ':' + source.revision}
       source={source} onClose={() => setSource(null)} />}
   </Stack>;

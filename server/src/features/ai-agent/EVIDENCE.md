@@ -47,6 +47,8 @@ The expected F11 version is stored before apply. If the worker restarts before t
 
 After three definite enqueue failures, the generated turn remains complete and keeps the saved reply ID. Its owner trace reports `DELIVERY_ENQUEUE_FAILED` from the scoped F09 delivery state. A committed job with a lost acknowledgement continues to dispatch the same reply. [Independent worker replay](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058708480)
 
+The F30 server read adapter uses the verified shop, customer and open conversation, current F04 policy and existing tool argument schemas. It supports knowledge lookup, exact catalog pricing and localized totals. B2 scoped reads passed 3/3 locally and 65/65 with the complete F10 reply suite in Google. C2 owns private call history and recall.
+
 In the earlier production gate, the unknown explicit SKU received the previous known product's price. The fix requires an active product match for price and total tools and limits historical prefetch to explicit or unambiguous follow-ups. It also omits a staff-held request from the first later AI quote after handback while retaining superseded messages in the normal unanswered backlog. [Production owner trace evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058840936)
 
 The subsequent deployed check confirmed the unknown SKU declined without a price. F10 now selects the required reply language from the latest decisive buyer message. A neutral input uses the nearest decisive message. Older unanswered questions stay in model context. [Production visitor evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059123386)
@@ -84,3 +86,14 @@ B2 used `generateReply` with synthetic web conversations and indexed demo knowle
 ## S5 owner trace and metrics
 
 The authenticated `/ai-settings` page shows the seven-day summary, paginated histories and selected turn details in Thai and English. The two added APIs require `chat.read` and scope all queries to the authenticated business. Buyer and reply text stay in the inbox. The list cursor preserves PostgreSQL timestamp precision with a UUID tie-breaker. Metrics combine skipped and superseded replies and compute the median over eligible response states. The exported topic reader only includes saved reply turns in the requested time range. Local PostgreSQL trace and reporting tests passed 8/8. Production owner smoke is pending.
+
+## F10 P1 cited public product facts
+
+- The real turn checks an exact, active F05 suggestion, then the tenant's catalog description and approved knowledge. A web lookup requires an eligible product specification or standards question and the shop's general-knowledge setting.
+- C1's Responses adapter receives a canonical product or a recognized public term with a controlled topic. Hosted search has up to 12 seconds and reserves two seconds of the turn budget for follow-up work.
+- Public citations appear in the reply and the review-only F05 suggestion. Later visitors receive the merchant-edited active FAQ and its sources. Draft and deleted suggestions stay out of replies.
+- The initial 63 focused tests covered the real generation entry point with stubbed services, Thai and English, catalog and approved knowledge hits, cited web fallback, spend exhaustion, an 8.78-second search, timeout, and reuse after merchant approval.
+- Owner review narrowed web lookup to explicitly recognized public standards and models. Catalog labels and shop SKUs can resolve local information, while only a recognized public reference can go to the hosted tool.
+- Google integration reproduced a real Qi2 answer with 861 raw characters, 553 characters after stripping inline link markup, and one HTTPS citation. F10 now cleans inline links before applying the display limit, keeps complete safe sentences, and records separate reasons for empty citations, invalid citation URLs and unusable prose.
+- 73 focused tests passed after the owner fixes. The added cases verify internal-label privacy, Thai and English transactional claims, neutral hostnames for unsafe source titles, and long inline citations.
+- Google aggregate 14304517779e039c65871b56683bb9e6b02b8faa passed 8/8 public-route scenarios and full typecheck. The corrected synthetic app-dev Qi2 turn displayed the answer with two source links in 16.938 seconds. The second buyer received the merchant-edited FAQ with no second web call in the usage ledger. See https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059478675.

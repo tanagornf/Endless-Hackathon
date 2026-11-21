@@ -6,6 +6,18 @@ export interface GenerateReplyOptions {
   signal?: AbortSignal;
 }
 
+export type AgentToolName = 'search_knowledge' | 'get_price' | 'calculate_total';
+
+export interface AgentToolInput {
+  businessId: string;
+  conversationId: string | null;
+  customerId: string | null;
+  name: AgentToolName;
+  args: unknown;
+  channel: 'chat' | 'voice';
+  turnId?: string;
+}
+
 export type AiTurnStateName = 'running' | 'completed' | 'awaiting_confirmation' | 'handoff' | 'failed' | 'skipped' | 'superseded';
 export type AiIntent =
   | 'GREETING' | 'GOODBYE' | 'QUESTION' | 'REQUEST' | 'STATUS_CHECK' | 'FEEDBACK' | 'CLARIFICATION'
