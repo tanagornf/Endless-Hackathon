@@ -22,3 +22,9 @@
 - Local typecheck and 115 tests passed across 22 files. The 31 F35 tests covered queue validation, deduplication, concurrent claim, lock contention, distinct claim tokens, stale writes, heartbeats, retry and rescheduling, dead lettering, shutdown release, and redaction.
 - The actual local API worker passed all six core-loop checks. Tenant 404, 31 loaded features, the 1,490 delivered reply, and silent takeover were verified.
 - Overall F35 remains A while scheduler and outbox improvements, the ops page, and production smoke are pending.
+
+### F35 queued AI delivery policy
+
+- The integration test first reproduced a queued AI reply reaching the sender after the business switched AI off.
+- The C1 test database verified live toggle and takeover checks in the worker. Staff and system messages still reached the sender. A code-generated F10 handoff acknowledgement carried the assignment version and could be sent for that version while AI stayed on.
+- Local typecheck and 12 focused tests passed across delivery, core loop, worker and LINE events. This check covers provider calls before dispatch. Production smoke is pending.

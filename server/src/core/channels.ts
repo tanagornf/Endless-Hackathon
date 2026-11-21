@@ -1,4 +1,4 @@
-import type { Channel, MessagePart } from '@nless/shared/core/types';
+import type { Channel, DeliveryMode, MessageAuthor, MessagePart } from '@nless/shared/core/types';
 import { getConversation, saveMessage } from '../features/inbox/service';
 import { db } from './db';
 import { AppError } from './errors';
@@ -48,20 +48,47 @@ export async function sendToCustomer(conversationId: string, parts: MessagePart[
 
 registerJob('core.deliver', async ({ payload, businessId, attempt, maxAttempts, signal }) => {
   const messageId = String(payload.messageId);
-  const row = await db.maybeOne<Omit<OutboundDelivery, 'messageId' | 'attempt'>>(`
-    SELECT m.conversation_id AS "conversationId",m.business_id AS "businessId",m.channel,m.parts,
+  const row = await db.maybeOne<Omit<OutboundDelivery, 'messageId' | 'attempt'> & {
+    author: MessageAuthor;
+    handoffAckVersion: unknown;
+  }>(`
+    SELECT m.conversation_id AS "conversationId",m.business_id AS "businessId",m.channel,m.parts,m.author,
+      m.provider_meta->'nlessHandoffAckVersion' AS "handoffAckVersion",
       u.external_id AS "customerExternalId",u.channel_account_id AS "channelAccountId",
       COALESCE((SELECT inbound.provider_meta FROM messages inbound WHERE inbound.conversation_id=m.conversation_id
         AND inbound.direction='inbound' ORDER BY inbound.seq DESC LIMIT 1),'{}'::jsonb) AS "lastInboundMeta"
     FROM messages m JOIN conversations c ON c.id=m.conversation_id JOIN customers u ON u.id=c.customer_id
     WHERE m.id=$1 AND m.business_id=$2 AND m.delivery_state='pending' AND m.direction='outbound'`, [messageId, businessId]);
   if (!row) return;
-  const sender = senders.get(row.channel);
+  const { author, handoffAckVersion, ...delivery } = row;
+  const sender = senders.get(delivery.channel);
   if (!sender) throw new AppError('CHANNEL_NOT_CONNECTED', 'Channel is unavailable');
   signal.throwIfAborted();
+  if (author === 'ai') {
+    const { getBusinessSettings } = await import('../features/business-settings/service.js');
+    const settings = await getBusinessSettings(delivery.businessId);
+    const conversation = settings.aiEnabled
+      ? await getConversation(delivery.conversationId, { businessId: delivery.businessId })
+      : null;
+    signal.throwIfAborted();
+
+    // F10's code-authored acknowledgement may follow its own handoff, at that exact assignment version.
+    const currentHandoffAck = typeof handoffAckVersion === 'number' && conversation?.version === handoffAckVersion;
+    if (conversation?.status !== 'open' || (conversation.handler !== 'ai' && !currentHandoffAck)) {
+      const failed = await db.maybeOne<{ mode: DeliveryMode | null }>(`
+        UPDATE messages SET delivery_state='failed',delivery_error='AI_DELIVERY_SUPPRESSED'
+        WHERE id=$1 AND business_id=$2 AND delivery_state='pending'
+        RETURNING delivery_mode AS mode`, [messageId, delivery.businessId]);
+      if (failed) publish(delivery.businessId, {
+        type: 'message.updated', conversationId: delivery.conversationId, messageId,
+        delivery: { state: 'failed', mode: failed.mode },
+      });
+      return;
+    }
+  }
   let result: DeliveryResult;
   try {
-    result = await sender.send({ ...row, messageId, attempt });
+    result = await sender.send({ ...delivery, messageId, attempt });
   } catch (error) {
     if (error instanceof ChannelSendError && error.options.retryable && error.options.definitelyNotSent && attempt < maxAttempts) {
       throw new AppError('PROVIDER_UNAVAILABLE', 'Channel requested a retry', { retryable: true });
