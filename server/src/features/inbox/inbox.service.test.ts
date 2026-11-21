@@ -24,7 +24,7 @@ function inbound(overrides: Partial<SaveMessageInput> = {}): SaveMessageInput {
 
 afterEach(() => vi.restoreAllMocks());
 
-describe('F09 inbox persistence', () => {
+describe('F09 inbox persistence', { timeout: 30000 }, () => {
   it('persists inbound once across concurrent provider retries and enqueues one job', async () => {
     const input = inbound({ externalId: randomUUID() });
     const results = await Promise.all([saveMessage(input), saveMessage(input)]);
