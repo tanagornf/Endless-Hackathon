@@ -167,3 +167,23 @@ export async function completeDeliveryBatch(key: BatchKey, mode: 'reply' | 'push
     }
   });
 }
+
+export async function hasSavedInbound(businessId: string, externalId: string): Promise<boolean> {
+  return Boolean(await db.maybeOne(
+    "SELECT 1 FROM messages WHERE business_id = $1 AND channel = 'line' AND direction = 'inbound' AND external_id = $2",
+    [businessId, externalId],
+  ));
+}
+
+export async function claimAudioNotice(businessId: string, userId: string): Promise<Date | null> {
+  const row = await db.maybeOne<{ claimed_at: Date }>(
+    "UPDATE line_contacts SET audio_notice_at = date_trunc('milliseconds', now()) WHERE business_id = $1 AND line_user_id = $2 AND (audio_notice_at IS NULL OR audio_notice_at <= now() - interval '1 hour') RETURNING audio_notice_at AS claimed_at",
+    [businessId, userId],
+  );
+  return row?.claimed_at ?? null;
+}
+
+export async function releaseAudioNotice(businessId: string, userId: string, claimedAt: Date): Promise<void> {
+  await db.query('UPDATE line_contacts SET audio_notice_at = NULL WHERE business_id = $1 AND line_user_id = $2 AND audio_notice_at = $3',
+    [businessId, userId, claimedAt]);
+}

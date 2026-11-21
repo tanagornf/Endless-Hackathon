@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { log, type ChannelSender, type DeliveryResult } from '../../core';
+import { AppError, log, type ChannelSender, type DeliveryResult } from '../../core';
 import { MAX_MESSAGES_PER_CALL, MAX_MESSAGES_PER_DELIVERY } from './config';
 import { getAccessToken, isRejectedCredential, markConnectionError } from './connection';
 import { lineErrorMessage, lineRequest, type LineResponse } from './lineApi';
-import { toLineText } from './outbound';
+import { toLineMessages } from './outbound';
 import { clearReplyBatch, completeDeliveryBatch, findContact, findDeliveryBatch, findOutboundConnection, reservePushBatch, reserveReplyBatch } from './repo';
 import { notifyQuota } from './usage';
 
@@ -53,7 +53,7 @@ export function makeLineSender(now = Date.now): ChannelSender {
           return fail('recipient_unfollowed');
         }
 
-        const messages = toLineText(delivery.parts);
+        const messages = await toLineMessages(delivery);
         if (!messages.length) return fail('unsupported_part');
         if (messages.length > MAX_MESSAGES_PER_DELIVERY) return fail('too_many_parts');
         const batchCount = Math.ceil(messages.length / MAX_MESSAGES_PER_CALL);
@@ -143,7 +143,8 @@ export function makeLineSender(now = Date.now): ChannelSender {
           return fail('line_' + status + partial, status >= 500);
         }
         return { mode: 'real', state: 'sent', externalRef };
-      } catch {
+      } catch (error) {
+        if (error instanceof AppError && error.message === 'public_url_not_https') return fail('public_url_not_https');
         log.warn({ messageId: delivery.messageId }, 'LINE delivery state could not be persisted');
         return ambiguousDelivery ? unknown : fail('line_delivery_unavailable', true);
       }

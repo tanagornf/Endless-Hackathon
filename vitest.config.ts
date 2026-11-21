@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 const env = { NODE_ENV: 'test', MODEL_MODE: 'fake', OPENAI_API_KEY: '', LOG_LEVEL: 'warn' };
-const coreIntegration = ['server/src/core/{auth,features,loop,model,meta,demo,channels,realtime,jobs,worker,worker-crash,shutdown}.test.ts', 'server/src/features/**/*.test.ts'];
+const coreIntegration = ['server/src/core/{auth,features,loop,model,meta,demo,channels,realtime,jobs,worker,worker-crash,shutdown,outbox}.test.ts', 'server/src/features/**/*.test.ts'];
 export default defineConfig({
   test: {
     projects: [
