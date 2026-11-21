@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { SEED } from '@nless/shared/core/fixtures';
 import { db } from '../../core';
 import { createTestAgent } from '../../core/test-utils';
@@ -10,7 +10,20 @@ const demoA = '/api/v1/public/demo-chat/demo-boardgame';
 const demoB = '/api/v1/public/demo-chat/demo-repair';
 const bizA = SEED.businesses.find(({ alias }) => alias === 'biz_demo_a')!.id;
 const freshToken = () => signVisitorToken(randomUUID());
-const input = (text: string) => ({ text, clientRequestId: randomUUID() });
+const requestIds: string[] = [];
+
+function input(text: string) {
+  const clientRequestId = randomUUID();
+  requestIds.push(clientRequestId);
+  return { text, clientRequestId };
+}
+
+afterAll(async () => {
+  // The integration projects share a queue. Each suite owns only its synthetic turns.
+  await db.query(`DELETE FROM jobs j USING messages m
+    WHERE j.business_id=m.business_id AND j.type='ai.reply' AND j.dedup_key='ai.reply:'||m.id::text
+      AND m.client_request_id=ANY($1::text[])`, [requestIds]);
+});
 
 describe('F09 public Demo Chat', { timeout: 30000 }, () => {
   it('rejects tampered and expired visitor tokens', () => {
