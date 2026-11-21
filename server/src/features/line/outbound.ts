@@ -67,10 +67,13 @@ export async function toLineMessages(delivery: OutboundDelivery): Promise<LineMe
 
   async function formatPlainPart(part: PlainPart): Promise<PlainLineMessage[]> {
     if (part.type === 'text') return asText(part.text);
+    if (part.type === 'image' && (!config.PUBLIC_BASE_URL || new URL(config.PUBLIC_BASE_URL).protocol !== 'https:')) {
+      return asText(lineLabels[await customerLanguage()].pictureUnavailable);
+    }
     const file = await loadUpload(delivery, part.fileId, part.type);
     if (!file) {
       const labels = lineLabels[await customerLanguage()];
-      return asText(part.type === 'image' ? labels.picture : labels.unavailable);
+      return asText(part.type === 'image' ? labels.pictureUnavailable : labels.unavailable);
     }
     const issuedAt = file.created_at.getTime();
     if (part.type === 'image') {
