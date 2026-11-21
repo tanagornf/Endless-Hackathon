@@ -4,7 +4,7 @@ import type { CatalogItemAdminDetail } from '@nless/shared/features/catalog/type
 import { adminView, findItemRow, isItemId, minorAmount } from './repo';
 import type { ItemRow } from './repo';
 import type { CreateItemBody, PatchItemBody } from './schema';
-import { catalogKey } from './sku';
+import { catalogKey, lockCatalogSkuWrites } from './sku';
 
 type Actor = { userId: string | null };
 
@@ -30,6 +30,7 @@ function itemAudit(action: string, businessId: string, itemId: string, actor: Ac
 
 export async function createItem(businessId: string, actor: Actor, body: CreateItemBody): Promise<CatalogItemAdminDetail> {
   const row = await db.tx(async (tx) => {
+    await lockCatalogSkuWrites(tx, businessId);
     const { id } = await tx.one<{ id: string }>(
       'INSERT INTO catalog_items (business_id,sku,kind,name,name_en,description,category,price_minor,unit,stock,shippable,duration_minutes,active,created_by,updated_by) ' +
       'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING id',
@@ -80,6 +81,7 @@ function verifyKind(item: ItemRow, body: PatchItemBody): void {
 
 export async function patchItem(businessId: string, actor: Actor, itemId: string, body: PatchItemBody): Promise<CatalogItemAdminDetail> {
   const result = await db.tx(async (tx) => {
+    if (body.sku !== undefined) await lockCatalogSkuWrites(tx, businessId);
     const current = await findItemRow(tx, businessId, itemId, true);
     if (current.version !== body.expectedVersion) {
       throw new AppError('VERSION_CONFLICT', 'Catalog version changed', { details: { currentVersion: current.version } });
@@ -130,6 +132,7 @@ export async function patchItem(businessId: string, actor: Actor, itemId: string
 export async function deleteItem(businessId: string, actor: Actor, itemId: string): Promise<{ id: string; deletedAt: string }> {
   if (!isItemId(itemId)) throw new AppError('NOT_FOUND', 'Catalog item not found');
   const result = await db.tx(async (tx) => {
+    await lockCatalogSkuWrites(tx, businessId);
     const item = await tx.maybeOne<{ id: string; deleted_at: Date | null }>(
       'SELECT id,deleted_at FROM catalog_items WHERE business_id=$1 AND id=$2 FOR UPDATE', [businessId, itemId],
     );

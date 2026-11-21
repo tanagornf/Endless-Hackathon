@@ -14,7 +14,7 @@ export const ListQuery = z.object({
 export type ListQuery = z.infer<typeof ListQuery>;
 
 
-const Sku = z.string().trim().transform((value) => value.normalize('NFKC')).pipe(z.string().regex(SKU_RE));
+export const CatalogSku = z.string().trim().transform((value) => value.normalize('NFKC')).pipe(z.string().regex(SKU_RE));
 const Minor = z.number().int().min(0).max(PRICE_MAX_MINOR);
 const Stock = z.number().int().min(0).max(1_000_000).nullable();
 const Name = z.string().trim().min(1).max(255);
@@ -26,14 +26,14 @@ const ExpectedVersion = z.number().int().min(1).max(2_147_483_647);
 
 const VariantBody = z.object({
   name: z.string().trim().min(1).max(100),
-  sku: Sku.nullable().default(null),
+  sku: CatalogSku.nullable().default(null),
   priceMinor: Minor.nullable().default(null),
   stock: Stock.default(null),
   active: z.boolean().default(true),
 }).strict();
 
 export const CreateItemBody = z.object({
-  sku: Sku,
+  sku: CatalogSku,
   kind: z.enum(['product', 'service']),
   name: Name,
   nameEn: Name.nullable().default(null),
@@ -57,7 +57,7 @@ export const CreateItemBody = z.object({
 
 export const PatchItemBody = z.object({
   expectedVersion: ExpectedVersion,
-  sku: Sku.optional(),
+  sku: CatalogSku.optional(),
   name: Name.optional(),
   nameEn: Name.nullable().optional(),
   description: Description.optional(),
@@ -75,6 +75,6 @@ export type PatchItemBody = z.infer<typeof PatchItemBody>;
 
 
 export const SkuCheckQuery = z.object({
-  sku: Sku,
+  sku: CatalogSku,
   excludeItemId: z.string().uuid().optional(),
 }).strict();
