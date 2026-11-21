@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { Alert, Box, Button, Stack, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { AssignmentResult, ConversationTeamState } from '@nless/shared/features/team/types';
@@ -14,15 +14,53 @@ interface Conflict {
   version: number;
 }
 
-export function TeamControls({ conversationId, compact = false }: { conversationId: string; compact?: boolean }) {
+interface TeamControlsProps {
+  conversationId: string;
+  compact?: boolean;
+}
+
+export function TeamControls(props: TeamControlsProps) {
+  const { currentBusiness, user } = useSession();
+  if (!currentBusiness || !user) return null;
+  return <ScopedTeamControls key={[user.id, currentBusiness.id, props.conversationId].join(':')}
+    {...props} businessId={currentBusiness.id} userId={user.id} />;
+}
+
+function ScopedTeamControls({ conversationId, compact = false, businessId, userId }:
+  TeamControlsProps & { businessId: string; userId: string }) {
   const { t } = useTranslation('team');
-  const { user } = useSession();
   const toast = useToast();
   const [conflict, setConflict] = useState<Conflict | null>(null);
-  const path = '/conversations/' + encodeURIComponent(conversationId);
-  const { data, loading, error, reload } = useApiQuery<ConversationTeamState>(path + '/team', { businessScoped: false });
-  const takeover = useApiMutation<TakeoverInput, AssignmentResult>('POST', path + '/takeover', { businessScoped: false, toastOnError: false });
-  const release = useApiMutation<Record<string, never>, AssignmentResult>('POST', path + '/release', { businessScoped: false });
+  const [lastState, setLastState] = useState<ConversationTeamState>();
+  const endpoint = (action: string) => '/conversations/' + encodeURIComponent(conversationId) + '/' + action +
+    '?businessId=' + encodeURIComponent(businessId);
+  const { data, loading, error, reload } = useApiQuery<ConversationTeamState>(endpoint('team'), { businessScoped: false });
+  const takeover = useApiMutation<TakeoverInput, AssignmentResult>('POST', endpoint('takeover'), { businessScoped: false, toastOnError: false });
+  const release = useApiMutation<Record<string, never>, AssignmentResult>('POST', endpoint('release'), { businessScoped: false });
+  const pending = takeover.running || release.running;
+
+  useEffect(() => {
+    if (error) setLastState(undefined);
+    else if (data?.conversationId === conversationId) setLastState(data);
+  }, [conversationId, data, error]);
+
+  const refreshVisible = useEffectEvent(() => {
+    if (!loading && !pending && document.visibilityState === 'visible') reload();
+  });
+  useEffect(() => {
+    // A reconnected socket gets future events only. Reconcile even if the tab never lost focus.
+    const timer = window.setInterval(refreshVisible, 15000);
+    document.addEventListener('visibilitychange', refreshVisible);
+    window.addEventListener('focus', refreshVisible);
+    window.addEventListener('online', refreshVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshVisible);
+      window.removeEventListener('focus', refreshVisible);
+      window.removeEventListener('online', refreshVisible);
+    };
+  }, []);
+
   useRealtime('conversation.updated', (event) => {
     if (event.conversationId === conversationId) reload();
   });
@@ -37,7 +75,7 @@ export function TeamControls({ conversationId, compact = false }: { conversation
       const failure = cause as { code?: string; details?: { holder?: { displayName?: string; userId?: string }; currentVersion?: number } };
       if (failure.code === 'VERSION_CONFLICT') {
         const { holder, currentVersion } = failure.details ?? {};
-        if (typeof holder?.displayName === 'string' && holder.userId !== user?.id && typeof currentVersion === 'number') {
+        if (typeof holder?.displayName === 'string' && holder.userId !== userId && typeof currentVersion === 'number') {
           setConflict({ name: holder.displayName, version: currentVersion });
         } else {
           setConflict(null);
@@ -60,10 +98,10 @@ export function TeamControls({ conversationId, compact = false }: { conversation
     }
   }
 
-  const state = data?.conversationId === conversationId ? data : undefined;
-  const pending = takeover.running || release.running;
+  const latest = data ?? lastState;
+  const state = latest?.conversationId === conversationId ? latest : undefined;
   const holder = state?.assigneeUserId && state.assigneeName !== null
-    ? { self: state.assigneeUserId === user?.id, name: state.assigneeName }
+    ? { self: state.assigneeUserId === userId, name: state.assigneeName }
     : null;
   const contents = (
     <Stack spacing={1} sx={{ width: '100%' }}>
@@ -71,7 +109,7 @@ export function TeamControls({ conversationId, compact = false }: { conversation
         <Alert severity="error" action={<Button color="inherit" onClick={reload}>{t('common:actions.retry')}</Button>}>
           {t('panel.unavailable')}
         </Alert>
-      ) : loading || !state ? (
+      ) : !state ? (
         <Typography role="status" variant="body2" color="text.secondary">{t('panel.loading')}</Typography>
       ) : (
         <>
@@ -89,7 +127,7 @@ export function TeamControls({ conversationId, compact = false }: { conversation
                 <Button
                   data-testid="team-takeover"
                   variant="contained"
-                  disabled={pending}
+                  disabled={pending || loading}
                   sx={{ minHeight: 44 }}
                   onClick={() => {
                     if (holder) setConflict({ name: holder.name, version: state.version });
@@ -100,7 +138,7 @@ export function TeamControls({ conversationId, compact = false }: { conversation
                 </Button>
               )}
               {state.handler === 'human' && (
-                <Button data-testid="team-release" variant="outlined" disabled={pending} sx={{ minHeight: 44 }}
+                <Button data-testid="team-release" variant="outlined" disabled={pending || loading} sx={{ minHeight: 44 }}
                   onClick={() => void handBack().catch(() => {})}>
                   {t('actions.release')}
                 </Button>

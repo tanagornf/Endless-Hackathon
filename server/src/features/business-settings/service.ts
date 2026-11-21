@@ -1,17 +1,17 @@
 import type { WeeklyHours } from '@nless/shared/core/types';
 import type {
-  AnswerPolicy, BusinessClosure, BusinessOpenState, BusinessProfile, BusinessSettings, EffectiveAnswerRules,
+  AnswerPolicy, AnswerPolicyPatch, BusinessClosure, BusinessOpenState, BusinessProfile, BusinessSettings, EffectiveAnswerRules,
   MerchantCapabilities, SettingsView,
 } from '@nless/shared/features/business-settings/types';
 import { AppError, db, log } from '../../core';
 import type { DbExecutor } from '../../core';
 import { DEFAULT_CAPABILITIES, DEFAULT_HOURS, RESTRICTIVE_POLICY } from './defaults';
-import { resolveRules } from './policy';
+import { mergePolicy, resolveRules } from './policy';
 import { bumpSettingsVersion, ensureRow, readProfile, readSettings, updateAiSwitch } from './repo';
-import { AnswerPolicySchema, CapabilitiesSchema } from './schemas';
+import { AnswerPolicySchema, BusinessIdSchema, CapabilitiesSchema } from './schemas';
 import { insertClosure, lockClosures, readClosures, removeClosure } from './closures';
 import type { ClosureInput } from './closures';
-import { calculateOpenState, localParts, validateWeeklyHours } from './hours';
+import { calculateOpenState, isValidTimeZone, localParts, validateWeeklyHours } from './hours';
 import { recordSettingsChange } from './settings-audit';
 
 type SettingsRow = Awaited<ReturnType<typeof readSettings>>;
@@ -97,7 +97,12 @@ export async function setAiEnabled(businessId: string, enabled: boolean, actorUs
 }
 
 export async function ensureBusinessSettings(businessId: string): Promise<BusinessSettings> {
-  return getBusinessSettings(businessId);
+  return db.tx(async (tx) => {
+    await readSettings(businessId, tx);
+    await ensureRow(businessId, tx);
+    await tx.query('INSERT INTO business_profiles (business_id) VALUES ($1) ON CONFLICT (business_id) DO NOTHING', [businessId]);
+    return toSettings(businessId, await readSettings(businessId, tx));
+  });
 }
 
 export async function getEffectiveAnswerRules(businessId: string): Promise<EffectiveAnswerRules> {
@@ -164,9 +169,89 @@ export async function deleteClosure(businessId: string, actorUserId: string, clo
 }
 
 export async function getBusinessProfile(businessId: string): Promise<BusinessProfile> {
-  throw new AppError('SERVICE_NOT_READY', 'getBusinessProfile is not implemented');
+  if (!BusinessIdSchema.safeParse(businessId).success) throw new AppError('NOT_FOUND', 'Business not found');
+  return readProfile(businessId, db);
 }
 
 export async function getCapabilities(businessId: string): Promise<MerchantCapabilities> {
-  throw new AppError('SERVICE_NOT_READY', 'getCapabilities is not implemented');
+  const row = await readSettings(businessId);
+  return parseCapabilities(row.capabilities, businessId);
+}
+
+async function changeVersionedSettings(
+  businessId: string, actorUserId: string, expectedVersion: number, action: string,
+  apply: (tx: DbExecutor) => Promise<Record<string, unknown>>,
+): Promise<SettingsView> {
+  const { view, details } = await db.tx(async (tx) => {
+    await ensureRow(businessId, tx);
+    const { version } = await tx.one<{ version: number }>(
+      'SELECT version FROM business_settings WHERE business_id=$1 FOR UPDATE', [businessId],
+    );
+    if (version !== expectedVersion) {
+      throw new AppError('VERSION_CONFLICT', 'Business settings changed', { details: { currentVersion: version } });
+    }
+    const details = await apply(tx);
+    await bumpSettingsVersion(businessId, actorUserId, tx);
+    return { view: await getSettingsView(businessId, tx), details };
+  });
+  await recordSettingsChange(businessId, actorUserId, action, view.settings.version, details);
+  return view;
+}
+
+export function patchAnswerPolicy(businessId: string, actorUserId: string, expectedVersion: number, policy: AnswerPolicyPatch | null) {
+  return changeVersionedSettings(businessId, actorUserId, expectedVersion, 'business-settings.policy.update', async (tx) => {
+    const current = await readSettings(businessId, tx);
+    const before = parsePolicy(current.answer_policy, businessId);
+    const after = mergePolicy(before, policy);
+    await tx.query('UPDATE business_settings SET answer_policy=$2::jsonb WHERE business_id=$1',
+      [businessId, after === null ? null : JSON.stringify(after)]);
+    return { before, after };
+  });
+}
+
+export function updateCapabilities(
+  businessId: string, actorUserId: string, expectedVersion: number, capabilities: MerchantCapabilities,
+) {
+  return changeVersionedSettings(businessId, actorUserId, expectedVersion, 'business-settings.capabilities.update', async (tx) => {
+    const current = await readSettings(businessId, tx);
+    const before = parseCapabilities(current.capabilities, businessId);
+    await tx.query('UPDATE business_settings SET capabilities=$2::jsonb WHERE business_id=$1', [businessId, JSON.stringify(capabilities)]);
+    return { before, after: capabilities };
+  });
+}
+
+export function updateProfile(
+  businessId: string, actorUserId: string, expectedVersion: number, profile: BusinessProfile,
+) {
+  return changeVersionedSettings(businessId, actorUserId, expectedVersion, 'business-settings.profile.update', async (tx) => {
+    const previous = await readProfile(businessId, tx);
+    const next: BusinessProfile = {
+      ...profile, contactPhone: profile.contactPhone || null, contactEmail: profile.contactEmail || null, address: profile.address || null,
+    };
+    await tx.query('UPDATE businesses SET name=$2, version=version+1, updated_at=now() WHERE id=$1', [businessId, next.name]);
+    await tx.query(
+      'INSERT INTO business_profiles (business_id,description,contact_phone,contact_email,address,updated_by) VALUES ($1,$2,$3,$4,$5,$6) ' +
+      'ON CONFLICT (business_id) DO UPDATE SET description=EXCLUDED.description, contact_phone=EXCLUDED.contact_phone, ' +
+      'contact_email=EXCLUDED.contact_email, address=EXCLUDED.address, updated_by=EXCLUDED.updated_by, updated_at=now()',
+      [businessId, next.description, next.contactPhone, next.contactEmail, next.address, actorUserId],
+    );
+    const changed = (Object.keys(next) as (keyof BusinessProfile)[]).filter((key) => next[key] !== previous[key]);
+    return { changed };
+  });
+}
+
+export function updateLocale(
+  businessId: string, actorUserId: string, expectedVersion: number, timezone: string, language: BusinessSettings['language'],
+) {
+  return changeVersionedSettings(businessId, actorUserId, expectedVersion, 'business-settings.locale.update', async (tx) => {
+    if (!isValidTimeZone(timezone)) {
+      throw new AppError('VALIDATION_ERROR', 'Invalid timezone', {
+        details: { issues: [{ path: 'timezone', code: 'invalid_timezone', message: 'Choose a valid IANA timezone' }] },
+      });
+    }
+    const before = await readSettings(businessId, tx);
+    await tx.query('UPDATE businesses SET timezone=$2, language=$3, version=version+1, updated_at=now() WHERE id=$1',
+      [businessId, timezone, language]);
+    return { timezone: { from: before.timezone, to: timezone }, language: { from: before.language, to: language } };
+  });
 }

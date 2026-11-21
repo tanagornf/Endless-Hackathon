@@ -86,3 +86,5 @@ export interface SettingsView {
 }
 
 export const BUSINESS_WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
+export type AnswerPolicyPatch = { [Key in keyof AnswerPolicy]?: AnswerPolicy[Key] | null };

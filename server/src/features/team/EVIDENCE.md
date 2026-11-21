@@ -18,3 +18,9 @@
 - The job test observed a Thai reply, preserved an inbound message while takeover paused replies, then observed an English reply on the next customer message after handback.
 - npm run typecheck and npm run check:paths passed. The initial local run reached the five-second default timeout in two cases. Both passed with a remote database test timeout of twenty seconds.
 - The first GitHub check passed all six F11 tests and identified a missing web registry entry. The unlisted /team route now redirects to /chat while the team schedule page awaits its slice. The local web registry and i18n suites passed 32/32 and typecheck passed.
+
+## Missed takeover or handback update
+
+- A synthetic staff tab initially showed a human handler. After the simulated server returned the chat to AI without a socket event, the original control issued only its initial GET. A focus event left the old release button visible.
+- The mounted control now reads the selected conversation on focus, on return to a visible tab, on the browser online event, and after 15 seconds while visible. It retains the last handler during a background read, disables pending actions, and discards pending responses and cached controls when the business, user, or conversation changes.
+- The regression, inbox host, and route registry web suites passed 7/7 on the rebased branch with MODEL_MODE=fake. Typecheck and path ownership passed. The API integration suite now checks that an explicit mismatched business yields 404 on all three team routes. Local verification used the web test project only.
