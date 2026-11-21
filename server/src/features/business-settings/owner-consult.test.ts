@@ -223,21 +223,23 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
 });
 
   it.each([
-    { language: 'en', prompts: ['Can I get a replacement part?', 'Who pays shipping?'],
+    { language: 'en', question: 'Can I exchange this opened game and who pays for shipping?',
+      prompts: ['Can I exchange this opened game', 'who pays for shipping?'],
       parts: ['We can replace the missing part.', 'We cover the shipping cost.'],
       placeholder: 'Let me check.', note: 'One-time exception for review. Keep this note private.' },
-    { language: 'th', prompts: ['เปลี่ยนอะไหล่ได้ไหม?', 'ใครออกค่าส่ง?'],
+    { language: 'th', question: 'เปลี่ยนเกมที่แกะแล้วได้ไหม แล้วใครออกค่าส่ง',
+      prompts: ['เปลี่ยนเกมที่แกะแล้วได้ไหม', 'ใครออกค่าส่ง'],
       parts: ['ร้านเปลี่ยนอะไหล่ให้ได้ค่ะ', 'ทางร้านออกค่าส่งให้ค่ะ'],
       placeholder: 'ขอเช็กก่อนนะคะ', note: 'ข้อยกเว้นเฉพาะกรณี เก็บเป็นข้อมูลภายใน' },
   ] as const)('keeps private rationale and incomplete replies out of the $language resume receipt', async (copy) => {
     const { staffCookie: _cookie, staffId: _staffId, ...input } = await fixture();
-    const opened = await openOwnerConsult({ ...input, question: copy.prompts.join(' '), language: copy.language });
+    const opened = await openOwnerConsult({ ...input, question: copy.question, language: copy.language });
     const url = root(input.businessId) + opened.caseId;
     expect((await owner.get(url)).body.data.answerPrompts).toEqual(copy.prompts);
     const base = { actionStepId: opened.actionStepId, expectedVersion: opened.version, clientRequestId: randomUUID(), privateRationale: copy.note };
     const submit = (answerParts: readonly string[], customerReady = true) => owner.post(url + '/answer').set(...writeHeader)
       .send({ ...base, customerReady, answer: answerParts.join('\n\n'), answerParts });
-    for (const incomplete of [await submit([copy.parts[0]]), await submit([copy.placeholder, copy.parts[1]]), await submit(copy.parts, false)]) {
+    for (const incomplete of [await submit([copy.parts[0]]), await submit([copy.placeholder, copy.parts[1]]), await submit([copy.parts[0], copy.parts[0]]), await submit(copy.parts, false)]) {
       expect(incomplete.status).toBe(400);
       expect(incomplete.body.error.details.reason).toBe('incomplete_owner_answer');
     }
