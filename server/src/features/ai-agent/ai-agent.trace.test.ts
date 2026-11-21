@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import type { ApiResult, RealtimeEvent } from '@nless/shared/core/types';
 import type { AiTurnTrace } from '@nless/shared/features/ai-agent/types';
+import type { MessageRecord } from '@nless/shared/features/inbox/types';
 import * as auth from '../../core/auth';
 import { closeDb } from '../../core/db';
 import * as realtime from '../../core/realtime';
@@ -52,10 +53,18 @@ beforeAll(async () => {
     turnId = final.trace.turnId;
     expect(shopEvents.indexOf(rival.event)).toBeLessThan(shopEvents.indexOf(final.event));
     expect(shopEvents.indexOf(final.event)).toBeGreaterThan(shopEvents.indexOf(reply));
+
+    await drainJobs({ type: 'core.deliver' });
+    for (const trace of [rival.trace, final.trace]) {
+      const messages = await owner.get('/api/dev/conversations/' + trace.conversationId + '/messages');
+      expect(messages.status).toBe(200);
+      const { items } = (messages.body as ApiResult<{ items: MessageRecord[] }>).data;
+      expect(items.find(({ id }) => id === trace.replyMessageId)).toMatchObject({ author: 'ai', delivery: { state: 'sent' } });
+    }
   } finally {
     published.mockRestore();
   }
-}, 35_000);
+}, 40_000);
 
 afterAll(closeDb);
 
