@@ -1,4 +1,6 @@
+/// <reference types="node" />
 import { test, expect } from '../../../../../tests/e2e/fixtures';
+import { SEED } from '@nless/shared/core/fixtures';
 import type { ApiResult, BusinessRecord } from '@nless/shared/core/types';
 import type { LineConnectionView } from '@nless/shared/features/line/types';
 
@@ -13,9 +15,10 @@ test('production LINE connection verifies and rejects an unsigned webhook', asyn
   const whoami = await api.get('/api/v1/me');
   expect(whoami.ok()).toBeTruthy();
   const identity = await whoami.json() as ApiResult<{ businesses: { business: BusinessRecord }[] }>;
-  const ownerBusiness = identity.data.businesses.find((entry) => entry.business.slug === 'demo-boardgame-shop') ?? identity.data.businesses[0];
+  const demoId = SEED.businesses.find((shop) => shop.alias === 'biz_demo_a')?.id;
+  const ownerBusiness = identity.data.businesses.find((entry) => entry.business.id === demoId);
   expect(ownerBusiness).toBeDefined();
-  const path = '/api/v1/businesses/' + ownerBusiness.business.id + '/channels/line';
+  const path = '/api/v1/businesses/' + ownerBusiness!.business.id + '/channels/line';
   const info = await api.get(path);
   expect(info.ok()).toBeTruthy();
   const before = (await info.json() as ApiResult<LineConnectionView>).data;

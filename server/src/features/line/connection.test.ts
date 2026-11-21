@@ -56,7 +56,7 @@ test('LINE routes isolate connection credentials and accept one signed event acr
     });
     const signature = createHmac('sha256', channelSecret).update(body).digest('base64');
     expect(await owner.post(webhook).type('application/json').send(body).then((res) => res.status)).toBe(401);
-    expect(await owner.post(webhook).type('application/json').set('x-line-signature', [signature, signature]).send(body).then((res) => res.status)).toBe(401);
+    expect(await owner.post(webhook).type('application/json').set('x-line-signature', signature + ', ' + signature).send(body).then((res) => res.status)).toBe(401);
     expect(await db.maybeOne('SELECT 1 FROM line_events WHERE business_id = $1 AND webhook_event_id = $2', [a, eventId])).toBeNull();
     const send = () => owner.post(webhook).type('application/json').set('x-line-signature', signature).send(body);
     const replies = await Promise.all([send(), send()]);
