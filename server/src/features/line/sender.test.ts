@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   contact: vi.fn(),
   batch: vi.fn(),
   reserve: vi.fn(),
+  reservePush: vi.fn(),
   finish: vi.fn(),
   clear: vi.fn(),
   request: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('./repo', () => ({
   findContact: mocks.contact,
   findDeliveryBatch: mocks.batch,
   reserveReplyBatch: mocks.reserve,
+  reservePushBatch: mocks.reservePush,
   completeDeliveryBatch: mocks.finish,
   clearReplyBatch: mocks.clear,
 }));
@@ -52,6 +54,7 @@ describe('LINE channel sender', () => {
     mocks.batch.mockResolvedValue(null);
     mocks.token.mockResolvedValue('test-access-token');
     mocks.reserve.mockResolvedValue(true);
+    mocks.reservePush.mockImplementation(async (key: { retryKey: string }) => ({ retry_key: key.retryKey, created_at: new Date(now) }));
     mocks.request.mockResolvedValue(response(200, { sentMessages: [{ id: '1234567' }] }));
   });
 
@@ -112,6 +115,34 @@ describe('LINE channel sender', () => {
     expect(replay).toMatchObject({ state: 'unknown' });
     expect(mocks.clear).not.toHaveBeenCalled();
     expect(mocks.request.mock.calls.map(([path]) => path)).toEqual(['/v2/bot/message/reply']);
+  });
+
+  it('keeps a 5xx Push on the same provider retry key even if a fresh reply token arrives', async () => {
+    let pending: { state: 'pending'; retry_key: string; created_at: Date } | null = null;
+    mocks.batch.mockImplementation(async () => pending);
+    mocks.reservePush.mockImplementation(async (key: { retryKey: string }) => {
+      pending ??= { state: 'pending', retry_key: key.retryKey, created_at: new Date(now) };
+      return pending;
+    });
+    mocks.request.mockResolvedValueOnce(response(503))
+      .mockResolvedValueOnce(response(409, {}, { 'x-line-accepted-request-id': 'first-push' }));
+
+    expect(await sender.send(delivery(51_000))).toMatchObject({ state: 'failed', retryable: true });
+    // A stale claim can be released by core without advancing the next attempt number.
+    expect(await sender.send(delivery(1000))).toMatchObject({ state: 'sent', externalRef: 'first-push' });
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.request.mock.calls.map(([path]) => path)).toEqual(['/v2/bot/message/push', '/v2/bot/message/push']);
+    expect(mocks.request.mock.calls[1][1].retryKey).toBe(mocks.request.mock.calls[0][1].retryKey);
+  });
+
+  it('does not resend a pending Push after its provider retry key expires', async () => {
+    const expired = { state: 'pending', retry_key: 'older-key', created_at: new Date(now - 86_400_000) };
+    mocks.batch.mockResolvedValueOnce(expired);
+    mocks.reservePush.mockResolvedValueOnce(expired);
+
+    expect(await sender.send(delivery(1000))).toMatchObject({ state: 'unknown' });
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.request).not.toHaveBeenCalled();
   });
 
   it('splits batches at five messages and skips already accepted batches on retry', async () => {

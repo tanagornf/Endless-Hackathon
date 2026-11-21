@@ -34,3 +34,13 @@ export function parseSettingsInput<T>(schema: z.ZodType<T>, value: unknown): T {
     },
   });
 }
+
+export const HoursBody = z.strictObject({ expectedVersion: z.number().int().min(1), hours: WeeklyHoursSchema });
+const LocalDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+export const ClosureBody = z.strictObject({
+  startDate: LocalDate,
+  endDate: LocalDate,
+  reason: z.string().trim().max(200).default(''),
+});
+export const ClosuresQuery = z.object({ scope: z.enum(['upcoming', 'all']).default('upcoming') });
+export const OpenStateQuery = z.object({ at: z.iso.datetime().optional() });

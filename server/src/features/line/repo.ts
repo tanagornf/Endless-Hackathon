@@ -116,7 +116,7 @@ interface BatchKey {
 }
 
 export function findDeliveryBatch(key: BatchKey) {
-  return db.maybeOne<DeliveryBatch>(
+  return db.maybeOne<Omit<DeliveryBatch, 'state'> & { state: DeliveryBatch['state'] | 'pending' }>(
     'SELECT b.state, b.sent_ids, b.request_id FROM line_delivery_batches b JOIN messages m ON m.id = b.message_id WHERE b.message_id = $1 AND b.batch_index = $2 AND m.business_id = $3',
     [key.messageId, key.index, key.businessId],
   );
@@ -136,6 +136,16 @@ export async function reserveReplyBatch(key: BatchKey, tokenHash: string) {
   });
 }
 
+export async function reservePushBatch(key: BatchKey) {
+  return db.maybeOne<{ retry_key: string; created_at: Date }>(
+    "INSERT INTO line_delivery_batches (message_id, batch_index, mode, retry_key, state) " +
+      "SELECT id, $2, 'push', $3, 'pending' FROM messages WHERE id = $1 AND business_id = $4 AND direction = 'outbound' " +
+      "ON CONFLICT (message_id, batch_index) DO UPDATE SET retry_key = line_delivery_batches.retry_key " +
+      "WHERE line_delivery_batches.mode = 'push' AND line_delivery_batches.state = 'pending' RETURNING retry_key, created_at",
+    [key.messageId, key.index, key.retryKey, key.businessId],
+  );
+}
+
 export async function clearReplyBatch(key: BatchKey) {
   await db.query(
     "DELETE FROM line_delivery_batches b USING messages m WHERE m.id = b.message_id AND b.message_id = $1 AND b.batch_index = $2 AND m.business_id = $3 AND b.mode = 'reply' AND b.state = 'unknown'",
@@ -146,7 +156,7 @@ export async function clearReplyBatch(key: BatchKey) {
 export async function completeDeliveryBatch(key: BatchKey, mode: 'reply' | 'push', batch: DeliveryBatch, pushCount = 0) {
   await db.tx(async (tx) => {
     const saved = await tx.query(
-      "INSERT INTO line_delivery_batches (message_id, batch_index, mode, retry_key, state, sent_ids, request_id) SELECT id, $2, $3, $4, $5, $6, $7 FROM messages WHERE id = $1 AND business_id = $8 ON CONFLICT (message_id, batch_index) DO UPDATE SET state = EXCLUDED.state, sent_ids = EXCLUDED.sent_ids, request_id = EXCLUDED.request_id WHERE line_delivery_batches.state = 'unknown' AND line_delivery_batches.mode = 'reply' AND EXCLUDED.mode = 'reply'",
+      "INSERT INTO line_delivery_batches (message_id, batch_index, mode, retry_key, state, sent_ids, request_id) SELECT id, $2, $3, $4, $5, $6, $7 FROM messages WHERE id = $1 AND business_id = $8 ON CONFLICT (message_id, batch_index) DO UPDATE SET state = EXCLUDED.state, sent_ids = EXCLUDED.sent_ids, request_id = EXCLUDED.request_id WHERE line_delivery_batches.mode = EXCLUDED.mode AND line_delivery_batches.retry_key = EXCLUDED.retry_key AND ((line_delivery_batches.mode = 'reply' AND line_delivery_batches.state = 'unknown') OR (line_delivery_batches.mode = 'push' AND line_delivery_batches.state = 'pending'))",
       [key.messageId, key.index, mode, key.retryKey, batch.state, batch.sent_ids, batch.request_id, key.businessId],
     );
     if (saved.rowCount && pushCount) {

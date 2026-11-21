@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { SEED } from '@nless/shared/core/fixtures';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { db } from '../../core';
 import { createTestAgent, loginAs } from '../../core/test-utils';
 import { getBusinessSettings, getEffectiveAnswerRules } from './service';
@@ -8,16 +8,33 @@ import { getBusinessSettings, getEffectiveAnswerRules } from './service';
 const demoA = SEED.businesses.find(({ alias }) => alias === 'biz_demo_a')!;
 const demoB = SEED.businesses.find(({ alias }) => alias === 'biz_demo_b')!;
 const ownerA = SEED.users.find(({ alias }) => alias === 'owner_a')!;
+const ownerB = SEED.users.find(({ alias }) => alias === 'owner_b')!;
 const staffA = SEED.users.find(({ alias }) => alias === 'staff_a')!;
 const staffB = SEED.users.find(({ alias }) => alias === 'staff_b')!;
 const settingsPath = (businessId: string) => '/api/v1/businesses/' + businessId + '/settings';
 const toggleAction = 'business-settings.ai.toggle';
 
-async function login(email: string) {
-  const agent = await createTestAgent();
-  await loginAs(agent, email);
-  return agent;
+type TestSession = Awaited<ReturnType<typeof createTestAgent>>;
+const sessions = new Map<string, Promise<TestSession>>();
+const ownedAccounts: string[] = [];
+
+function login(email: string): Promise<TestSession> {
+  const existing = sessions.get(email);
+  if (existing) return existing;
+
+  const signedIn = createTestAgent().then(async (agent) => {
+    await loginAs(agent, email);
+    return agent;
+  });
+  sessions.set(email, signedIn);
+  return signedIn;
 }
+
+afterEach(async () => {
+  if (ownedAccounts.length) {
+    await db.query('DELETE FROM accounts WHERE id=ANY($1::uuid[])', [ownedAccounts.splice(0)]);
+  }
+});
 
 async function newBusiness() {
   const accountId = randomUUID();
@@ -30,6 +47,7 @@ async function newBusiness() {
     await tx.query("INSERT INTO memberships (business_id,user_id,role) VALUES ($1,$2,'owner'),($1,$3,'staff')",
       [businessId, ownerA.id, staffA.id]);
   });
+  ownedAccounts.push(accountId);
   return { accountId, businessId };
 }
 
@@ -202,4 +220,69 @@ describe('F04 business settings', () => {
       booking: true, orders: true, handoff: true,
     });
   });
+
+
+  it('rejects overlapping hours and version conflicts and saves a fully closed week', async () => {
+    const { businessId } = await newBusiness();
+    const [owner, staff] = await Promise.all([login(ownerA.email), login(staffA.email)]);
+    const path = settingsPath(businessId);
+    const expected = await getBusinessSettings(businessId);
+    const closed = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] };
+    const updateHours = (hours: typeof expected.hours, version: number) => owner.put(path + '/hours')
+      .set('X-Requested-With', 'nless').send({ hours, expectedVersion: version });
+    const overlap = await updateHours({
+      ...closed, mon: [{ open: '10:00', close: '13:00' }, { open: '12:00', close: '14:00' }],
+    }, expected.version);
+    expect(overlap.status).toBe(400);
+    expect(overlap.body.error.details.issues).toMatchObject([{ path: 'hours.mon.1', code: 'overlap_or_touching' }]);
+    await expect(getBusinessSettings(businessId)).resolves.toEqual(expected);
+    const updated = await updateHours(closed, expected.version);
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.settings).toMatchObject({ hours: closed, version: expected.version + 1 });
+    const stale = await updateHours(expected.hours, expected.version);
+    expect(stale.status).toBe(409);
+    expect(stale.body.error).toMatchObject({ code: 'VERSION_CONFLICT', details: { currentVersion: expected.version + 1 } });
+    const state = await owner.get(path + '/open-state').query({ at: '2026-11-21T03:00:00Z' });
+    expect(state.status).toBe(200);
+    expect(state.body.data).toMatchObject({ open: false, reason: 'closed_day', nextOpenAt: null });
+    const denied = await staff.put(settingsPath(demoA.id) + '/hours')
+      .set('X-Requested-With', 'nless').send({ hours: closed, expectedVersion: 1 });
+    expect(denied.status).toBe(403);
+  });
+
+  it('validates inclusive closures, scopes mutations, and recalculates open state', async () => {
+    const { businessId } = await newBusiness();
+    const [owner, differentOwner] = await Promise.all([login(ownerA.email), login(ownerB.email)]);
+    const path = settingsPath(businessId) + '/closures';
+    const dateAfter = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+    const startDate = dateAfter(400);
+    const endDate = dateAfter(401);
+    const create = (start: string, end: string) => owner.post(path)
+      .set('X-Requested-With', 'nless').send({ startDate: start, endDate: end, reason: 'Synthetic closure' });
+    for (const [start, end] of [
+      [endDate, startDate], ['2026-02-30', endDate], [dateAfter(-3), dateAfter(-2)], [startDate, dateAfter(767)],
+    ] as const) {
+      const rejected = await create(start, end);
+      expect(rejected.status).toBe(400);
+      expect(rejected.body.error.details.issues).not.toEqual([]);
+    }
+    const created = await create(startDate, endDate);
+    expect(created.status).toBe(201);
+    const closure = created.body.data;
+    const collision = await create(endDate, dateAfter(403));
+    expect(collision.status).toBe(400);
+    expect(collision.body.error.details).toMatchObject({
+      conflictId: closure.id, issues: [expect.objectContaining({ code: 'closure_overlap' })],
+    });
+    const listed = await owner.get(path);
+    expect(listed.body.data.items).toEqual([closure]);
+    const state = await owner.get(settingsPath(businessId) + '/open-state').query({ at: endDate + 'T03:00:00Z' });
+    expect(state.body.data).toMatchObject({ open: false, reason: 'closure', closure });
+    const deniedDelete = await differentOwner.delete(settingsPath(demoB.id) + '/closures/' + closure.id)
+      .set('X-Requested-With', 'nless');
+    expect(deniedDelete.status).toBe(404);
+    const deleted = await owner.delete(path + '/' + closure.id).set('X-Requested-With', 'nless');
+    expect(deleted.status).toBe(204);
+    expect((await owner.get(path)).body.data.items).toEqual([]);
+  }, 20_000);
 });
