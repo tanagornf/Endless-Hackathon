@@ -1,4 +1,5 @@
 import { defineFeatureRoutes } from '../../core';
+import { ownerLearningJob, ownerLearningSchedule, runOwnerLearning } from './owner-learning-job';
 import { ownerConsultSchedule } from './owner-consult-outbox';
 import { ownerConsultAnswerSchedule } from './owner-consult-answer-outbox';
 import { registerOwnerConsultRoutes } from './owner-consult-routes';
@@ -16,7 +17,8 @@ const botSettingsWrite = { auth: 'business', permission: 'business.bot_settings'
 export default defineFeatureRoutes({
   featureId: 'F04',
   slug: 'business-settings',
-  schedules: [ownerConsultSchedule, ownerConsultAnswerSchedule],
+  jobs: { [ownerLearningJob]: runOwnerLearning },
+  schedules: [ownerConsultSchedule, ownerConsultAnswerSchedule, ownerLearningSchedule],
   register(api) {
     registerOwnerConsultRoutes(api);
     registerShopInstructionRoutes(api);

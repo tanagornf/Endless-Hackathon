@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { prepareOwnerLearningDraft } from './owner-learning-draft';
 import type { OwnerLearningAnalysisInput, OwnerLearningDraftInput, OwnerLearningDraftReceipt } from './owner-learning-draft';
-import type { KnowledgeDraftInput, KnowledgeDraftResult } from '@nless/shared/features/knowledge/types';
+import type { OwnerConsultKnowledgeDraftInput, KnowledgeDraftResult } from '@nless/shared/features/knowledge/types';
 import { db } from '../../core';
 
 const key: OwnerLearningDraftInput = {
@@ -15,7 +15,7 @@ const key: OwnerLearningDraftInput = {
 };
 const ownerId = '44444444-4444-4444-8444-444444444444';
 const anotherShop = '55555555-5555-4555-8555-555555555555';
-const canonical = 'ai-owner-review:' + key.businessId + ':' + key.caseId + ':' + key.actionStepId;
+const canonical = key.answerReceiptId;
 const receipt: OwnerLearningDraftReceipt = {
   businessId: key.businessId,
   caseId: key.caseId,
@@ -34,8 +34,8 @@ const valid = {
   caseId: key.caseId,
   targetId: null,
   expectedVersion: key.expectedVersion,
-  textTh: 'รับสินค้าได้วันศุกร์',
-  textEn: 'Pickup is available on Friday.',
+  textTh: 'วันรับสินค้า\nรับสินค้าได้วันศุกร์',
+  textEn: 'Pickup days\nPickup is available on Friday.',
   reason: 'The owner confirmed the pickup day.',
 };
 
@@ -49,7 +49,7 @@ const coreAnalysis = import.meta.glob<{
 }>('../../core/shop-correction-analysis.ts')['../../core/shop-correction-analysis.ts'];
 
 function ports() {
-  const createDraft = vi.fn<(input: KnowledgeDraftInput) => Promise<KnowledgeDraftResult>>()
+  const createDraft = vi.fn<(input: OwnerConsultKnowledgeDraftInput) => Promise<KnowledgeDraftResult>>()
     .mockResolvedValue({ itemId: 'draft-1', revision: 1, created: true, warnings: [] });
   return {
     analyze: vi.fn().mockResolvedValue(valid),
@@ -89,14 +89,12 @@ describe('owner-reviewed learning draft', () => {
     expect(receipt).toEqual(original);
 
     expect(deps.createDraft).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      businessId: key.businessId, kind: 'faq', actorUserId: ownerId,
-      sourceRef: canonical + ':receipt:' + key.answerReceiptId,
-      clientRequestId: canonical,
-      body: expect.stringContaining(valid.textTh),
+      businessId: key.businessId, caseId: key.caseId, answerReceiptId: canonical, actionStepId: key.actionStepId,
+      title: 'วันรับสินค้า / Pickup days', body: expect.stringContaining('รับสินค้าได้วันศุกร์'),
     }));
-    const write: KnowledgeDraftInput = deps.createDraft.mock.calls[0][0];
-    expect(write.body).toContain(valid.textEn);
-    expect(write.title).not.toContain('buyer@example.test');
+    const write: OwnerConsultKnowledgeDraftInput = deps.createDraft.mock.calls[0][0];
+    expect(write.body).toContain('Pickup is available on Friday.');
+    expect(write.title).not.toContain('รับของได้เมื่อไหร่');
     const digest = createHash('sha256').update(JSON.stringify({ title: write.title, body: write.body })).digest('hex');
     expect(result).toMatchObject({ candidateDigest: digest });
   });
@@ -126,7 +124,7 @@ describe('owner-reviewed learning draft', () => {
     const expected = result === 'draft' ? { kind: 'draft' } : { kind: 'skipped', reason: result };
     await expect(prepareOwnerLearningDraft(key, deps)).resolves.toMatchObject(expected);
     expect(deps.createDraft).toHaveBeenCalledTimes(writes);
-    if (writes) expect(deps.createDraft.mock.calls[0][0].body).toBe('ไทย\n' + valid.textTh + '\n\nEnglish\n' + valid.textEn);
+    if (writes) expect(deps.createDraft.mock.calls[0][0].body).toBe('ไทย\nรับสินค้าได้วันศุกร์\n\nEnglish\nPickup is available on Friday.');
   });
 
   it.each([
@@ -198,17 +196,17 @@ describe('owner-reviewed learning draft', () => {
   it('reuses the same F05 idempotency key on a replay', async () => {
     const deps = ports();
     const items = new Map<string, { id: string; title: string; body: string }>();
-    deps.createDraft.mockImplementation(async (input: KnowledgeDraftInput) => {
-      const existing = items.get(input.clientRequestId);
+    deps.createDraft.mockImplementation(async (input: OwnerConsultKnowledgeDraftInput) => {
+      const existing = items.get(input.answerReceiptId);
       const row = existing ?? { id: 'draft-' + (items.size + 1), title: input.title, body: input.body };
-      items.set(input.clientRequestId, row);
+      items.set(input.answerReceiptId, row);
       return { itemId: row.id, created: !existing, revision: 1, warnings: [] };
     });
     deps.readDraftRevision.mockImplementation(async () => items.get(canonical) ?? null);
     const created = await prepareOwnerLearningDraft(key, deps);
     expect(created).toMatchObject({ itemId: 'draft-1', created: true });
     if (created.kind !== 'draft') throw new Error('Expected a draft');
-    deps.analyze.mockResolvedValueOnce({ ...valid, textEn: 'The shop will hold orders for Friday pickup.' });
+    deps.analyze.mockResolvedValueOnce({ ...valid, textEn: 'Friday pickup\nThe shop will hold orders for Friday pickup.' });
     await expect(prepareOwnerLearningDraft(key, deps)).resolves.toMatchObject({
       itemId: 'draft-1', created: false, candidateDigest: created.candidateDigest,
     });
