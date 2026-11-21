@@ -17,6 +17,7 @@ import { explicitlyRequestsStaff, replyToStaffOffer } from './intents';
 import { runModelLoop } from './loop';
 import { arabicDigits, maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
+import { getReplyProductImages } from './productMedia';
 import { repairPrompt } from './prompt';
 import { customerInboundsHeldByStaff, priorSavedReply } from './repo';
 import type { TurnDraft } from './repo';
@@ -287,6 +288,12 @@ export async function generateDraft(
       appendHandoffOffer(draft);
     }
     draft.timings.guardMs = elapsed(guardStart);
+    if (mode === 'reply' && draft.productRefs.length) {
+      const mediaSignal = AbortSignal.any([signal, AbortSignal.timeout(1200)]);
+      const images = await withinDeadline(getReplyProductImages(conversation.businessId, context, draft, mediaSignal), mediaSignal)
+        .catch(() => []);
+      draft.parts.push(...images);
+    }
     return { state: 'completed', draft };
   } catch (error) {
     const timedOut = signal.aborted && !cancellation.aborted;
