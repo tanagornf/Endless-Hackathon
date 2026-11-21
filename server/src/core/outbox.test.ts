@@ -9,6 +9,7 @@ import { AppError } from './errors';
 import { jobs } from './jobs';
 import * as jobHandlers from './jobs';
 import type { DeliveryResult, OutboundDelivery } from './types';
+import { settleCancelledDelivery } from './outbox';
 import { drainJobs } from './worker';
 
 afterAll(closeDb);
@@ -142,5 +143,24 @@ test('a failed enqueue rolls back the pending transition, and the same stored me
   expect(duplicate.jobId).toBe(retried.jobId);
   await drain();
   expect(send).toHaveBeenCalledTimes(1);
+  expect(await deliveryState(messageId)).toMatchObject({ state: 'sent' });
+}, 20_000);
+
+test('cancelling one job leaves a scoped delivery pending when another job can still send it', async () => {
+  const send = vi.fn(async () => ({ state: 'sent', mode: 'real' } as const));
+  registerChannelSender('web', { channel: 'web', mode: 'real', send });
+  const { jobId, messageId, conversationId } = await queueDelivery();
+  const replacement = await jobs.enqueue('core.deliver', { messageId }, {
+    businessId, dedupKey: 'replacement:' + messageId, lockKey: 'conversation:' + conversationId,
+  });
+  const cancelled = await db.tx(async (tx) => {
+    await tx.query("UPDATE jobs SET state='cancelled',finished_at=now() WHERE id=$1 AND business_id=$2", [jobId, businessId]);
+    return settleCancelledDelivery(tx, jobId);
+  });
+  expect(cancelled).toBeNull();
+  expect(await deliveryState(messageId)).toMatchObject({ state: 'pending' });
+  await drain();
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(await jobs.get(replacement.jobId)).toMatchObject({ state: 'succeeded' });
   expect(await deliveryState(messageId)).toMatchObject({ state: 'sent' });
 }, 20_000);

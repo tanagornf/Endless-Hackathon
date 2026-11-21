@@ -61,6 +61,11 @@ export const SETTLE_DEAD_DELIVERIES_SQL = `
     FROM settled_jobs j
     WHERE j.state IN ('dead','cancelled') AND j.type='core.deliver' AND m.business_id=j.business_id
       AND m.id::text=(j.payload->>'messageId') AND m.direction='outbound' AND m.delivery_state='pending'
+      AND NOT EXISTS (
+        SELECT 1 FROM jobs active
+        WHERE active.id<>j.id AND active.type='core.deliver' AND active.business_id=j.business_id
+          AND active.payload->>'messageId'=j.payload->>'messageId' AND active.state IN ('queued','running')
+      )
     RETURNING j.id AS "jobId", m.id AS "messageId", m.business_id AS "businessId",
       m.conversation_id AS "conversationId", m.channel, m.delivery_state AS state, m.delivery_mode AS mode, m.delivery_error AS error
   )
