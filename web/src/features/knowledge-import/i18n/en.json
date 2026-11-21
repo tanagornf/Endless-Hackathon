@@ -1,8 +1,131 @@
 {
   "menu": {
-    "title": "Imports"
+    "title": "Import"
   },
   "page": {
-    "title": "Imports"
-  }
+    "title": "Import data",
+    "subtitle": "Upload a product or Q&A spreadsheet to check the rows before import."
+  },
+  "actions": {
+    "new": "New import",
+    "upload": "Upload",
+    "retry": "Try again",
+    "first": "First page",
+    "next": "Next page",
+    "back": "Back to import history",
+    "cancel": "Cancel",
+    "remap": "Edit mapping",
+    "validate": "Check rows"
+  },
+  "file": {
+    "choose": "Choose CSV or TSV",
+    "limits": "Up to 5 MB and 2,000 data rows.",
+    "required": "Choose a file to upload."
+  },
+  "list": {
+    "source": "Source",
+    "when": "Time",
+    "state": "Status",
+    "result": "Results",
+    "counts": "{{ready}} ready · {{error}} errors · {{skipped}} skipped"
+  },
+  "empty": {
+    "title": "No imports yet",
+    "description": "Upload a CSV or TSV file to get started."
+  },
+  "detail": {
+    "title": "Import details"
+  },
+  "mapping": {
+    "title": "Match columns",
+    "target": "Data in this file",
+    "catalog": "Products",
+    "faq": "Questions and answers",
+    "ignore": "Ignore",
+    "column": "Column {{number}}",
+    "update": "Update existing products with matching codes",
+    "required": "Match these required fields: {{fields}}",
+    "readOnly": "Product write permission is required to match columns."
+  },
+  "field": {
+    "sku": "Product code",
+    "name": "Name",
+    "nameEn": "English name",
+    "description": "Description",
+    "category": "Category",
+    "price": "Price",
+    "unit": "Unit",
+    "stock": "Stock",
+    "durationMinutes": "Duration (minutes)",
+    "question": "Question",
+    "answer": "Answer",
+    "folder": "Folder"
+  },
+  "review": {
+    "title": "Review rows",
+    "counts": "{{ready}} ready · {{error}} errors · {{skipped}} skipped · {{excluded}} excluded",
+    "row": "Row",
+    "item": "Item",
+    "value": "Price or content",
+    "issue": "Issue",
+    "duplicate": "This file was already imported as version {{version}}.",
+    "priceChange": "{{old}} → {{next}}"
+  },
+  "state": {
+    "queued": "Queued",
+    "parsing": "Reading file",
+    "awaiting_mapping": "Needs column mapping",
+    "extracting": "Extracting questions",
+    "validating": "Checking rows",
+    "review": "Ready for review",
+    "committing": "Saving",
+    "done": "Done",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "phase": {
+    "read": "Reading the file",
+    "detect": "Detecting columns",
+    "chunk": "Splitting text",
+    "extract": "Extracting questions",
+    "validate": "Checking rows",
+    "write": "Saving rows"
+  },
+  "rowStatus": {
+    "pending": "Pending",
+    "ready": "Ready",
+    "error": "Error",
+    "excluded": "Excluded",
+    "written": "Created",
+    "updated": "Updated",
+    "skipped": "Skipped"
+  },
+  "error": {
+    "load": "Could not load import data.",
+    "upload": "Could not upload this file.",
+    "row": "This row could not be used.",
+    "generic": "The import failed. Upload again to retry.",
+    "file_type": "Select a text-based CSV or TSV file.",
+    "too_large": "The file is too large.",
+    "empty_file": "The file has no data rows.",
+    "invalid_encoding": "The file encoding is unsupported.",
+    "csv_unparsable": "Could not parse this CSV.",
+    "too_many_rows": "The file has more than 2,000 data rows.",
+    "file_missing": "Could not find the uploaded file.",
+    "job_dead": "The import stopped unexpectedly.",
+    "sku_missing": "Missing product code.",
+    "sku_invalid": "Invalid product code.",
+    "sku_taken": "This product code is taken.",
+    "sku_exists": "This item already exists.",
+    "sku_duplicate_in_file": "Duplicate product code in this file.",
+    "name_required": "Missing product name.",
+    "price_invalid": "Invalid price.",
+    "stock_invalid": "Invalid stock.",
+    "duration_invalid": "Duration must be between 5 and 600 minutes.",
+    "duration_required": "Services require a duration.",
+    "question_invalid": "Questions must be 5–200 characters long.",
+    "answer_invalid": "Answers must be 5–1,000 characters long.",
+    "question_duplicate_in_file": "Duplicate question in this file."
+  },
+  "knowledgeButton": "Import from file"
 }
