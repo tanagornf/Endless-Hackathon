@@ -383,7 +383,7 @@ function Get-BoardGitHubCursorPath {
 
 function ConvertTo-BoardIsoTime {
     param($Value)
-    if ($Value -is [DateTime]) { return $Value.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') }
+    if ($Value -is [DateTime]) { return $Value.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ', [Globalization.CultureInfo]::InvariantCulture) }
     return [string]$Value
 }
 
@@ -403,7 +403,9 @@ function Get-GitHubInboxItems {
         # Fetch only recent comments; the id filter below drops anything already read. The margin covers clock skew.
         try {
             $styles = [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal
-            $since = [DateTime]::Parse($LastCreatedAt, [Globalization.CultureInfo]::InvariantCulture, $styles).AddMinutes(-2).ToString('yyyy-MM-ddTHH:mm:ssZ')
+            $start = [DateTime]::Parse($LastCreatedAt, [Globalization.CultureInfo]::InvariantCulture, $styles).AddMinutes(-2)
+            # A cursor saved with a local calendar can be centuries ahead. Recover using the saved comment ID.
+            if ($start -le (Get-BoardUtcNow)) { $since = ConvertTo-BoardIsoTime $start }
         }
         catch { $since = '' }
     }
