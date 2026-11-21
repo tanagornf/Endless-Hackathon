@@ -1,13 +1,22 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import type { Express } from 'express';
+import type { Express, Request, Response } from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { db, decryptSecret, log } from '../../core';
+import { db, decryptSecret, log, revokeUserSessionsInTransaction } from '../../core';
 import { createApp } from '../../core/app';
+import { insertSandboxMail } from './mail';
+import { changePassword, resetPassword } from './password-recovery';
+import { consumeToken, issueToken } from './tokens';
+
+vi.mock('../../core', async (load) => {
+  const core = await load<typeof import('../../core')>();
+  return { ...core, revokeUserSessionsInTransaction: vi.fn(core.revokeUserSessionsInTransaction) };
+});
 
 let app: Express;
 let uniqueClient = 1;
 const emails: string[] = [];
+const recoveryPorts = { consumeToken, issueToken, insertSandboxMail };
 
 function address() {
   const email = 'f02-s3-' + randomUUID() + '@example.test';
@@ -55,6 +64,29 @@ function reset(token: string, newPassword: string) {
 
 function me(cookie: string) {
   return request(app).get('/api/v1/me').set('Cookie', cookie);
+}
+
+function recoveryRequest(): Request {
+  return {
+    ip: '198.51.100.' + uniqueClient++,
+    get: (key: string) => key === 'x-requested-with' ? 'nless' : undefined,
+  } as Request;
+}
+
+// Import the handlers directly for this seam because the native route loader bypasses Vitest's module mock.
+async function failAfterSessionUpdate<T>(run: () => Promise<T>): Promise<T> {
+  const revoke = vi.mocked(revokeUserSessionsInTransaction);
+  const actual = revoke.getMockImplementation();
+  if (!actual) throw new Error('Missing session revocation implementation');
+  revoke.mockImplementationOnce(async (tx, userId) => {
+    await actual(tx, userId);
+    throw new Error('Synthetic failure after session revocation update');
+  });
+  try {
+    return await run();
+  } finally {
+    revoke.mockReset().mockImplementation(actual);
+  }
 }
 
 async function resetLinks(email: string) {
@@ -123,6 +155,43 @@ describe('auth S3 recovery and mailbox routes', () => {
     expect(loggedIn.status).toBe(200);
     const status = await request(app).get('/api/v1/auth/status').set('Cookie', sessionCookie(loggedIn));
     expect(status.body.data.emailVerified).toBe(true);
+  }, 35000);
+
+  it('rolls back the reset token, credential and sessions when revocation fails', async () => {
+    const user = await createAccount();
+    expect((await forgot(user.email)).status).toBe(200);
+    const [link] = await resetLinks(user.email);
+    const replacement = password();
+
+    await expect(failAfterSessionUpdate(() =>
+      resetPassword(recoveryRequest(), { token: link.token, newPassword: replacement }, recoveryPorts),
+    )).rejects.toThrow('Synthetic failure after session revocation update');
+    expect((await me(user.cookie)).status).toBe(200);
+    expect((await login(user.email, user.secret)).status).toBe(200);
+
+    expect((await reset(link.token, replacement)).status).toBe(200);
+    expect((await me(user.cookie)).status).toBe(401);
+    expect((await login(user.email, replacement)).status).toBe(200);
+  }, 35000);
+
+  it('rolls back the changed credential and sessions when revocation fails', async () => {
+    const user = await createAccount();
+    const replacement = password();
+    const change = () => post('/password/change').set('Cookie', user.cookie)
+      .send({ currentPassword: user.secret, newPassword: replacement });
+
+    const response = { cookie: vi.fn() } as unknown as Response;
+    await expect(failAfterSessionUpdate(() => changePassword(recoveryRequest(), response, user.userId, {
+      currentPassword: user.secret, newPassword: replacement,
+    }))).rejects.toThrow('Synthetic failure after session revocation update');
+    expect((await me(user.cookie)).status).toBe(200);
+    expect((await login(user.email, user.secret)).status).toBe(200);
+
+    const changed = await change();
+    expect(changed.status).toBe(200);
+    expect((await me(user.cookie)).status).toBe(401);
+    expect((await me(sessionCookie(changed))).status).toBe(200);
+    expect((await login(user.email, replacement)).status).toBe(200);
   }, 35000);
 
   it('rejects expired links and limits each normalized address', async () => {

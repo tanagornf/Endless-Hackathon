@@ -1,11 +1,10 @@
 import { createHmac } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { AppError, assertRateLimit, auditInTransaction, config, createSession, db, log } from '../../core';
+import { AppError, assertRateLimit, auditInTransaction, config, createSession, db, log, revokeUserSessionsInTransaction } from '../../core';
 import type { DbExecutor } from '../../core';
 import { assertSameOriginRequest } from './csrf';
 import { hashPassword, PASSWORD_MAX, validatePassword, verifyPassword } from './password';
-import { revokeAllSessions } from './sessions-port';
 import { authTokenSchema } from './tokens';
 
 export interface RecoveryPorts {
@@ -77,7 +76,7 @@ export async function resetPassword(req: Request, input: unknown, ports: Recover
   assertSameOriginRequest(req);
   assertRateLimit({ key: 'auth.reset.ip:' + (req.ip ?? 'unknown'), limit: 20, windowSeconds: 3600 });
   const { token, newPassword } = ResetBody.parse(input);
-  const userId = await db.tx(async (tx) => {
+  await db.tx(async (tx) => {
     // A rejection or failed update rolls back the token consumption as well as the credential change.
     const id = await ports.consumeToken(token, 'reset_password', tx);
     const user = await tx.one<PasswordAccount>(
@@ -88,10 +87,9 @@ export async function resetPassword(req: Request, input: unknown, ports: Recover
     await tx.query('UPDATE users SET password_hash = $2, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1',
       [id, await hashPassword(newPassword)]);
     await tx.query('DELETE FROM auth_login_attempts WHERE email_normalized = $1', [user.email_normalized]);
+    await revokeUserSessionsInTransaction(tx, id);
     await auditInTransaction(tx, [{ action: 'auth.password.reset', actorUserId: id }]);
-    return id;
   });
-  await revokeAllSessions(userId);
   return { ok: true };
 }
 
@@ -112,9 +110,9 @@ export async function changePassword(req: Request, res: Response, userId: string
       [userId, hash, user.password_hash],
     );
     if (!result.rowCount) throw invalidCurrentPassword();
+    await revokeUserSessionsInTransaction(tx, userId);
     await auditInTransaction(tx, [{ action: 'auth.password.change', actorUserId: userId }]);
   });
-  await revokeAllSessions(userId);
   await createSession(userId, 'password', res);
   return { ok: true };
 }

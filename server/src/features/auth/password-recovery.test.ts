@@ -6,7 +6,7 @@ import { forgotPassword, resetPassword } from './password-recovery';
 
 vi.mock('../../core', async (original) => {
   const core = await original<typeof import('../../core')>();
-  return { ...core, audit: vi.fn(), db: { tx: vi.fn() }, revokeUserSessions: vi.fn() };
+  return { ...core, audit: vi.fn(), db: { tx: vi.fn() }, revokeUserSessionsInTransaction: vi.fn() };
 });
 
 const ports = { issueToken: vi.fn(), consumeToken: vi.fn(), insertSandboxMail: vi.fn() };
