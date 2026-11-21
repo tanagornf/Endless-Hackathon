@@ -119,7 +119,7 @@ test.each([
   expect(await deliveryState(messageId)).toMatchObject({ state: final, ref: null });
 }, 20_000);
 
-test('a failed enqueue rolls back the pending transition, and the same stored message retries idempotently', async () => {
+test('a failed enqueue records a definite failure, and only that marker reopens on idempotent retry', async () => {
   const inbound = await saveMessage({
     businessId, customer: { channel: 'web', externalId: randomUUID() }, direction: 'inbound',
     author: 'customer', parts, triggerAi: false,
@@ -135,7 +135,7 @@ test('a failed enqueue rolls back the pending transition, and the same stored me
   try {
     await expect(sendToCustomer(conversationId, parts, { businessId, messageId })).rejects.toThrow('Synthetic enqueue failure');
   } finally { enqueue.mockRestore(); }
-  expect(await deliveryState(messageId)).toMatchObject({ state: 'not_required' });
+  expect(await deliveryState(messageId)).toMatchObject({ state: 'failed', error: 'DELIVERY_ENQUEUE_FAILED' });
   expect(await db.maybeOne('SELECT id FROM jobs WHERE dedup_key=$1', ['deliver:' + messageId])).toBeNull();
 
   const retried = await sendToCustomer(conversationId, parts, { businessId, messageId });
@@ -163,4 +163,63 @@ test('cancelling one job leaves a scoped delivery pending when another job can s
   expect(send).toHaveBeenCalledTimes(1);
   expect(await jobs.get(replacement.jobId)).toMatchObject({ state: 'succeeded' });
   expect(await deliveryState(messageId)).toMatchObject({ state: 'sent' });
+}, 20_000);
+
+test('a lost enqueue acknowledgement returns the committed job without downgrading pending or sent', async () => {
+  const { jobId, messageId, conversationId } = await queueDelivery();
+  const send = vi.fn(async () => ({ state: 'sent', mode: 'real' } as const));
+  registerChannelSender('web', { channel: 'web', mode: 'real', send });
+
+  const repeat = async () => {
+    const queue = vi.spyOn(jobHandlers, 'enqueueJob').mockRejectedValueOnce(new Error('Synthetic competing acknowledgement error'));
+    try { return await sendToCustomer(conversationId, parts, { businessId, messageId }); }
+    finally { queue.mockRestore(); }
+  };
+  expect((await repeat()).jobId).toBe(jobId);
+  expect(await deliveryState(messageId)).toMatchObject({ state: 'pending', error: null });
+  await drain();
+  expect((await repeat()).jobId).toBe(jobId);
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(await deliveryState(messageId)).toMatchObject({ state: 'sent', error: null });
+}, 20_000);
+
+test.each([{ state: 'unknown', error: 'PROVIDER_TIMEOUT' }, { state: 'pending', error: 'inflight:1' }])(
+  'a failed enqueue leaves an already ambiguous $state delivery intact', async ({ state, error }) => {
+    const { jobId, messageId, conversationId } = await queueDelivery();
+    await db.tx(async (tx) => {
+      await tx.query("UPDATE jobs SET state='cancelled' WHERE id=$1", [jobId]);
+      await tx.query('UPDATE messages SET delivery_state=$2,delivery_error=$3 WHERE id=$1', [messageId, state, error]);
+    });
+    const queue = vi.spyOn(jobHandlers, 'enqueueJob').mockRejectedValueOnce(new Error('Synthetic retry failure'));
+    try {
+      await expect(sendToCustomer(conversationId, parts, { businessId, messageId })).rejects.toThrow('Synthetic retry failure');
+    } finally { queue.mockRestore(); }
+    expect(await deliveryState(messageId)).toMatchObject({ state, error });
+  }, 20_000,
+);
+
+test.each([
+  { jobState: 'dead', messageState: 'failed', error: 'DELIVERY_ENQUEUE_FAILED' },
+  { jobState: 'cancelled', messageState: 'not_required', error: null },
+])('a terminal canonical $jobState job cannot promote its saved message to pending', async ({ jobState, messageState, error }) => {
+  const { jobId, messageId, conversationId } = await queueDelivery();
+  await db.tx(async (tx) => {
+    await tx.query('UPDATE jobs SET state=$2,finished_at=now() WHERE id=$1', [jobId, jobState]);
+    await tx.query('UPDATE messages SET delivery_state=$2,delivery_error=$3 WHERE id=$1', [messageId, messageState, error]);
+  });
+
+  await expect(sendToCustomer(conversationId, parts, { businessId, messageId })).rejects.toMatchObject({
+    code: 'POLICY_BLOCKED', details: { reason: 'delivery_job_terminal' },
+  });
+  expect(await deliveryState(messageId)).toMatchObject({ state: messageState, error });
+  expect(await jobs.get(jobId)).toMatchObject({ state: jobState });
+
+  const queue = vi.spyOn(jobHandlers, 'enqueueJob').mockRejectedValueOnce(new Error('Synthetic terminal retry failure'));
+  try {
+    await expect(sendToCustomer(conversationId, parts, { businessId, messageId })).rejects.toThrow('Synthetic terminal retry failure');
+  } finally { queue.mockRestore(); }
+  expect(await deliveryState(messageId)).toMatchObject({ state: messageState, error });
+  expect(await db.one('SELECT count(*)::int AS count FROM jobs WHERE business_id=$1 AND dedup_key=$2', [
+    businessId, 'deliver:' + messageId,
+  ])).toEqual({ count: 1 });
 }, 20_000);

@@ -4,7 +4,8 @@ import { db } from './db';
 import { AppError } from './errors';
 import { enqueueJob, notifyJobEnqueued, registerJob } from './jobs';
 import { log } from './log';
-import { attemptDelivery, deliveryErrorCode, isAmbiguousLineFailure, isAmbiguousRetry, markInflight, resolveAmbiguous, settleDelivery } from './outbox';
+import { attemptDelivery, deliveryErrorCode, isAmbiguousLineFailure, isAmbiguousRetry, markInflight, publishDeliveryChange, resolveAmbiguous, settleDelivery } from './outbox';
+import type { DeliveryChange } from './outbox';
 import type { ChannelSender, OutboundDelivery, SendReceipt, SendToCustomerOptions } from './types';
 
 const senders = new Map<Channel, ChannelSender>();
@@ -26,6 +27,40 @@ for (const channel of ['web', 'line', 'facebook', 'instagram'] as const) {
 
 export { ChannelSendError } from './outbox';
 
+const DELIVERY_ENQUEUE_FAILED = 'DELIVERY_ENQUEUE_FAILED';
+
+async function recoverDeliveryEnqueue(
+  messageId: string, conversationId: string, businessId: string,
+): Promise<string | null> {
+  const disposition = await db.tx(async (transaction) => {
+    const scope = [messageId, conversationId, businessId];
+    // Serialize the recovery check with any retry that could commit a competing delivery.
+    const message = await transaction.maybeOne(`
+      SELECT id FROM messages WHERE id=$1 AND conversation_id=$2 AND business_id=$3
+        AND direction='outbound' FOR UPDATE`, scope);
+    if (!message) return null;
+    const accepted = await transaction.maybeOne<{ id: string }>(`
+      SELECT id FROM jobs WHERE business_id=$1 AND type='core.deliver'
+        AND payload->>'messageId'=$2 AND state IN ('queued','running','succeeded')
+      ORDER BY (state='succeeded') DESC, created_at LIMIT 1`, [businessId, messageId]);
+    if (accepted) return { jobId: accepted.id, change: null };
+    const terminalCanonical = await transaction.maybeOne(`
+      SELECT id FROM jobs WHERE business_id=$1 AND type='core.deliver' AND payload->>'messageId'=$2
+        AND dedup_key=$3 AND state NOT IN ('queued','running','succeeded')`,
+    [businessId, messageId, 'deliver:' + messageId]);
+    if (terminalCanonical) return null;
+    const change = await transaction.maybeOne<DeliveryChange>(`
+      UPDATE messages SET delivery_state='failed',delivery_error=$4
+      WHERE id=$1 AND conversation_id=$2 AND business_id=$3 AND direction='outbound'
+        AND delivery_state IN ('not_required','pending') AND delivery_error IS NULL AND delivery_external_ref IS NULL
+      RETURNING id AS "messageId",conversation_id AS "conversationId",business_id AS "businessId",
+        channel,delivery_state AS state,delivery_mode AS mode,delivery_error AS error`, [...scope, DELIVERY_ENQUEUE_FAILED]);
+    return { jobId: null, change };
+  });
+  if (disposition?.change) await publishDeliveryChange(disposition.change);
+  return disposition?.jobId ?? null;
+}
+
 export async function sendToCustomer(conversationId: string, parts: MessagePart[], opts?: SendToCustomerOptions): Promise<SendReceipt> {
   const conversation = await getConversation(conversationId, { businessId: opts?.businessId });
   if (!conversation) throw new AppError('NOT_FOUND', 'Conversation not found');
@@ -37,15 +72,40 @@ export async function sendToCustomer(conversationId: string, parts: MessagePart[
     authorUserId: opts?.authorUserId, origin: opts?.origin, clientRequestId: opts?.clientRequestId,
   })).message.id;
   const enqueueOptions = { businessId, dedupKey: 'deliver:' + messageId, lockKey: 'conversation:' + conversationId, maxAttempts: 5 };
-  const job = await db.tx(async (transaction) => {
-    const stored = await transaction.query(`UPDATE messages SET delivery_mode=COALESCE(delivery_mode,$4),
-      delivery_state=CASE WHEN delivery_state='not_required' THEN 'pending' ELSE delivery_state END
-      WHERE id=$1 AND conversation_id=$2 AND business_id=$3 AND direction='outbound'`, [messageId, conversationId, businessId, sender.mode]);
-    if (!stored.rowCount) throw new AppError('NOT_FOUND', 'Outbound message not found');
-    return enqueueJob(transaction, 'core.deliver', { messageId }, enqueueOptions);
-  });
-  notifyJobEnqueued('core.deliver', job, enqueueOptions);
-  return { messageId, conversationId, channel, jobId: job.jobId, delivery: { mode: sender.mode, state: 'pending' } };
+  let jobId: string;
+  try {
+    const job = await db.tx(async (transaction) => {
+      const stored = await transaction.query(`UPDATE messages SET delivery_mode=COALESCE(delivery_mode,$4),
+        delivery_error=CASE WHEN delivery_state='failed' AND delivery_error=$5 THEN NULL ELSE delivery_error END,
+        delivery_state=CASE WHEN delivery_state='not_required' OR (delivery_state='failed' AND delivery_error=$5)
+          THEN 'pending' ELSE delivery_state END
+        WHERE id=$1 AND conversation_id=$2 AND business_id=$3 AND direction='outbound'`,
+      [messageId, conversationId, businessId, sender.mode, DELIVERY_ENQUEUE_FAILED]);
+      if (!stored.rowCount) throw new AppError('NOT_FOUND', 'Outbound message not found');
+      const job = await enqueueJob(transaction, 'core.deliver', { messageId }, enqueueOptions);
+      if (job.deduped) {
+        const existing = await transaction.one<{ state: string }>(
+          'SELECT state FROM jobs WHERE id=$1 AND business_id=$2 AND type=$3', [job.jobId, businessId, 'core.deliver'],
+        );
+        if (!['queued', 'running', 'succeeded'].includes(existing.state)) {
+          throw new AppError('POLICY_BLOCKED', 'The canonical delivery job is already terminal', {
+            details: { reason: 'delivery_job_terminal' },
+          });
+        }
+      }
+      return job;
+    });
+    jobId = job.jobId;
+    notifyJobEnqueued('core.deliver', job, enqueueOptions);
+  } catch (error) {
+    const accepted = await recoverDeliveryEnqueue(messageId, conversationId, businessId).catch(() => {
+      log.warn({ messageId }, 'Could not reconcile a failed delivery enqueue');
+      return null;
+    });
+    if (!accepted) throw error;
+    jobId = accepted;
+  }
+  return { messageId, conversationId, channel, jobId, delivery: { mode: sender.mode, state: 'pending' } };
 }
 
 async function aiDeliveryAllowed(delivery: Pick<OutboundDelivery, 'businessId' | 'conversationId'>, handoffAckVersion: unknown) {
