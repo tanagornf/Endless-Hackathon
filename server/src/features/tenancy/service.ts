@@ -1,1 +1,2 @@
-export const FEATURE = {"id":"F03","slug":"tenancy","lane":"C3"} as const;
+export { changeMember, listMembers } from './members';
+export { validatePermissionKeys } from './permissions';

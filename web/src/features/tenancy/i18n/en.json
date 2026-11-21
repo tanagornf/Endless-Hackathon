@@ -1,8 +1,122 @@
 {
   "menu": {
-    "title": "Members"
+    "title": "Members",
+    "members": "Members"
   },
   "page": {
     "title": "Members"
+  },
+  "members": {
+    "title": "Members and permissions",
+    "subtitle": "Decide what each staff member can do",
+    "col": {
+      "member": "Member",
+      "role": "Role",
+      "status": "Status",
+      "lastSeen": "Last seen",
+      "actions": "Actions"
+    },
+    "error": "Members could not be loaded",
+    "empty": "No members yet",
+    "neverSeen": "Never signed in"
+  },
+  "role": {
+    "owner": "Owner",
+    "staff": "Staff",
+    "change": {
+      "title": "Change role for {{name}}",
+      "toOwner": "Promote to owner (all permissions)",
+      "toStaff": "Demote to staff"
+    }
+  },
+  "status": {
+    "active": "Active",
+    "revoked": "Revoked"
+  },
+  "actions": {
+    "editPermissions": "Edit permissions",
+    "changeRole": "Change role",
+    "revoke": "Revoke access",
+    "restore": "Restore access"
+  },
+  "revoke": {
+    "title": "Revoke this member?",
+    "message": "They lose access from the next request. You can restore access later"
+  },
+  "permissions": {
+    "title": "Permissions for {{name}}",
+    "search": "Search permissions",
+    "locked": "Owner only",
+    "preset": {
+      "viewer": "View only",
+      "chat_team": "Chat team",
+      "manager": "Manager"
+    },
+    "saved": "Permissions saved",
+    "group": {
+      "chat": "Chat",
+      "orders": "Orders",
+      "appointments": "Appointments",
+      "product": "Products and knowledge",
+      "broadcast": "Broadcast",
+      "insights": "Insights",
+      "business": "Business",
+      "account": "Account"
+    },
+    "noMatch": "No matching permissions",
+    "invalid": "This permission is unavailable"
+  },
+  "permission": {
+    "chat": {
+      "read": "View chats",
+      "reply": "Reply in chats",
+      "takeover": "Take over chats",
+      "schedule": "Edit staff schedules",
+      "view_all": "View everyone's chats"
+    },
+    "orders": {
+      "read": "View orders",
+      "write": "Edit orders"
+    },
+    "appointments": {
+      "read": "View appointments",
+      "write": "Manage appointments",
+      "settings": "Booking settings"
+    },
+    "product": {
+      "read": "View products and knowledge",
+      "write": "Edit products and knowledge",
+      "delete": "Delete products and knowledge"
+    },
+    "broadcast": {
+      "read": "View broadcasts",
+      "send": "Send broadcasts",
+      "tags": "Manage customer tags"
+    },
+    "insights": {
+      "read": "View reports and insights",
+      "demo": "Use the insights demo mode"
+    },
+    "business": {
+      "read": "View business info",
+      "update": "Edit business info and hours",
+      "bot_settings": "Bot settings",
+      "channels": "Manage channels",
+      "commerce": "Commerce settings"
+    },
+    "account": {
+      "members": "Manage members and invitations",
+      "businesses": "Manage businesses in the account"
+    }
+  },
+  "block": {
+    "self_change": "You cannot do this to yourself",
+    "account_owner": "The account owner cannot be changed",
+    "last_owner": "A business needs at least one owner",
+    "target_is_owner": "Owners already have every permission"
+  },
+  "restore": {
+    "title": "Restore this member?",
+    "message": "The member will regain access with their previous permissions."
   }
 }
