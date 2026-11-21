@@ -6,7 +6,7 @@ import { useRealtime } from '../realtime';
 import { ConfirmDialog, StatusChip, useApiMutation, useApiQuery, useToast } from '../ui';
 import {
   actionSize, dash, OpsError, OpsSearch, OpsTable, Pagination, opsDate, opsPath, platformScope,
-  reportStaleAction, useSearchFilter, useVisiblePolling,
+  reportUnavailableAction, useSearchFilter, useVisiblePolling,
 } from './OpsControls';
 import { jobStates } from './opsTypes';
 import type { OpsJobDetail, OpsJobRow, OpsSummary } from './opsTypes';
@@ -92,7 +92,7 @@ function JobResults({ path, dead, cursor, onPage }: {
       toast.success(action.kind === 'retryDead' ? t('jobs.retriedCount', { count: result.retried })
         : t(action.kind === 'cancel' ? 'jobs.cancelled' : 'jobs.retried'));
     } catch (error) {
-      if (!reportStaleAction(error, t, toast)) throw error;
+      if (!reportUnavailableAction(error, t, toast)) throw error;
     }
     query.reload();
   }

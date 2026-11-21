@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n, { i18nReady } from '../i18n';
@@ -174,7 +174,7 @@ describe('operations console', () => {
   });
 
   it('confirms resending an uncertain delivery and sends only the resolution and note', async () => {
-    const row = { messageId: 'msg-fixture', deliveryState: 'unknown', channel: 'line', businessId: 'shop-fixture', createdAt: job.createdAt };
+    const row = { messageId: 'msg-fixture', deliveryState: 'unknown', channel: 'facebook', businessId: 'shop-fixture', createdAt: job.createdAt };
     const request = vi.fn(async (_path: string, init?: RequestInit) => init?.method === 'POST'
       ? response({ ...row, deliveryState: 'pending' }) : response({
         items: [row, { ...row, messageId: 'msg-failed', deliveryState: 'failed' }], nextCursor: null,
@@ -190,5 +190,28 @@ describe('operations console', () => {
     await waitFor(() => expect(request).toHaveBeenCalledWith('/api/v1/ops/deliveries/msg-fixture/resolve', expect.objectContaining({
       method: 'POST', body: JSON.stringify({ resolution: 'resend', note: 'Fixture check' }),
     })));
+  });
+
+  it('keeps both outcome actions available for an uncertain LINE delivery and explains the resend restriction', async () => {
+    const row = {
+      messageId: 'line-fixture', deliveryState: 'unknown', channel: 'line', businessId: 'shop-fixture', createdAt: job.createdAt,
+    };
+    const request = vi.fn(async (_path: string, init?: RequestInit) => init?.method === 'POST'
+      ? response({ ...row, deliveryState: 'failed' }) : response({ items: [row], nextCursor: null }));
+    vi.stubGlobal('fetch', request);
+    show('deliveries');
+    expect(await screen.findByRole('button', { name: 'Mark as sent' })).toBeTruthy();
+    const fail = screen.getByRole('button', { name: 'Mark as failed' });
+    expect(screen.queryByRole('button', { name: 'Resend' })).toBeNull();
+    expect(screen.getByText('Resend is unavailable for LINE.')).toBeTruthy();
+    fireEvent.click(fail);
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mark as failed' }));
+    await waitFor(() => expect(request).toHaveBeenCalledWith('/api/v1/ops/deliveries/line-fixture/resolve', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ resolution: 'failed' }),
+    })));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await act(async () => { await i18n.changeLanguage('th'); });
+    expect(screen.getByText('ยังส่งข้อความ LINE ซ้ำจากหน้านี้ไม่ได้')).toBeTruthy();
   });
 });

@@ -193,5 +193,6 @@
   "policy.notFound": "This item is no longer available.",
   "policy.job_running": "The job started or already succeeded.",
   "policy.job_finished": "The job already finished.",
-  "policy.not_unknown": "The delivery has already been resolved."
+  "policy.not_unknown": "The delivery has already been resolved.",
+  "policy.line_resend_unavailable": "Resend is unavailable for LINE."
 }

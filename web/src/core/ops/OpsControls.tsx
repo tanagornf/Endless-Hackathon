@@ -39,14 +39,14 @@ export function useVisiblePolling({ loading, reload }: Pick<ApiQueryState<unknow
   return refresh;
 }
 
-export function reportStaleAction(error: unknown, t: TFunction<'ops'>, toast: ToastApi) {
+export function reportUnavailableAction(error: unknown, t: TFunction<'ops'>, toast: ToastApi) {
   const failure = getFailure(error)?.error;
   const reason = failure?.details?.reason;
   if (failure?.code === 'NOT_FOUND') {
     toast.error(t('policy.notFound'));
     return true;
   }
-  if (failure?.code === 'POLICY_BLOCKED' && (reason === 'job_running' || reason === 'job_finished' || reason === 'not_unknown')) {
+  if (failure?.code === 'POLICY_BLOCKED' && (reason === 'job_running' || reason === 'job_finished' || reason === 'not_unknown' || reason === 'line_resend_unavailable')) {
     toast.error(t('policy.' + reason));
     return true;
   }

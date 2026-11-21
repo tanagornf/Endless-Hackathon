@@ -1,13 +1,15 @@
-import { Alert, Button, MenuItem, Stack, TextField } from '@mui/material';
+import { Alert, Button, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Page } from '@nless/shared/core/types';
 import { ConfirmDialog, useApiMutation, useApiQuery, useToast } from '../ui';
-import { actionSize, opsDate, opsPath, OpsTable, Pagination, platformScope, reportStaleAction } from './OpsControls';
+import { actionSize, opsDate, opsPath, OpsTable, Pagination, platformScope, reportUnavailableAction } from './OpsControls';
 import type { OpsDeliveryRow } from './opsTypes';
 
 const resolutions = { sent: 'markSent', failed: 'markFailed', resend: 'resend' } as const;
 type Resolution = keyof typeof resolutions;
+const recordOutcomes: Resolution[] = ['sent', 'failed'];
+const allResolutions: Resolution[] = [...recordOutcomes, 'resend'];
 
 export function DeliveriesPanel() {
   const { t } = useTranslation('ops');
@@ -33,10 +35,13 @@ export function DeliveriesPanel() {
       { key: 'createdAt', header: t('common.date'), render: (row) => opsDate(row.createdAt) },
       { key: 'deliveryError', header: t('jobs.lastError') },
       { key: 'actions', header: t('common.actions'), render: (row) => row.deliveryState === 'unknown'
-        ? <Stack direction="row" spacing={0.5}>
-          {(Object.keys(resolutions) as Resolution[]).map((resolution) =>
-            <Button key={resolution} sx={actionSize} color={resolution === 'resend' ? 'error' : 'primary'}
-              onClick={() => { setNote(''); setAction({ row, resolution }); }}>{t(`deliveries.${resolutions[resolution]}`)}</Button>)}
+        ? <Stack spacing={0.5}>
+          <Stack direction="row" spacing={0.5}>
+            {(row.channel === 'line' ? recordOutcomes : allResolutions).map((resolution) =>
+              <Button key={resolution} sx={actionSize} color={resolution === 'resend' ? 'error' : 'primary'}
+                onClick={() => { setNote(''); setAction({ row, resolution }); }}>{t(`deliveries.${resolutions[resolution]}`)}</Button>)}
+          </Stack>
+          {row.channel === 'line' && <Typography variant="caption" color="text.secondary">{t('policy.line_resend_unavailable')}</Typography>}
         </Stack> : null },
     ]} />
     <Pagination cursor={cursor} nextCursor={query.data?.nextCursor} onChange={setCursor} />
@@ -53,7 +58,7 @@ export function DeliveriesPanel() {
           await mutation.run({ resolution: action.resolution, note: note.trim() || undefined });
           toast.success(t('deliveries.resolved'));
         } catch (error) {
-          if (!reportStaleAction(error, t, toast)) throw error;
+          if (!reportUnavailableAction(error, t, toast)) throw error;
         }
         query.reload();
       }} />}

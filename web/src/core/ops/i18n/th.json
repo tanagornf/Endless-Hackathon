@@ -193,5 +193,6 @@
   "policy.notFound": "ไม่พบรายการนี้แล้ว",
   "policy.job_running": "งานเริ่มทำงานหรือสำเร็จแล้ว",
   "policy.job_finished": "งานสิ้นสุดแล้ว",
-  "policy.not_unknown": "ข้อความนี้มีการยืนยันผลแล้ว"
+  "policy.not_unknown": "ข้อความนี้มีการยืนยันผลแล้ว",
+  "policy.line_resend_unavailable": "ยังส่งข้อความ LINE ซ้ำจากหน้านี้ไม่ได้"
 }
