@@ -4,7 +4,7 @@ export default defineFeaturePages({
   featureId: "F02",
   slug: "auth",
   routes: [
-    { path: "/login", auth: 'none', layout: 'public', load: () => import("./Placeholder") },
+    { path: "/login", auth: 'none', layout: 'public', load: () => import("./Login") },
     { path: "/signup", auth: 'none', layout: 'public', load: () => import("./Placeholder") },
     { path: "/verify-email", auth: 'none', layout: 'public', load: () => import("./Placeholder") },
     { path: "/forgot-password", auth: 'none', layout: 'public', load: () => import("./Placeholder") },
