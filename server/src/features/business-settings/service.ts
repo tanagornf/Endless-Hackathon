@@ -1,54 +1,108 @@
-import { AppError } from '../../core';
-import { SEED } from '@nless/shared/core/fixtures';
-import type { BusinessOpenState, BusinessProfile, BusinessSettings, EffectiveAnswerRules, MerchantCapabilities } from '@nless/shared/features/business-settings/types';
+import type {
+  AnswerPolicy, BusinessOpenState, BusinessProfile, BusinessSettings, EffectiveAnswerRules,
+  MerchantCapabilities, SettingsView,
+} from '@nless/shared/features/business-settings/types';
+import { AppError, audit, db, log, publish } from '../../core';
+import type { DbExecutor } from '../../core';
+import { DEFAULT_CAPABILITIES, DEFAULT_HOURS, RESTRICTIVE_POLICY } from './defaults';
+import { resolveRules } from './policy';
+import { ensureRow, readProfile, readSettings, updateAiSwitch } from './repo';
+import { AnswerPolicySchema, CapabilitiesSchema } from './schemas';
 
-/**
- * @owner F04 business-settings · C3 · consumers: B2 (ai.reply gate, policy), C2, A3 (hours), B1
- * Never null for an existing business (defaults when no row). Unknown business → NOT_FOUND.
- * @fake SEED.businesses[].settings + timezone, answerPolicy null, version 1. Both seed businesses aiEnabled true.
- */
-export async function getBusinessSettings(businessId: string): Promise<BusinessSettings> {
-  const business = SEED.businesses.find((candidate) => candidate.id === businessId);
-  if (!business) throw new AppError('NOT_FOUND', 'Business not found');
-  return { businessId, ...business.settings, timezone: business.timezone, answerPolicy: null, version: 1 };
+type SettingsRow = Awaited<ReturnType<typeof readSettings>>;
+
+function parsePolicy(policy: unknown, businessId: string): AnswerPolicy | null {
+  if (policy === null) return null;
+  const parsed = AnswerPolicySchema.safeParse(policy);
+  if (parsed.success) return parsed.data;
+  log.error({ businessId }, 'Invalid stored business answer policy');
+  return RESTRICTIVE_POLICY;
+}
+
+function blockedReason(row: SettingsRow): SettingsView['aiBlockedReason'] {
+  if (row.business_status !== 'active') return 'business_inactive';
+  if (row.account_status !== 'active') return 'account_inactive';
+  return null;
+}
+
+function toSettings(businessId: string, row: SettingsRow): BusinessSettings {
+  return {
+    businessId,
+    aiEnabled: (row.ai_enabled ?? true) && blockedReason(row) === null,
+    timezone: row.timezone,
+    hours: row.hours ?? structuredClone(DEFAULT_HOURS),
+    answerPolicy: parsePolicy(row.answer_policy, businessId),
+    language: row.language,
+    version: row.version ?? 1,
+  };
 }
 
 /**
- * @owner F04 business-settings · C3 · consumers: C3 F03 tenancy (onboarding, right after a business is created), seeds
- * Creates the business_settings row (+ profile row) with DEFAULTS when missing; idempotent. Unknown business → NOT_FOUND.
- * @fake getBusinessSettings(businessId) (SEED values, no write).
+ * Never null for an existing business. Unknown business returns NOT_FOUND.
+ * Read every turn so suspension and the owner switch take effect immediately.
  */
+export async function getBusinessSettings(businessId: string): Promise<BusinessSettings> {
+  return toSettings(businessId, await readSettings(businessId));
+}
+
+export async function getSettingsView(businessId: string, ex: DbExecutor = db): Promise<SettingsView> {
+  const row = await readSettings(businessId, ex);
+  const settings = toSettings(businessId, row);
+  const profile = await readProfile(businessId, ex);
+  const storedCapabilities = CapabilitiesSchema.partial().safeParse(row.capabilities ?? {});
+  const capabilities = { ...DEFAULT_CAPABILITIES, ...(storedCapabilities.success ? storedCapabilities.data : {}) };
+
+  return {
+    settings,
+    aiSwitch: row.ai_enabled ?? true,
+    aiBlockedReason: blockedReason(row),
+    profile,
+    capabilities,
+    effectiveRules: resolveRules(capabilities, settings.answerPolicy),
+  };
+}
+
+export async function setAiEnabled(businessId: string, enabled: boolean, actorUserId: string): Promise<SettingsView> {
+  const { changed, view } = await db.tx(async (tx) => {
+    await ensureRow(businessId, tx);
+    const changed = await updateAiSwitch(businessId, enabled, actorUserId, tx);
+    return { changed, view: await getSettingsView(businessId, tx) };
+  });
+  if (changed) {
+    await audit({
+      action: 'business-settings.ai.toggle',
+      businessId,
+      actorUserId,
+      targetType: 'business',
+      targetId: businessId,
+      details: { from: !enabled, to: enabled },
+    });
+    publish(businessId, {
+      type: 'custom',
+      featureId: 'F04',
+      name: 'business-settings.changed',
+      data: { version: changed.version },
+    });
+  }
+  return view;
+}
+
 export async function ensureBusinessSettings(businessId: string): Promise<BusinessSettings> {
   return getBusinessSettings(businessId);
 }
 
-/**
- * @owner F04 business-settings · C3 · consumers: B2 F10 (tool gating + directives), A3 F15 (booking enabled)
- * capability ∩ answerPolicy, deny wins. Never null. Unknown business → NOT_FOUND.
- * @fake all permissive: price / stock / contact 'always', generalKnowledge, booking, orders, handoff true.
- */
 export async function getEffectiveAnswerRules(businessId: string): Promise<EffectiveAnswerRules> {
-  throw new AppError("SERVICE_NOT_READY", "getEffectiveAnswerRules is not implemented");
+  throw new AppError('SERVICE_NOT_READY', 'getEffectiveAnswerRules is not implemented');
 }
 
-/**
- * @owner F04 business-settings · C3 · consumers: B2 F10 (optional "closed today" hint), A3 F15/F16, C2
- * Open or closed at `at` (default now) in the business timezone, from weekly hours + closures. Unknown business → NOT_FOUND.
- * @fake { open: true, reason: 'open', timezone: 'Asia/Bangkok', nextOpenAt: null, closure: null, localDate / localTime from `at` }.
- */
 export async function getBusinessOpenState(businessId: string, at?: string): Promise<BusinessOpenState> {
-  throw new AppError("SERVICE_NOT_READY", "getBusinessOpenState is not implemented");
+  throw new AppError('SERVICE_NOT_READY', 'getBusinessOpenState is not implemented');
 }
 
-/**
- * @owner F04 business-settings · C3 · consumer: B2 F10 (only when rules.contact === 'always'). Unknown business → NOT_FOUND.
- * @fake { name from SEED.businesses, description: '', contactPhone: null, contactEmail: null, address: null }.
- */
 export async function getBusinessProfile(businessId: string): Promise<BusinessProfile> {
-  throw new AppError("SERVICE_NOT_READY", "getBusinessProfile is not implemented");
+  throw new AppError('SERVICE_NOT_READY', 'getBusinessProfile is not implemented');
 }
 
-/** @owner F04 business-settings · C3. Stored capabilities with defaults filled. Unknown business → NOT_FOUND. @fake all five true. */
 export async function getCapabilities(businessId: string): Promise<MerchantCapabilities> {
-  throw new AppError("SERVICE_NOT_READY", "getCapabilities is not implemented");
+  throw new AppError('SERVICE_NOT_READY', 'getCapabilities is not implemented');
 }

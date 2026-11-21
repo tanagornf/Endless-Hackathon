@@ -75,3 +75,12 @@ export interface BusinessOpenState {
   /** Set when reason is 'closure'. */
   closure: BusinessClosure | null;
 }
+
+export interface SettingsView {
+  settings: BusinessSettings;
+  aiSwitch: boolean;
+  aiBlockedReason: 'business_inactive' | 'account_inactive' | null;
+  profile: BusinessProfile;
+  capabilities: MerchantCapabilities;
+  effectiveRules: EffectiveAnswerRules;
+}
