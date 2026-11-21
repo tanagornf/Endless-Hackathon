@@ -4,7 +4,7 @@ import type { MessagePart } from '@nless/shared/core/types';
 import type { AiIntent } from '@nless/shared/features/ai-agent/types';
 import type { EffectiveAnswerRules } from '@nless/shared/features/business-settings/types';
 import type { AiReplyJobPayload, MessageRecord, SaveMessageResult } from '@nless/shared/features/inbox/types';
-import { AppError, db, drainJobs, model } from '../../core';
+import { AppError, db, drainJobs, model, storage } from '../../core';
 import type { JobContext, ModelChatInput, ModelToolCall } from '../../core';
 import * as channels from '../../core/channels';
 import { closeDb } from '../../core/db';
@@ -357,6 +357,15 @@ describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
 
   it('retries a transient enqueue error with the same saved message and no second model or inbox write', async () => {
     const inbound = await incoming('How much is A-GAME-01?');
+    const product = (await catalog.getProduct(businessId, { sku: 'A-GAME-01' }))!;
+    const [details] = await catalog.getCatalogItemDetails(businessId, [product.id]);
+    const file = await storage.save({
+      businessId, uploadedBy: null, purpose: 'catalog', originalName: 'game.png', mimeType: 'image/png',
+      bytes: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64'),
+    });
+    const media = vi.spyOn(catalog, 'getCatalogItemDetails').mockResolvedValue([
+      { ...details, images: [{ fileId: file.id, alt: 'Demo Quest' }] },
+    ]);
     const chat = vi.spyOn(model, 'chat');
     const writes = vi.spyOn(inbox, 'saveMessage');
     const sends = vi.spyOn(channels, 'sendToCustomer')
@@ -366,6 +375,7 @@ describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
     expect(await execute(inbound)).toHaveProperty('retryAt');
     const first = await trace(inbound.message.id);
     expect(first).toMatchObject({ state: 'failed', reply_message_id: expect.any(String) });
+    media.mockRejectedValue(new Error('Catalog photo temporarily unavailable after the reply was saved'));
     expect(await execute(inbound)).toHaveProperty('retryAt');
     expect(sends).toHaveBeenCalledTimes(1);
     await db.query("UPDATE ai_turns SET retry_after = now() - interval '1 second' WHERE business_id = $1 AND id = $2", [businessId, first.id]);
@@ -374,6 +384,12 @@ describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
     await execute(inbound);
     const saved = await replies(inbound.conversation.id);
     expect(saved.map(({ id }) => id)).toEqual([first.reply_message_id]);
+    expect(saved[0].parts).toEqual([
+      { type: 'text', text: expect.stringContaining('1,490 baht') },
+      { type: 'image', fileId: file.id, alt: 'Demo Quest' },
+    ]);
+    expect(media).toHaveBeenCalledExactlyOnceWith(businessId, [product.id]);
+    expect(sends.mock.calls.map(([, parts]) => parts)).toEqual([saved[0].parts, saved[0].parts]);
     expect(chat).toHaveBeenCalledTimes(1);
     expect(writes.mock.calls.filter(([input]) => input.author === 'ai')).toHaveLength(1);
     expect(sends.mock.calls.map(([, , options]) => options?.messageId)).toEqual([first.reply_message_id, first.reply_message_id]);

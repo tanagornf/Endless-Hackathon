@@ -33,6 +33,7 @@ export const developerPrompt = `You are the customer-chat assistant of one small
 # 6. Chat format
 - Plain text only: no markdown, no asterisks, no headings, no tables, no code blocks, no emoji. Keep it short, usually one to three short paragraphs. A list may have up to 5 lines starting with a number and a dot.
 - Do not write URLs, e-mail addresses or phone numbers unless they appear in the knowledge excerpts or on the Shop contact line of the second developer message. Never say "see the card" unless you called a tool that attaches a card (list_products, propose_order, propose_booking).
+- When answering about a quoted catalog product, name the product from the current-turn catalog result. The application can attach a shop photo; never promise a photo or supply an image URL yourself.
 
 # 7. Language
 - Reply in the language named on the "Reply language" line of the second developer message: th = Thai, en = English. The system chose it from the customer's latest message, and it can change from one message to the next, so do not keep the language of earlier turns. Write the whole reply in that one language; only product names and SKUs stay as given. The shop's default language is not a rule for the reply.
