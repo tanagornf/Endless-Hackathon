@@ -98,18 +98,22 @@ export function checkRows(rows: RawRow[], header: string[], target: 'catalog' | 
     : parseFaqRow(row, mapping.faq ?? {}, header, questions));
 }
 
-export function toCatalogRow(row: Pick<CheckedRow, 'data' | 'rowNo'>): CatalogImportRow {
+export function toCatalogRow(row: Pick<CheckedRow, 'data' | 'rowNo'>, mapping: NonNullable<ImportMapping['catalog']> = {}): CatalogImportRow {
   const data = row.data as CatalogRowData;
   return {
-    rowNo: row.rowNo, sku: data.sku, name: data.name, nameEn: data.nameEn,
-    description: data.description, category: data.category, priceMinor: data.priceMinor,
-    unit: data.unit ?? undefined, stock: data.stock, durationMinutes: data.durationMinutes, kind: data.kind,
+    rowNo: row.rowNo, sku: data.sku, name: data.name, priceMinor: data.priceMinor, kind: data.kind,
+    nameEn: mapping.nameEn === undefined ? undefined : data.nameEn,
+    description: mapping.description === undefined ? undefined : data.description,
+    category: mapping.category === undefined ? undefined : data.category,
+    unit: data.unit ?? undefined,
+    stock: mapping.stock === undefined ? undefined : data.stock,
+    durationMinutes: data.durationMinutes,
   };
 }
 
 export async function checkCatalogPreview(input: {
   businessId: string; actorUserId: string | null; importId: string; mode: ImportOptions['catalogMode'];
-  rows: CheckedRow[]; priceColumn: string | null; skuColumn: string | null;
+  rows: CheckedRow[]; priceColumn: string | null; skuColumn: string | null; mapping: NonNullable<ImportMapping['catalog']>;
 }, progress: (done: number, total: number) => Promise<void>): Promise<void> {
   const candidates = input.rows.filter(row => row.status === 'ready');
   let priceLookups = 0;
@@ -117,7 +121,7 @@ export async function checkCatalogPreview(input: {
     const batch = candidates.slice(start, start + CATALOG_CHUNK);
     const result = await importCatalogItems({
       businessId: input.businessId, actorUserId: input.actorUserId, importId: input.importId,
-      rows: batch.map(toCatalogRow), mode: input.mode, onError: 'skip_row', dryRun: true,
+      rows: batch.map(row => toCatalogRow(row, input.mapping)), mode: input.mode, onError: 'skip_row', dryRun: true,
     });
     const errors = new Map(result.errors.map(error => [error.rowNo, error]));
     const items = new Map(result.items.map(item => [item.rowNo, item]));

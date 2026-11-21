@@ -8,7 +8,7 @@ import en from './i18n/en.json';
 import th from './i18n/th.json';
 
 const state = vi.hoisted(() => ({
-  loading: false, failed: false, write: true, reload: vi.fn(), upload: vi.fn(),
+  loading: false, failed: false, write: true, reload: vi.fn(), upload: vi.fn(), stageText: vi.fn(),
 }));
 
 vi.mock('../../core', async importOriginal => {
@@ -17,6 +17,7 @@ vi.mock('../../core', async importOriginal => {
     ...core,
     api: { ...core.api, upload: state.upload, biz: (path: string) => '/businesses/shop-a' + path },
     useCan: () => state.write,
+    useApiMutation: () => ({ run: state.stageText, running: false, error: null }),
     useSession: () => ({ currentBusiness: { id: 'shop-a' } }),
     useApiQuery: () => ({
       data: state.loading || state.failed ? undefined : { items: [], nextCursor: null },
@@ -31,6 +32,7 @@ afterEach(() => {
   state.write = true;
   state.reload.mockReset();
   state.upload.mockReset();
+  state.stageText.mockReset();
 });
 
 async function screenIn(language: 'en' | 'th') {
@@ -83,4 +85,20 @@ it('renders the retry action when the history request fails', async () => {
   expect(screen.getByText('Could not load import data.')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
   expect(state.reload).toHaveBeenCalledOnce();
+});
+
+it('stages pasted English text with the selected article mode', async () => {
+  state.stageText.mockResolvedValue({ id: 'fixture-import' });
+  await screenIn('en');
+  fireEvent.click(screen.getByRole('button', { name: 'New import' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Paste text' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Text label' }), { target: { value: 'Shop hours' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Text to import' }), { target: { value: 'Our shop opens every day at 10:00.' } });
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: 'How to read the text' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Keep as articles' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
+  await waitFor(() => expect(state.stageText).toHaveBeenCalledWith({
+    label: 'Shop hours', text: 'Our shop opens every day at 10:00.', options: { mode: 'as_article' },
+  }));
+  expect(await screen.findByText('Preview destination')).toBeTruthy();
 });
