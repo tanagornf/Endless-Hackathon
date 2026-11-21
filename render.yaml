@@ -69,13 +69,7 @@ services:
       - { key: LINE_CHANNEL_ID,           sync: false }
       - { key: LINE_CHANNEL_SECRET,       sync: false }
       - { key: LINE_CHANNEL_ACCESS_TOKEN, sync: false }
-      - { key: META_MODE,                 value: sandbox }   # → real เมื่อ F18 deploy
-      - { key: META_APP_ID,               sync: false }
-      - { key: META_APP_SECRET,           sync: false }
-      - { key: META_VERIFY_TOKEN,         sync: false }
-      - { key: META_GRAPH_VERSION,        value: v25.0 }
-      - { key: META_TEST_PAGE_ID,         sync: false }
-      - { key: META_TEST_IG_ACCOUNT_ID,   sync: false }
+      - { key: META_MODE,                 value: sandbox }   # F18/F21 deferred for the LINE-only release
       - { key: GOOGLE_MODE,               value: sandbox }   # → real เมื่อ F16 deploy
       - { key: GOOGLE_CLIENT_ID,          sync: false }
       - { key: GOOGLE_CLIENT_SECRET,      sync: false }
