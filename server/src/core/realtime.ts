@@ -5,11 +5,19 @@ import type { RealtimeEvent } from '@nless/shared/core/types';
 import { getBusiness, getUser } from './auth';
 import { config } from './config';
 
+interface Subscription {
+  businessId: string;
+  verified: boolean;
+  pending: number;
+  sends: Promise<void>;
+}
+const MAX_PENDING_EVENTS = 128;
+
 interface Subscriber {
   socket: WebSocket;
   request: Request;
   userId: string;
-  businessId: string | null;
+  subscription: Subscription | null;
   missed: number;
 }
 const subscribers = new Set<Subscriber>();
@@ -32,7 +40,7 @@ export function attachRealtime(server: Server) {
     const request = authRequest(req);
     void getUser(request).then((user) => {
       websocket.handleUpgrade(req, socket, head, (ws) => {
-        const client: Subscriber = { socket: ws, request, userId: user.id, businessId: null, missed: 0 };
+        const client: Subscriber = { socket: ws, request, userId: user.id, subscription: null, missed: 0 };
         subscribers.add(client);
         ws.on('error', () => ws.terminate());
         ws.on('pong', () => { client.missed = 0; });
@@ -41,8 +49,11 @@ export function attachRealtime(server: Server) {
           let message: { type?: string; businessId?: string };
           try { message = JSON.parse(data.toString()); } catch { return; }
           if (message?.type !== 'subscribe' || typeof message.businessId !== 'string') return;
-          client.businessId = null;
-          void getBusiness(request, message.businessId).then(({ business }) => { client.businessId = business.id; }, () => ws.close(1008));
+          const subscription = { businessId: message.businessId, verified: false, pending: 0, sends: Promise.resolve() };
+          client.subscription = subscription;
+          void getBusiness(request, subscription.businessId).then(() => { subscription.verified = true; }, () => {
+            if (client.subscription === subscription) ws.close(1008);
+          });
         });
       });
     }, () => socket.destroy());
@@ -53,7 +64,10 @@ export function attachRealtime(server: Server) {
       else {
         client.missed++;
         client.socket.ping();
-        if (client.businessId) void getBusiness(client.request, client.businessId).catch(() => client.socket.close(1008));
+        const subscription = client.subscription;
+        if (subscription?.verified) void getBusiness(client.request, subscription.businessId).catch(() => {
+          if (client.subscription === subscription) client.socket.close(1008);
+        });
       }
     }
   }, 25000);
@@ -72,11 +86,32 @@ export function attachRealtime(server: Server) {
 }
 
 export function publish(businessId: string, event: RealtimeEvent, opts?: { userIds?: string[] }): void {
+  const needsChatRead = event.type === 'message.created' || event.type === 'message.updated' || event.type === 'conversation.updated'
+    || (event.type === 'custom' && ((event.featureId === 'F09' && event.name === 'inbox.read')
+      || (event.featureId === 'F10' && event.name === 'ai.turn')));
+  let payload: string | undefined;
   for (const client of subscribers) {
-    if (client.businessId !== businessId || client.socket.readyState !== WebSocket.OPEN) continue;
+    const subscription = client.subscription;
+    if (!subscription?.verified || subscription.businessId !== businessId || client.socket.readyState !== WebSocket.OPEN) continue;
     if (opts?.userIds && !opts.userIds.includes(client.userId)) continue;
-    try {
-      client.socket.send(JSON.stringify({ businessId, ...event }), (error) => { if (error) client.socket.terminate(); });
-    } catch { client.socket.terminate(); }
+    if (subscription.pending >= MAX_PENDING_EVENTS) {
+      client.socket.close(1013);
+      continue;
+    }
+
+    try { payload ??= JSON.stringify({ businessId, ...event }); }
+    catch { client.socket.terminate(); continue; }
+    const frame = payload;
+    const isCurrent = () => client.subscription === subscription && client.socket.readyState === WebSocket.OPEN;
+    subscription.pending++;
+    // A session or grant can change after subscribing. Serial checks preserve event order.
+    subscription.sends = subscription.sends.then(async () => {
+      if (!isCurrent()) return;
+      const { scope } = await getBusiness(client.request, businessId);
+      if (!isCurrent() || (needsChatRead && !scope.permissions.includes('chat.read'))) return;
+      client.socket.send(frame, (error) => { if (error) client.socket.terminate(); });
+    }).catch(() => {
+      if (isCurrent()) client.socket.close(1008);
+    }).finally(() => { subscription.pending--; });
   }
 }
