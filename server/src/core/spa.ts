@@ -9,6 +9,7 @@ export function mountSpa(app: Application, dist: string): void {
     next();
   });
   app.use(express.static(dist, { index: false }));
+  app.use('/assets', (_req, res) => { res.set('Cache-Control', 'no-store').sendStatus(404); });
   app.get('/{*splat}', (req, res, next) => {
     if (/^\/(?:health|healthz|readyz|build-info|ws)(?:\/|$)/.test(req.path)) return next(new AppError('NOT_FOUND', 'Route not found'));
     res.sendFile(join(dist, 'index.html'));

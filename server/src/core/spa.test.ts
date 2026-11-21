@@ -21,6 +21,9 @@ test('token-bearing documents suppress referrers even before browser routing sta
       expect(document.headers['referrer-policy'], path).toBe('no-referrer');
     }
     expect((await agent.get('/')).headers['referrer-policy']).toBeUndefined();
+    const missingAsset = await agent.get('/assets/removed-chunk.js');
+    expect(missingAsset.status).toBe(404);
+    expect(missingAsset.headers['content-type']).not.toMatch(/text\/html/);
   } finally {
     await unlink(html).catch(() => {});
     await rmdir(dist);
