@@ -1,4 +1,4 @@
--- dependsOn: core
+-- dependsOn: core, line
 CREATE TABLE voice_invites (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   business_id uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,

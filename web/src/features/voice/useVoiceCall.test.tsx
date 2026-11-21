@@ -12,7 +12,7 @@ afterEach(() => {
   request.mockReset();
 });
 
-it('waits for the explicit start action and promptly tears down the mic and connection when server control ends', async () => {
+it.each(['ended', 'unreachable'] as const)('starts only on request and tears down the microphone when control becomes %s', async (condition) => {
   vi.useFakeTimers();
   const previousMedia = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
   const stopTrack = vi.fn();
@@ -30,7 +30,9 @@ it('waits for the explicit start action and promptly tears down the mic and conn
   vi.stubGlobal('RTCPeerConnection', class { constructor() { return peer; } });
   request.mockImplementation(async (path: string) => path.endsWith('/start')
     ? { voiceSessionId: 'call', answerSdp: 'v=0\r\ns=Server', expiresAt: new Date(Date.now() + 120_000).toISOString(), mode: 'openai' }
-    : path.endsWith('/status') ? { ended: true, captions: [] } : { ended: true });
+    : path.endsWith('/status')
+      ? condition === 'ended' ? { ended: true, captions: [] } : new Promise(() => {})
+      : { ended: true });
 
   try {
     const { result } = renderHook(() => useVoiceCall('invite', 'private-browser-proof'));
@@ -44,8 +46,8 @@ it('waits for the explicit start action and promptly tears down the mic and conn
     }));
     expect(peer.setRemoteDescription).toHaveBeenCalledWith({ type: 'answer', sdp: 'v=0\r\ns=Server' });
 
-    await act(() => vi.advanceTimersByTimeAsync(2_500));
-    expect(result.current.state).toBe('ended');
+    await act(() => vi.advanceTimersByTimeAsync(condition === 'ended' ? 2_500 : 10_000));
+    expect(result.current.state).toBe(condition === 'ended' ? 'ended' : 'failed');
     expect(stopTrack).toHaveBeenCalledOnce();
     expect(peer.close).toHaveBeenCalledOnce();
     expect(request).toHaveBeenCalledWith('/api/v1/voice/sessions/call/end', expect.objectContaining({ keepalive: true }));
