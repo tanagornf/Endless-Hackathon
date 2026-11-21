@@ -1,7 +1,9 @@
+import { existsSync, readFileSync } from 'node:fs';
 import type { APIResponse, BrowserContext, Page } from '@playwright/test';
 import type { OpsJobRow, OpsSummary } from '@nless/shared/core/ops';
 import type { ApiResult, FeatureFlagView, Page as ApiPage } from '@nless/shared/core/types';
 import type { EffectiveAnswerRules } from '@nless/shared/features/business-settings/types';
+import type { ReleaseStatusFile } from '@nless/shared/features/release/types';
 import type { ConversationDetail, DemoChatActionResult, DemoChatSendResult } from '@nless/shared/features/inbox/types';
 import { e2eMarker, expect, test } from './fixtures';
 
@@ -233,14 +235,18 @@ test.describe('F36 release golden path', () => {
   });
 
   test('11 order proposal needs the customer to confirm', async () => {
-    test.skip(!available('F13'), 'F13 orders is hidden or still a placeholder.');
+    const ledger = new URL('../../server/src/features/release/data/release-status.json', import.meta.url);
+    const release = existsSync(ledger) ? JSON.parse(readFileSync(ledger, 'utf8')) as ReleaseStatusFile : null;
+    const orderMode = release?.rows.find((row) => row.featureId === 'F13')?.actualMode;
+    test.skip(orderMode !== 'R', 'F13 has not reached Real, so the required scoped order read is unavailable for acceptance.');
+    expect(available('F13'), 'F13 is marked Real and must be visible').toBe(true);
     test.setTimeout(90_000);
     const shop = '/api/v1/businesses/' + businessId;
     const settings = await readData<{ effectiveRules: EffectiveAnswerRules }>(await owner.request.get(shop + '/settings'));
     test.skip(!settings.effectiveRules.orders, 'The demo shop has the AI order proposal capability disabled.');
     const scopedOrders = shop + '/orders/by-conversation/' + conversationId;
     const baseline = await owner.request.get(scopedOrders);
-    test.skip(baseline.status() === 404, 'F13 has no live conversation-order read surface for this run.');
+    expect(baseline.ok(), 'Real F13 must expose a scoped order read').toBe(true);
     expect((await readData<{ orders: unknown[] }>(baseline)).orders).toHaveLength(0);
 
     const { reply } = await answer('ขอซื้อ A-GAME-01 2 ชิ้น รับที่ร้าน');
