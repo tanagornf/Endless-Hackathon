@@ -1,13 +1,17 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import pg from 'pg';
 import { config } from './config';
-import { db, dbUrl } from './db';
-import { jobs, registerSchedule, registeredSchedules } from './jobs';
+import { databaseExecutor, db, dbUrl } from './db';
+import { enqueueJob, notifyJobEnqueued, registerSchedule, registeredSchedules } from './jobs';
 import { log } from './log';
 
 const TICK_MS = 10_000;
 const LOCK_RETRY_MS = 30_000;
 const LOCK = "hashtext('nless.scheduler')";
+
+const createLeadershipClient = () => new pg.Client({
+  connectionString: dbUrl(), connectionTimeoutMillis: 10_000, statement_timeout: config.DB_STATEMENT_TIMEOUT_MS,
+});
 
 export class Scheduler {
   private client?: pg.Client;
@@ -15,9 +19,11 @@ export class Scheduler {
   lastTickAt: string | null = null;
   observedOtherAt: string | null = null;
 
+  constructor(private readonly makeClient = createLeadershipClient) {}
+
   async acquire(): Promise<boolean> {
     if (this.client) return this.holdsLock;
-    const client = new pg.Client({ connectionString: dbUrl(), connectionTimeoutMillis: 10_000, statement_timeout: config.DB_STATEMENT_TIMEOUT_MS });
+    const client = this.makeClient();
     this.client = client;
     client.on('error', () => { if (this.client === client) this.holdsLock = false; });
     try {
@@ -42,6 +48,7 @@ export class Scheduler {
   async tickOnce(now = new Date()): Promise<void> {
     const client = this.client;
     if (!client || !this.holdsLock) return;
+    const executor = databaseExecutor(client);
     try {
       await client.query('SELECT 1');
       for (const schedule of registeredSchedules()) {
@@ -54,9 +61,9 @@ export class Scheduler {
         }
         const intervalMs = schedule.everySeconds * 1000;
         const slot = new Date(Math.floor(now.valueOf() / intervalMs) * intervalMs).toISOString();
-        await jobs.enqueue(schedule.name, { slot }, {
-          dedupKey: schedule.name + '@' + slot, lockKey: 'schedule:' + schedule.name, maxAttempts: 3,
-        });
+        const options = { dedupKey: schedule.name + '@' + slot, lockKey: 'schedule:' + schedule.name, maxAttempts: 3 };
+        const job = await enqueueJob(executor, schedule.name, { slot }, options);
+        notifyJobEnqueued(schedule.name, job, options);
       }
       this.lastTickAt = now.toISOString();
     } catch (error) {

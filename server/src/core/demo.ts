@@ -3,6 +3,7 @@ import { unlink } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import sharp from 'sharp';
 import { SEED } from '@nless/shared/core/fixtures';
+import type { FeatureId } from '@nless/shared/core/features';
 import { formatMoneyText } from '@nless/shared/core/language';
 import { audit } from './audit';
 import { config } from './config';
@@ -59,7 +60,7 @@ async function createImages() {
   }
 }
 
-export async function seedDemoData(): Promise<void> {
+export async function seedDemoData(onFeatureError?: (featureId: FeatureId, error: unknown) => void): Promise<void> {
   await db.withAdvisoryLock('nless.demo.seed', async () => {
     await createImages();
     await db.tx(async (tx) => {
@@ -84,7 +85,10 @@ export async function seedDemoData(): Promise<void> {
     });
     for (const module of await featureSeeds()) {
       try { await module.runDemo?.(seedContext); }
-      catch { log.warn({ featureId: module.default.featureId }, 'Demo seed did not complete'); }
+      catch (error) {
+        log.warn({ featureId: module.default.featureId }, 'Demo seed did not complete');
+        onFeatureError?.(module.default.featureId, error);
+      }
     }
   });
 }

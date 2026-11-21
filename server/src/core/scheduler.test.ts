@@ -1,5 +1,6 @@
-import { afterAll, expect, test } from 'vitest';
-import { closeDb, db } from './db';
+import pg from 'pg';
+import { afterAll, expect, test, vi } from 'vitest';
+import { closeDb, db, dbUrl } from './db';
 import { EXPECTED_SCHEDULES } from './expected-schedules';
 import { getJobHandler, jobs, registerSchedule, registeredSchedules } from './jobs';
 import { registerCoreSchedules, Scheduler } from './scheduler';
@@ -42,6 +43,37 @@ test('scheduler deduplicates slots, skips overlap and transfers leadership', asy
   } finally {
     await Promise.all([first.release(), second.release()]);
     await db.query('DELETE FROM jobs WHERE type=$1', [name]);
+  }
+}, 20_000);
+
+test('lost leadership at the write boundary cannot enqueue on a pooled connection', async () => {
+  const name = 'test.scheduler-write-boundary';
+  registerSchedule({ name, everySeconds: 60, handler: async () => {} }, 'F35');
+  const client = new pg.Client({ connectionString: dbUrl() });
+  const leader = new Scheduler(() => client);
+  const successor = new Scheduler();
+  const originalQuery = client.query.bind(client);
+  const query = vi.spyOn(client, 'query').mockImplementation((...args: unknown[]) => {
+    const [sql, values] = args;
+    if (typeof sql === 'string' && sql.startsWith('INSERT INTO jobs') && Array.isArray(values) && values[0] === name) {
+      return Promise.reject(new Error('Synthetic leadership connection loss'));
+    }
+    return Reflect.apply(originalQuery, client, args);
+  });
+  const slot = new Date('2026-11-21T12:00:00.000Z');
+  const scheduled = () => db.query('SELECT id FROM jobs WHERE type=$1', [name]);
+  try {
+    expect(await leader.acquire()).toBe(true);
+    await expect(leader.tickOnce(slot)).rejects.toThrow('Synthetic leadership connection loss');
+    expect(leader.holdsLock).toBe(false);
+    expect((await scheduled()).rowCount).toBe(0);
+    expect(await successor.acquire()).toBe(true);
+    await successor.tickOnce(slot);
+    expect((await scheduled()).rowCount).toBe(1);
+  } finally {
+    query.mockRestore();
+    await Promise.all([leader.release(), successor.release()]);
+    await db.query('DELETE FROM jobs WHERE type=ANY($1::text[])', [[name, 'test.scheduler-slot']]);
   }
 }, 20_000);
 
