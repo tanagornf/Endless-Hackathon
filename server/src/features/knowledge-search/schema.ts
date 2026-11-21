@@ -26,3 +26,9 @@ export const EvalRunBody = z.object({
 
 export type EvalRunBody = z.infer<typeof EvalRunBody>;
 export const RunsQuery = z.object({ limit: z.coerce.number().int().min(1).max(50).default(10) }).strict();
+export const CaseBody = z.object({
+  query: z.string().trim().min(1).max(500),
+  expectItemIds: z.array(z.string().uuid()).max(5).default([]),
+  expectNone: z.boolean().default(false),
+}).strict().refine((body) => body.expectNone || body.expectItemIds.length > 0, 'expectation required');
+export type CaseBody = z.infer<typeof CaseBody>;

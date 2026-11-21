@@ -1,4 +1,32 @@
 {
+  "pack": {
+    "title": "Packing and dispatch sheet",
+    "scope": "Pending shipments due by the selected day, including overdue and unscheduled orders. Check payment status before packing.",
+    "day": "Dispatch through",
+    "deadline": "Ship by (Bangkok)",
+    "noDeadline": "Time not set",
+    "carried": "From an earlier date",
+    "name": "Recipient",
+    "phone": "Phone",
+    "line1": "Street address",
+    "line2": "Address continued",
+    "district": "District",
+    "province": "Province",
+    "postalCode": "Postal code",
+    "empty": "No shipments in this queue.",
+    "error": "Could not load the packing sheet.",
+    "retry": "Retry",
+    "print": "Print packing sheet",
+    "edit": "Edit shipment details",
+    "saveError": "Could not save. Reload if another staff member edited the order.",
+    "summary": "{{orders}} orders · {{pieces}} pieces",
+    "noRecipient": "Recipient missing",
+    "incomplete": "Confirm recipient and full address before dispatch.",
+    "awaiting_payment": "Waiting for payment",
+    "paid": "Paid",
+    "preparing": "Preparing",
+    "loading": "Loading shipments"
+  },
   "menu": {
     "title": "Orders"
   },

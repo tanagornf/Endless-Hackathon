@@ -25,3 +25,19 @@ export interface TagSummary {
   name: string;
   customerCount: number;
 }
+
+export type TagSource = 'manual' | 'automation' | 'inferred';
+export interface CrmTag { id: string; name: string; description: string; color: string; version: number; customerCount: number; ruleCount: number }
+export interface CrmCustomerRow {
+  id: string; displayName: string; channel: Channel; tags: { id: string; name: string; color: string; source: TagSource }[];
+  marketingConsent: MarketingConsent; lastSeenAt: string | null; phone: string | null; memberCount: number; /* 1 = ไม่เคยรวม */
+}
+export interface CrmCustomerDetail extends CrmCustomerRow {
+  externalIdMasked: string;                                  // 4 ตัวท้าย เช่น "…a3f1" (ไม่ส่ง externalId เต็มไป UI รายการ/รายละเอียด)
+  firstSeenAt: string | null;
+  contact: { phone: string | null; email: string | null; address: string | null }; note: string | null; profileVersion: number;
+  members: { customerId: string; displayName: string; channel: Channel; lastSeenAt: string | null; isPrimary: boolean }[];
+  consent: { status: MarketingConsent; source: string | null; updatedAt: string | null; history: { status: string; previousStatus: string; source: string; actorName: string | null; reason: string; createdAt: string }[] };
+  lastConversationId: string | null;
+}
+export interface CustomerPanelData { customerId: string; detail: CrmCustomerDetail; canEditTags: boolean; canCreateTags: boolean; availableTags: { id: string; name: string; color: string }[]; mergeCandidateCount: number }

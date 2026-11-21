@@ -4,7 +4,7 @@
   },
   "page": {
     "title": "Import data",
-    "subtitle": "Upload a product or Q&A spreadsheet to check the rows before import."
+    "subtitle": "Upload a product sheet or shop text and review the drafts before publishing."
   },
   "actions": {
     "new": "New import",
@@ -15,11 +15,17 @@
     "back": "Back to import history",
     "cancel": "Cancel",
     "remap": "Edit mapping",
-    "validate": "Check rows"
+    "validate": "Check rows",
+    "commit": "Import",
+    "confirm": "Confirm import",
+    "edit": "Edit text",
+    "include": "Include",
+    "exclude": "Exclude",
+    "errors": "Download rows with errors (CSV)"
   },
   "file": {
-    "choose": "Choose CSV or TSV",
-    "limits": "Up to 5 MB and 2,000 data rows.",
+    "choose": "Choose CSV, TSV, TXT or Markdown",
+    "limits": "Up to 5 MB per file and 2,000 rows per sheet.",
     "required": "Choose a file to upload."
   },
   "list": {
@@ -27,11 +33,11 @@
     "when": "Time",
     "state": "Status",
     "result": "Results",
-    "counts": "{{ready}} ready · {{error}} errors · {{skipped}} skipped"
+    "counts": "{{ready}} ready · {{written}} saved · {{updated}} updated · {{error}} errors · {{skipped}} skipped"
   },
   "empty": {
     "title": "No imports yet",
-    "description": "Upload a CSV or TSV file to get started."
+    "description": "Upload a file or paste shop text to get started."
   },
   "detail": {
     "title": "Import details"
@@ -59,7 +65,9 @@
     "durationMinutes": "Duration (minutes)",
     "question": "Question",
     "answer": "Answer",
-    "folder": "Folder"
+    "folder": "Folder",
+    "title": "Article title",
+    "body": "Article body"
   },
   "review": {
     "title": "Review rows",
@@ -69,7 +77,13 @@
     "value": "Price or content",
     "issue": "Issue",
     "duplicate": "This file was already imported as version {{version}}.",
-    "priceChange": "{{old}} → {{next}}"
+    "priceChange": "{{old}} → {{next}}",
+    "allowReimport": "Allow reimport",
+    "confirmTitle": "Import {{n}} items?",
+    "confirmBody": "New items will be saved as drafts. Updates you selected will apply to existing products.",
+    "filter": "Row status",
+    "all": "All statuses",
+    "actions": "Row actions"
   },
   "state": {
     "queued": "Queued",
@@ -105,7 +119,7 @@
     "upload": "Could not upload this file.",
     "row": "This row could not be used.",
     "generic": "The import failed. Upload again to retry.",
-    "file_type": "Select a text-based CSV or TSV file.",
+    "file_type": "Choose a text-based CSV, TSV, TXT or Markdown file.",
     "too_large": "The file is too large.",
     "empty_file": "The file has no data rows.",
     "invalid_encoding": "The file encoding is unsupported.",
@@ -125,7 +139,48 @@
     "duration_required": "Services require a duration.",
     "question_invalid": "Questions must be 5–200 characters long.",
     "answer_invalid": "Answers must be 5–1,000 characters long.",
-    "question_duplicate_in_file": "Duplicate question in this file."
+    "question_duplicate_in_file": "Duplicate question in this file.",
+    "already_imported": "This source was already imported.",
+    "extraction_failed": "Could not extract questions. Try again or keep the text as articles.",
+    "provider_budget": "The AI provider is unavailable. Try later.",
+    "knowledge_row_invalid": "Could not create a knowledge draft for this row."
   },
-  "knowledgeButton": "Import from file"
+  "knowledgeButton": "Import from file",
+  "tab": {
+    "file": "File",
+    "text": "Paste text"
+  },
+  "text": {
+    "label": "Text label",
+    "contents": "Text to import",
+    "length": "Enter between 20 and 200,000 characters."
+  },
+  "mode": {
+    "label": "How to read the text",
+    "extract_faq": "Extract questions and answers (uses AI)",
+    "as_article": "Keep as articles"
+  },
+  "folder": {
+    "label": "Target knowledge folder"
+  },
+  "done": {
+    "title": "Import finished",
+    "counts": "{{written}} created · {{updated}} updated · {{skipped}} skipped · {{error}} errors",
+    "none": "No rows were saved. Review the errors.",
+    "draftNote": "New items are drafts. Open the destination page to review and publish them.",
+    "reviewCatalog": "Review products",
+    "reviewKnowledge": "Review knowledge"
+  },
+  "warning": {
+    "generic": "Review this item before use.",
+    "text_truncated": "The text was too long. Only the first part was read.",
+    "chunk_failed": "Some text sections could not be read.",
+    "moderation_flagged": "This text may contain material that needs review.",
+    "no_faq_found": "No questions were extracted. Try keeping the text as articles.",
+    "ungrounded_number": "Skipped {{n}} answers with numbers absent from the source.",
+    "quote_not_found": "The source quote could not be located.",
+    "truncated": "An overlong field was shortened.",
+    "duplicate_title": "A draft already has this title.",
+    "duplicate_content": "A draft already has this content."
+  }
 }

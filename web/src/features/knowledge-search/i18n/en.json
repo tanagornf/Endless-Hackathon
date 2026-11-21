@@ -28,6 +28,8 @@
     "topK": "Maximum results",
     "minimum": "Minimum score",
     "applied": "{{strategy}} · {{elapsed}} ms",
+    "timing": "Embedding {{embed}} ms · Database {{sql}} ms",
+    "cached": "Cached query vector",
     "empty": "No relevant knowledge found",
     "error": "Could not search the index."
   },
@@ -36,6 +38,32 @@
     "lexical": "Words",
     "vector": "Vector",
     "hybrid": "Hybrid"
+  },
+  "cases": {
+    "title": "Saved test cases",
+    "saveAs": "Save as test case",
+    "save": "Save test case",
+    "expected": "Expected knowledge",
+    "none": "Should find nothing",
+    "actions": "Actions",
+    "delete": "Delete test case",
+    "deleteTitle": "Delete this test case?",
+    "deleteMessage": "Future quality checks will skip this case.",
+    "saved": "Test case saved.",
+    "deleted": "Test case deleted.",
+    "empty": "No saved test cases",
+    "loadError": "Could not load saved test cases.",
+    "saveError": "Could not save the test case.",
+    "questionRequired": "Enter a question.",
+    "expectationRequired": "Choose expected knowledge or select Should find nothing.",
+    "itemsLoading": "Loading knowledge…",
+    "itemsError": "Could not load knowledge choices.",
+    "noItems": "No matching knowledge",
+    "openChoices": "Show knowledge choices",
+    "closeChoices": "Hide knowledge choices",
+    "clearChoices": "Clear knowledge selection",
+    "untitled": "Untitled item",
+    "unavailable": "Expected knowledge is unavailable"
   },
   "hits": {
     "rank": "Rank",
@@ -93,6 +121,20 @@
     "different_scope": "The previous run used different cases or indexed sources.",
     "unknown": "The previous run has no comparable scope information.",
     "scope_changed": "Indexed sources changed during this run. Comparison is unavailable."
+  },
+  "fixture": {
+    "title": "Sample test set",
+    "load": "Load sample set",
+    "remove": "Remove sample set",
+    "confirmLoad": "Load and activate 12 synthetic knowledge items in this demo shop?",
+    "confirmRemove": "Archive the sample items in this demo shop?",
+    "queued": "Sample set queued",
+    "loading": "Loading sample items…",
+    "progress": "{{done}} of {{total}} sample items active",
+    "ready": "Sample items are active and ready to evaluate.",
+    "cancelled": "Sample loading was cancelled.",
+    "removed": "Archived {{count}} sample items.",
+    "error": "Could not complete the sample set operation."
   },
   "group": {
     "all": "All groups",

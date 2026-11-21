@@ -29,6 +29,7 @@ export interface KnowledgeEvidence {
   title: string;
   snippet: string;
   score: number;
+  citations?: { url: string; title: string }[];
 }
 
 export interface ReplyContext {

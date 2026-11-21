@@ -8,6 +8,7 @@ import { fallbacks } from './fallbacks';
 import { finalSkipReason, isAiAllowed } from './gate';
 import { generateDraft } from './generation';
 import { beginHandoff, canRequestHandoff, persistHandoff, recoverHandoff, staffHandoffTitle } from './handoff';
+import { isOrderSummary, materializeOrder } from './orderProposal';
 import { claimTurn, finishTurn, LEASE_RENEW_MS, MAX_ATTEMPTS, readDraft, releaseClaim, renewClaim, storeDraft } from './repo';
 import type { HandoffCheckpoint, TurnDraft, TurnLease } from './repo';
 
@@ -26,6 +27,7 @@ function result(
   return {
     turnId, state,
     reply: { parts: draft?.parts ?? [], evidenceIds: draft?.evidenceIds ?? [] },
+    ...(isOrderSummary(draft?.order) ? { proposal: draft.order } : {}),
     delivery,
   };
 }
@@ -160,7 +162,7 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       return { response: result(turn.id, 'failed') };
     }
 
-    let state = generated.state;
+    let state: 'completed' | 'handoff' | 'awaiting_confirmation' | 'failed' = generated.state;
     if (generated.state === 'failed') {
       const retryAt = generated.retryable && turn.attempts < MAX_ATTEMPTS ? delayRetry(4000 * turn.attempts) : undefined;
       if (retryAt || !request.deliver) {
@@ -198,6 +200,20 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       await releaseClaim(turn);
       return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
     }
+    if (draft.order?.kind === 'prepare_order') {
+      await materializeOrder(draft, draft.order, conversation.businessId, conversationId, turn.id, signal);
+      const afterProposal = await currentGate(conversation, inbound, mode);
+      if (!afterProposal.allowed) {
+        await closeTurn(turn, { state: afterProposal.reason === 'superseded' ? 'superseded' : 'skipped',
+          reason: finalSkipReason(afterProposal.reason), timings: draft.timings });
+        return { response: result(turn.id, 'failed') };
+      }
+      if (!(await storeDraft(turn, draft)) || signal.aborted) {
+        await releaseClaim(turn);
+        return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
+      }
+    }
+    if (isOrderSummary(draft.order)) state = 'awaiting_confirmation';
     let replyMessageId = turn.reply_message_id ?? undefined;
     let delivery: ChatTurnResult['delivery'] = noDelivery;
     let deliveryErrorCode: string | undefined;

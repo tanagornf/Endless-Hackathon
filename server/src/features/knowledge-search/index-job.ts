@@ -4,6 +4,7 @@ import { getKnowledgeRevision, withKnowledgePublication } from '../knowledge/ser
 import { chunkKnowledge } from './chunker';
 import type { Chunk } from './chunker';
 import { EMBED_BATCH, INDEX_DIMENSIONS, MAX_CHUNKS_PER_ITEM } from './config';
+import { pruneQueryCache } from './embed-cache';
 import { writeSearchability } from './indexing';
 import type { IndexInput, IndexPayload } from './indexing';
 
@@ -108,7 +109,10 @@ export async function indexDocument(input: IndexInput, options?: {
       options?.signal?.throwIfAborted();
       return true;
     });
-    if (written) publish(businessId, { type: 'knowledge.status', knowledgeItemId: itemId, indexState: 'ready' });
+    if (written) {
+      publish(businessId, { type: 'knowledge.status', knowledgeItemId: itemId, indexState: 'ready' });
+      await pruneQueryCache(businessId).catch(() => undefined);
+    }
   } catch (error) {
     const retryable = !(error instanceof AppError) || error.retryable;
     if (!retryable || options?.lastAttempt !== false) {
