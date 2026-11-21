@@ -9,6 +9,7 @@ import {
   listShopInstructions,
   publishShopInstruction,
   readActiveShopInstruction,
+  recordInstructionReplay,
   rollbackShopInstruction,
 } from './shop-instructions-repo';
 import { registerShopInstructionRoutes } from './shop-instructions-routes';
@@ -37,13 +38,31 @@ async function createOwner() {
   return { businessId, accountId, userId, role: 'owner', permissions: ['business.bot_settings'], isPlatformAdmin: false } satisfies AuthScope;
 }
 
-async function candidate(scope: AuthScope, instruction: string, parent: string | null = null) {
+const passingOutcomes = [
+  { fixtureId: 'original', language: 'th', arm: 'baseline', expectedCase: 'ask_preference', actualResult: 'ask_count', passed: false },
+  { fixtureId: 'original', language: 'th', arm: 'candidate', expectedCase: 'ask_preference', actualResult: 'ask_preference', passed: true },
+  { fixtureId: 'rephrase', language: 'en', arm: 'candidate', expectedCase: 'ask_preference', actualResult: 'ask_preference', passed: true },
+  { fixtureId: 'negative', language: 'en', arm: 'negative', expectedCase: 'keep_guard', actualResult: 'keep_guard', passed: true },
+  { fixtureId: 'other-shop', language: 'th', arm: 'cross_shop', expectedCase: 'shop_unchanged', actualResult: 'shop_unchanged', passed: true },
+] as const;
+
+async function recordReplay(scope: AuthScope, id: string) {
+  const reviewed = await getShopInstructionCandidate(scope, id);
+  return recordInstructionReplay({
+    businessId: scope.businessId!, candidateId: id, baseVersionId: reviewed.baseVersionId,
+    candidateDigest: reviewed.candidateDigest, replayRunId: randomUUID(), fixtureSetDigest: 'a'.repeat(64),
+    mode: 'fake', outcomes: [...passingOutcomes],
+  });
+}
+
+async function candidate(scope: AuthScope, instruction: string, parent: string | null = null, withReplay = true) {
   const id = randomUUID();
   await db.query(`
     INSERT INTO shop_instruction_candidates (business_id,id,answer_receipt_id,case_id,action_step_id,analysis_usage_id,
       base_version_id,instruction,reason)
     VALUES ($1,$2,$3,$4,'test',$5,$6,$7,'Owner clarification')`,
   [scope.businessId, id, randomUUID(), randomUUID(), randomUUID(), parent, instruction]);
+  if (withReplay) expect(await recordReplay(scope, id)).toEqual({ passed: true });
   return id;
 }
 
@@ -57,12 +76,25 @@ describe('F04 shop instruction revisions', () => {
   it('requires owner approval, scopes both review and active reads, and audits rollback', async () => {
     const a = await createOwner();
     const b = await createOwner();
-    const first = await candidate(a, 'Ask which expansion they need.');
+    const first = await candidate(a, 'Ask which expansion they need.', null, false);
     expect(await readActiveShopInstruction(a.businessId)).toBeNull();
     expect(await listShopInstructions(a)).toMatchObject({ activeVersionId: null, candidates: [{ id: first }], versions: [] });
     expect(await listShopInstructions(b)).toEqual({ activeVersionId: null, candidates: [], versions: [] });
     await expect(getShopInstructionCandidate(b, first)).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await expect(publishShopInstruction({ ...a, role: 'staff' }, first, null)).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
+    await expect(publishShopInstruction(a, first, null)).rejects.toMatchObject({ code: 'POLICY_BLOCKED' });
+    const review = await getShopInstructionCandidate(a, first);
+    expect(review.replayPassed).toBe(false);
+    const report = {
+      businessId: a.businessId, candidateId: first, candidateDigest: review.candidateDigest, baseVersionId: null,
+      replayRunId: randomUUID(), fixtureSetDigest: 'b'.repeat(64), mode: 'fake' as const, outcomes: [...passingOutcomes],
+    };
+    await expect(recordInstructionReplay({ ...report, businessId: b.businessId })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(recordInstructionReplay({ ...report, candidateDigest: '0'.repeat(64) })).rejects.toMatchObject({ code: 'VERSION_CONFLICT' });
+    await expect(recordInstructionReplay({ ...report, outcomes: report.outcomes.slice(0, 2) })).resolves.toEqual({ passed: false });
+    await expect(recordInstructionReplay(report)).rejects.toMatchObject({ code: 'VERSION_CONFLICT' });
+    await expect(publishShopInstruction(a, first, null)).rejects.toMatchObject({ code: 'POLICY_BLOCKED' });
+    await expect(recordReplay(a, first)).resolves.toEqual({ passed: true });
 
     const original = await publishShopInstruction(a, first, null);
     expect(await publishShopInstruction(a, first, null)).toEqual(original);
@@ -116,7 +148,7 @@ describe('F04 shop instruction revisions', () => {
     await db.query(`
       INSERT INTO memberships (business_id,user_id,role,permissions) VALUES ($1,$2,'staff','{business.bot_settings}')`,
     [owner.businessId, staff.userId]);
-    const candidateId = await candidate(owner, 'Ask whether the gift recipient has played before.');
+    const candidateId = await candidate(owner, 'Ask whether the gift recipient has played before.', null, false);
     const { app, api } = createHttpApp();
     registerShopInstructionRoutes(api('F04'));
     app.post('/test-session/:userId', async (req, res) => {
@@ -138,6 +170,8 @@ describe('F04 shop instruction revisions', () => {
       .expect('Cache-Control', 'no-store');
     await send({ expectedActiveVersionId: null, instruction: 'A different draft' }).expect(400);
     expect(await readActiveShopInstruction(owner.businessId)).toBeNull();
+    await send({ expectedActiveVersionId: null }).expect(422);
+    await expect(recordReplay(owner, candidateId)).resolves.toEqual({ passed: true });
     const { body: published } = await send({ expectedActiveVersionId: null }).expect(200);
     const restoreBaseline = () => agent.post(path + '/versions/baseline/rollback').set('X-Requested-With', 'nless');
     await restoreBaseline().send({ expectedActiveVersionId: null }).expect(409);

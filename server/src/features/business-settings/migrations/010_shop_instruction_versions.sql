@@ -37,3 +37,21 @@ CREATE TABLE shop_instruction_versions (
 
 ALTER TABLE shop_instruction_candidates ADD FOREIGN KEY (business_id,base_version_id)
   REFERENCES shop_instruction_versions (business_id,id);
+
+CREATE TABLE shop_instruction_replays (
+  business_id uuid NOT NULL,
+  replay_run_id uuid NOT NULL,
+  candidate_id uuid NOT NULL,
+  base_version_id uuid,
+  candidate_digest text NOT NULL CHECK (candidate_digest ~ '^[0-9a-f]{64}$'),
+  fixture_set_digest text NOT NULL CHECK (fixture_set_digest ~ '^[0-9a-f]{64}$'),
+  mode text NOT NULL CHECK (mode IN ('fake','openai')),
+  outcomes jsonb NOT NULL CHECK (jsonb_typeof(outcomes)='array'),
+  passed boolean NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (business_id,replay_run_id),
+  FOREIGN KEY (business_id,candidate_id) REFERENCES shop_instruction_candidates (business_id,id) ON DELETE CASCADE,
+  FOREIGN KEY (business_id,base_version_id) REFERENCES shop_instruction_versions (business_id,id)
+);
+CREATE INDEX shop_instruction_replays_candidate ON shop_instruction_replays (business_id,candidate_id,mode)
+  WHERE passed;

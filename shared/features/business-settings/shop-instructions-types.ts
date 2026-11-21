@@ -4,6 +4,8 @@ export interface ShopInstructionCandidate {
   instruction: string;
   reason: string;
   createdAt: string;
+  candidateDigest: string;
+  replayPassed: boolean;
 }
 
 export interface ActiveShopInstruction {
