@@ -27,6 +27,63 @@ export interface SearchKnowledgeOptions {
   folderIds?: string[];
 }
 
+export type RetrievalStrategy = KnowledgeSearchResult['strategy'];
+export interface RetrievalWeights { vec: number; lex: number; c0: number; c1: number }
+
+export interface WorkbenchSearchOptions extends SearchKnowledgeOptions {
+  strategy?: 'auto' | RetrievalStrategy;
+  weights?: RetrievalWeights;
+}
+
+export interface HitDebug {
+  chunkNo: number; cos: number | null; vecNorm: number | null; lex: number;
+  matchedTerms: string[]; skuHit: boolean; crossScript: boolean; final: number;
+}
+
+export interface WorkbenchHit extends KnowledgeHit { debug: HitDebug; chunkText: string; status: 'active' }
+export interface RetrievalConfig {
+  strategy: RetrievalStrategy; wVec: number; wLex: number; wXlang: number; c0Xlang: number;
+  c0: number; c1: number; minScore: number; rerank: boolean; embedModel: string;
+}
+
+export interface WorkbenchSearchResult extends KnowledgeSearchResult {
+  hits: WorkbenchHit[];
+  config: RetrievalConfig;
+  belowThreshold: { knowledgeItemId: string; title: string; final: number }[];
+  timings: { embedMs: number; sqlMs: number; rerankMs: number | null; totalMs: number };
+  cacheHit: boolean;
+}
+
+export interface IndexStatus {
+  mode: KnowledgeSearchResult['mode']; embedModel: string; embedDim: number;
+  counts: { not_started: number; indexing: number; ready: number; failed: number };
+  searchableItems: number; chunkCount: number; staleModelChunks: number; lastIndexedAt: string | null;
+}
+
+export interface SourceView {
+  knowledgeItemId: string; revision: number; title: string; body: string; status: string;
+  isCurrent: boolean; chunks: { chunkNo: number; text: string }[];
+}
+
+export type RetrievalGroup = 'th' | 'en' | 'xlang';
+export interface RetrievalGroupMetrics {
+  positives: number; recallAt1: number; recallAt3: number; recallAt5: number; nonePassRate: number | null;
+}
+export interface RetrievalMetrics extends RetrievalGroupMetrics {
+  cases: number; mrr: number; forbidPassRate: number | null; byGroup: Record<RetrievalGroup, RetrievalGroupMetrics>;
+}
+export interface RetrievalCaseResult {
+  id: string; query: string; source: 'fixture' | 'saved'; group: RetrievalGroup;
+  kind: 'positive' | 'none' | 'forbid'; pass: boolean; rank: number | null; topTitle: string | null; topScore: number | null;
+}
+export interface RetrievalRunSummary { id: string; createdAt: string; metrics: RetrievalMetrics; config: RetrievalConfig }
+export interface RetrievalRunResult extends RetrievalRunSummary {
+  perCase: RetrievalCaseResult[]; previous: RetrievalMetrics | null;
+}
+export interface RetrievalCaseRow {
+  id: string; query: string; expectItemIds: string[]; expectTitles: string[]; expectNone: boolean; createdAt: string;
+}
+
 
 export function evidenceIdOf(hit: { knowledgeItemId: string; revision: number }): string {
   return 'knowledge:' + hit.knowledgeItemId + ':r' + hit.revision;
