@@ -12,7 +12,13 @@ export function failureOf(status: number, message: string): ApiFailure {
 function webError(status: number, failure: ApiFailure): WebApiError {
   return Object.assign(new Error(failure.error.message), failure.error, { status, failure });
 }
-export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export interface ApiRequestOptions extends RequestInit {
+  /** Keep 401 as an ordinary request error for public visitor routes. Default true. */
+  redirectOnUnauthorized?: boolean;
+}
+
+export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { redirectOnUnauthorized = true, ...init } = options;
   const headers = new Headers(init.headers);
   headers.set('X-Requested-With', 'nless');
   if (typeof init.body === 'string') headers.set('Content-Type', 'application/json');
@@ -22,7 +28,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   if (response.status === 204) return undefined as T;
   const result = await response.json().catch(() => null) as ApiResult<T> | ApiFailure | null;
   if (!response.ok) {
-    if (response.status === 401 && !path.endsWith('/me') && typeof window !== 'undefined' && !/^\/(?:dev-login|login|signup)(?:\/|$)/.test(location.pathname)) {
+    if (redirectOnUnauthorized && response.status === 401 && !path.endsWith('/me') && typeof window !== 'undefined' && !/^\/(?:dev-login|login|signup)(?:\/|$)/.test(location.pathname)) {
       location.assign('/login');
     }
     throw webError(response.status, result && 'error' in result ? result : failureOf(response.status, response.statusText));

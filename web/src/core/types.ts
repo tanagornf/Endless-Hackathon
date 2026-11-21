@@ -134,6 +134,8 @@ export interface ToastApi {
 }
 
 export interface ApiQueryOptions {
+  /** Set false when the endpoint itself authorizes the resource, such as a conversation ID. Default true. */
+  businessScoped?: boolean;
   /** Extra values that trigger a refetch when they change (path and the current business id already do). */
   deps?: unknown[];
 }
@@ -148,6 +150,8 @@ export interface ApiQueryState<T> {
 export type ApiMutationMethod = 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export interface ApiMutationOptions {
+  /** Set false when the endpoint itself authorizes the resource, such as a conversation ID. Default true. */
+  businessScoped?: boolean;
   /** Default true: a failure calls useToast().error(failure) before run() rejects. */
   toastOnError?: boolean;
 }

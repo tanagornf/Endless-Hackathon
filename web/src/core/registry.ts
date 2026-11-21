@@ -1,7 +1,6 @@
 import { FEATURES } from '@nless/shared/core/features';
 import type { FeaturePages } from '@nless/shared/core/loader';
 
-export function defineFeaturePages(value: FeaturePages): FeaturePages { return value; }
 const modules = Object.entries(import.meta.glob<{ default: FeaturePages }>('../features/*/pages.tsx', { eager: true }));
 const prefixes = FEATURES.flatMap((feature) => feature.webPaths.map((path) => ({ id: feature.id, path })))
   .sort((a, b) => b.path.length - a.path.length);

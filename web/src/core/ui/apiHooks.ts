@@ -8,7 +8,9 @@ import { getFailure, useToast } from './toast';
 const failure = (error: unknown) => getFailure(error) ?? failureOf(0, 'Network unavailable');
 
 export function useApiQuery<T>(path: string | null, opts?: ApiQueryOptions): ApiQueryState<T> {
-  const businessId = useSession().currentBusiness?.id;
+  const businessScoped = opts?.businessScoped !== false;
+  const { currentBusiness } = useSession();
+  const businessId = businessScoped ? currentBusiness?.id : undefined;
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<Omit<ApiQueryState<T>, 'reload'>>({ data: undefined, error: null, loading: false });
   const generation = useRef(0);
@@ -16,14 +18,14 @@ export function useApiQuery<T>(path: string | null, opts?: ApiQueryOptions): Api
   const currentDeps = opts?.deps ?? [];
   useEffect(() => {
     const key = ++generation.current;
-    if (!path || !businessId) { setState({ data: undefined, error: null, loading: false }); return; }
+    if (!path || (businessScoped && !businessId)) { setState({ data: undefined, error: null, loading: false }); return; }
     setState({ data: undefined, error: null, loading: true });
-    void api.get<T>(api.biz(path)).then(
+    void api.get<T>(businessScoped ? api.biz(path) : path).then(
       (data) => { if (generation.current === key) setState({ data, error: null, loading: false }); },
       (error) => { if (generation.current === key) setState({ data: undefined, error: failure(error), loading: false }); },
     );
     return () => { if (generation.current === key) generation.current++; };
-  }, [businessId, path, revision, ...currentDeps]);
+  }, [businessId, businessScoped, path, revision, ...currentDeps]);
   return { ...state, reload };
 }
 
@@ -35,7 +37,8 @@ export function useApiMutation<I, O>(method: ApiMutationMethod, path: string | (
     setCount((state) => state + 1);
     setError(null);
     try {
-      const target = api.biz(typeof path === 'function' ? path(input) : path);
+      const requestPath = typeof path === 'function' ? path(input) : path;
+      const target = opts?.businessScoped === false ? requestPath : api.biz(requestPath);
       switch (method) {
         case 'DELETE': return await api.delete(target);
         case 'POST': return await api.post(target, input);
