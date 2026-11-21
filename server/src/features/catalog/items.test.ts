@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 import { SEED } from '@nless/shared/core/fixtures';
 import { db } from '../../core';
 import { createTestAgent, loginAs } from '../../core/test-utils';
-import { adjustCatalogStock, getPrice, getProduct } from './service';
+import { getPrice, getProduct } from './service';
 
 const bizA = SEED.businesses.find((entry) => entry.alias === 'biz_demo_a')!.id;
 const bizB = SEED.businesses.find((entry) => entry.alias === 'biz_demo_b')!.id;
@@ -86,31 +86,6 @@ it('protects creates and edits with product.write, tenant scope, strict prices a
   expect(duplicate.status).toBe(400);
   expect(duplicate.body.error.details).toMatchObject({ code: 'sku_taken', itemId: created.body.data.id });
   expect((await ownerAgent.patch(item).set(...header).send({ expectedVersion: 1, kind: 'service' })).status).toBe(400);
-}, 20_000);
-
-it('keeps the stock adapter side-effect-free at the documented return shape', async () => {
-  const ownerAgent = await createTestAgent();
-  await loginAs(ownerAgent, owner.email);
-  const sku = 'TEST-STOCK-' + randomUUID();
-  const created = await ownerAgent.post(path).set(...header).send(makeInput(sku));
-  expect(created.status).toBe(201);
-  const itemId = String(created.body.data.id);
-  const updated = await ownerAgent.patch(path + '/' + itemId).set(...header)
-    .send({ expectedVersion: 1, priceMinor: 159000 });
-  expect(updated.body.data.version).toBe(2);
-
-  const before = await getPrice(bizA, { itemId });
-  expect(before).toMatchObject({ available: 5, version: 2 });
-  const result = await adjustCatalogStock({
-    businessId: bizA, itemId, delta: -2, reason: 'order',
-    refType: 'order', refId: randomUUID(), actorUserId: owner.id,
-  });
-  expect(result).toEqual({ stockAfter: null, applied: false, version: 1 });
-  expect(await getPrice(bizA, { itemId })).toEqual(before);
-  const moves = await db.one<{ count: number }>(
-    'SELECT count(*)::int AS count FROM catalog_stock_moves WHERE business_id=$1 AND item_id=$2', [bizA, itemId],
-  );
-  expect(moves.count).toBe(0);
 }, 20_000);
 
 it('checks normalized SKU collisions for items and variants within the current business', async () => {

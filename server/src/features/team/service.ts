@@ -1,8 +1,10 @@
 import { AppError, audit, db, log, publish } from '../../core';
 import type { DbExecutor } from '../../core';
 import type { AssignmentResult, ConversationTeamState } from '@nless/shared/features/team/types';
-import { notify } from '../notifications/service';
+import { notifyHandoff } from './handoffNotification';
 import { uuid } from './validation';
+
+export { applyAiHandoff, getAiHandoffReceipt } from './aiHandoff';
 
 interface Member {
   userId: string;
@@ -143,28 +145,12 @@ async function changeAssignment(conversationId: string, change: Change, opts: As
     details: change.kind === 'handoff' ? { reason: change.reason.slice(0, 80), actor: change.actor }
       : { from: result.from, to: row.assigneeUserId, handler: row.handler },
   });
-  if (change.kind === 'handoff') await notifyHandoff(row);
-  return value;
-}
-
-async function notifyHandoff(row: ConversationRow): Promise<void> {
-  try {
-    const customer = await db.maybeOne<{ displayName: string }>(
-      'SELECT display_name AS "displayName" FROM customers WHERE id = $1 AND business_id = $2',
-      [row.customerId, row.businessId],
-    );
-    await notify({
-      businessId: row.businessId,
-      to: { permission: 'chat.takeover' },
-      type: 'chat.handoff',
-      title: 'ลูกค้าต้องการคุยกับพนักงาน',
-      body: customer?.displayName || undefined,
-      link: '/chat?c=' + row.conversationId,
-      dedupKey: 'handoff:' + row.conversationId + ':v' + row.version,
+  if (change.kind === 'handoff') {
+    await notifyHandoff(row, change.reason).catch(() => {
+      log.warn({ conversationId: row.conversationId }, 'Handoff notification failed');
     });
-  } catch {
-    log.warn({ conversationId: row.conversationId }, 'Handoff notification failed');
   }
+  return value;
 }
 
 export async function assignConversation(

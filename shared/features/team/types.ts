@@ -14,3 +14,15 @@ export interface ConversationTeamState extends AssignmentResult {
   canTakeover: boolean;
   candidates: { userId: string; displayName: string; availability: EffectiveAvailability; openCount: number }[];
 }
+
+export interface AiHandoffIntent {
+  businessId: string;
+  conversationId: string;
+  turnId: string;
+  reason: string;
+  expectedVersion: number;
+}
+
+export interface AiHandoffReceipt extends AiHandoffIntent {
+  committedVersion: number;
+}
