@@ -1,13 +1,13 @@
 # Demo loop: โต๊ะ 3 นาที, เวอร์ชัน 90 วินาที, เวที
 
-ฉบับ 20 พ.ย. 2569 (ค่ำ) ตาม scope สุดท้ายใน [PLAN.md](../../PLAN.md) · ใช้กับ [PITCH.md](PITCH.md) (พูดทับ loop นี้) · ข้อมูลทั้งหมดคือ seed สังเคราะห์ ร้าน A `Demo Boardgame Shop` (`demo-boardgame`) · Demo ทำบน **production URL** ไม่ใช่เครื่องในห้อง (D7)
+ฉบับ 21 พ.ย. 2569 ตาม scope รุ่น LINE-onlyใน [PLAN.md](../../PLAN.md) · ใช้กับ [PITCH.md](PITCH.md) (พูดทับ loop นี้) · ข้อมูลทั้งหมดคือ seed สังเคราะห์ ร้าน A `Demo Boardgame Shop` (`demo-boardgame`) · Demo ทำบน **production URL** ไม่ใช่เครื่องในห้อง (D7)
 
 **กติกา**
 
 - ขั้นไหนที่ฟีเจอร์ไม่เป็น R ตอน 15:30 ฟีเจอร์นั้นถูกซ่อนอยู่แล้ว ให้ใช้ทางสำรองในคอลัมน์ "ถ้าไม่ R" หรือตัดขั้นทิ้ง ห้ามทำปุ่มหลอก ห้ามเปิดหน้าที่ถูกซ่อน
 - ทุกอย่างที่โชว์เกิดสดบน production ยกเว้นเมื่อเปิด recording ที่ติดป้ายแล้ว ([VIDEO-SCRIPT](VIDEO-SCRIPT.md))
 - **ทุกรอบ ให้กรรมการลองบนมือถือตัวเองก่อนหรือหลัง loop** (สแกน QR ของ LINE OA *NLess Demo* หรือ Demo Chat) · ข้อความของกรรมการขึ้นใน inbox บน STAGE สด ใช้เป็นหลักฐานว่าไม่ได้จัดฉาก
-- พูดตามจริง: ตรวจสลิปไม่ใช่การยืนยันจากธนาคาร · Messenger/Instagram ทีมสาธิตเอง (Meta development mode)
+- LINE เป็นช่องทางภายนอกช่องทางเดียว · ตรวจ core loop ได้ผ่าน Demo Chat บนเว็บ · ตรวจสลิปไม่ใช่การยืนยันจากธนาคาร
 - **ทุกรอบต้องมีหนึ่งคำถามภาษาไทยและหนึ่งคำถามภาษาอังกฤษ** (ขั้น 0:20 ไทย ขั้น 0:40 อังกฤษ ในตารางข้างล่าง): ผลิตภัณฑ์ใช้ได้ครบสองภาษา กรรมการถามภาษาไหนก็ได้ ข้อมูลร้านในเดโมเป็นสองภาษาในตัว (knowledge มีประโยคไทยและอังกฤษ สินค้ามีชื่ออังกฤษ) ส่วนข้อมูลที่ร้านเขียนภาษาเดียวตอบข้ามภาษาได้ด้วยการค้นข้ามภาษา ([F07 §5.4a](../specs/F07-knowledge-search.md))
 
 ## ข้อมูล seed ที่ใช้ (ร้าน A, SPEC §5)
@@ -109,7 +109,7 @@
 |---|---|---|
 | Wi-Fi หน้างานล่ม | ต่อ hotspot มือถือ (production อยู่บน Render ไม่ขึ้นกับ Wi-Fi งานแต่ STAGE ต้องออกเน็ต) | — |
 | โมเดลช้า/429/timeout | รอ: ระบบลองใหม่เองเงียบ ๆ ได้ถึง 3 ครั้ง แล้วถ้ายังไม่ได้จะส่งข้อความขออภัยและส่งต่อพนักงานเอง ([F10 §5.9](../specs/F10-ai-agent.md)); ให้ชี้ว่าระบบไม่แต่งคำตอบ ไม่สร้างออเดอร์ แล้วเปิดแชตใหม่ลองอีกหนึ่งครั้ง (เป้า p50 6 วินาที ค่าที่วัดไว้ก่อนงาน 7–11.5 วินาที ต่อ turn ที่มี tool, [openai-api.md §15](../openai-api.md)) | "The model call failed. Notice it made nothing up: it apologised and called staff." |
-| LINE ไม่ตอบ | ใช้ Demo Chat เท่านั้น | "LINE is up; we'll use the web Demo Chat so you can test it directly." (ถ้า LINE ไม่ R ไม่พูดว่า LINE ทำงาน) |
+| LINE ไม่ตอบ | ใช้ Demo Chat เท่านั้น | "Please use the web Demo Chat to test the core flow." (ถ้า LINE ไม่ R ไม่พูดว่า LINE ทำงาน) |
 | STAGE ค้าง | สลับ STANDBY | "Switching to our second machine, same production." |
 | production ล่ม | เปิด recording ที่ติดป้าย | "This is a recording from `<<TIME>>` today on `<<FINAL_SHA>>`. It is not live." |
 | ฟีเจอร์พังกลางรอบ | ข้ามขั้นนั้น ไม่โชว์ซ้ำ จด `FIX TO:` ให้ orchestrator แต่ห้าม deploy หลัง 16:45 | พูดตรงว่าขั้นนี้ยังไม่เสถียร |

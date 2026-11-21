@@ -67,7 +67,7 @@
 
 - [ ] **Tenant:** login เป็น owner B แล้วเรียก API ของร้าน A ด้วย id ตรง ๆ (conversation, order, knowledge, file, export) ต้องได้ 403/404 ทุกตัว · ถาม marker `TENANT_B_ONLY_OWL_482` จากร้าน A แล้ว AI ไม่รู้
 - [ ] **Permission:** staff A เรียก route ที่ต้องใช้สิทธิ์ที่ไม่มี (เช่น `product.write`, `business.bot_settings`) ได้ 403 แม้ไม่มีปุ่มบนจอ
-- [ ] **Public route:** Demo Chat, webhook ของ LINE/Meta, login, feed และ `/mcp` มี rate limit (`assertRateLimit`) และ Demo Chat มีเพดาน turn ต่อวัน
+- [ ] **Public route:** Demo Chat, webhook ของ LINE, login, feed และ `/mcp` มี rate limit (`assertRateLimit`) และ Demo Chat มีเพดาน turn ต่อวัน
 - [ ] **Webhook:** signature ผิดถูกปฏิเสธก่อน parse body · event ซ้ำไม่สร้างข้อความซ้ำ
 - [ ] **Secrets:** ไม่มี secret ใน repo, ใน log, ใน bundle ของเว็บ (ค้นคำว่า `sk-`, `secret`, `token` ใน `web/dist`) และไม่มีใน `VITE_*` · token ของ provider ใน DB ขึ้นต้น `enc:v1:`
 - [ ] **Dev login:** บน production ต้องส่ง `X-Dev-Login-Token` และถูกปิด (`DEV_LOGIN_ENABLED=false`) ทันทีที่ F02 merge
@@ -87,7 +87,7 @@
 ## 7. สิ่งที่ห้ามพูดหรือโชว์เกินจริง
 
 - ตรวจสลิป = ตรวจ QR บนสลิป + กฎในโค้ด + อ่านด้วย vision **ไม่ใช่การยืนยันกับธนาคาร** (สถานะ S) หน้าจอและ pitch ต้องพูดตรงกัน
-- Messenger/Instagram ทำงานกับ test users ของ Meta developer app (development mode) ยังไม่ผ่าน app review
+- LINE เป็นช่องทางภายนอกช่องทางเดียว · Demo Chat บนเว็บใช้ตรวจสอบและสาธิต · F18/F21/F22 เป็น U-deferred และไม่อยู่ในเมนูหรือเดโมรุ่นนี้
 - ChatGPT-ready catalog (F39) = feed ตามรูปแบบ ACP + MCP server ของเราเองที่ทดสอบด้วย MCP client: ไม่ได้แปลว่าสินค้าอยู่ใน ChatGPT แล้ว ไม่ได้รับการอนุมัติจาก OpenAI และไม่มี checkout ใน ChatGPT
 - ตัวเลขทุกตัวใน pitch มาจาก [research brief](../research/hackathon-brief.md) (มีแหล่งที่มา) หรือวัดจาก production วันนี้เท่านั้น
 - ฟีเจอร์ที่ถูกซ่อนเพราะไม่ถึง R: ตอบตามจริงว่าอยู่ใน repo สถานะอะไร ไม่เปิดให้ดู

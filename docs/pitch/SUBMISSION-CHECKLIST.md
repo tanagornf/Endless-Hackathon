@@ -44,11 +44,11 @@
 
 ### คำอธิบาย 100 คำ (EN)
 
-Endless is an AI chat-commerce assistant for small Thai shops that sell on LINE, Messenger and Instagram. It answers from the shop's own knowledge and catalog, takes prices only from the catalog, refuses made-up discounts, proposes orders that the customer confirms, creates a PromptPay QR for each order, checks payment slips in code, and lets staff take over any chat. An in-app Thai eval page and seller impact metrics show how well it works. Built today by three people with Codex. Try it on LINE or the web Demo Chat. Slip checks are not bank verification.
+Endless is an AI chat-commerce assistant for small Thai shops that sell on LINE. It answers from the shop's own knowledge and catalog, takes prices only from the catalog, refuses made-up discounts, proposes orders that the customer confirms, creates a PromptPay QR for each order, checks payment slips in code, and lets staff take over any chat. An in-app Thai eval page and seller impact metrics show how well it works. Built today by three people with Codex. Try the release through its LINE Official Account. The web Demo Chat is available to verify the same core flow. Slip checks are not bank verification.
 
 ### คำอธิบาย 300 คำ (EN)
 
-Small Thai shops sell in chat, and LINE Thailand reports that more than 90% of new customer chats get no follow-up after the first response. Replying slowly loses the order; replying fast with a wrong price means the shop must honour it. Endless is an AI chat-commerce assistant for the chats outside Shopee: LINE, Messenger and Instagram.
+Small Thai shops sell in chat, and LINE Thailand reports that more than 90% of new customer chats get no follow-up after the first response. Replying slowly loses the order; replying fast with a wrong price means the shop must honour it. Endless is an AI chat-commerce assistant that helps Thai shops sell through a LINE Official Account. Judges can also verify the core conversation flow in the web Demo Chat.
 
 The model talks, code owns the facts, and a human can always take over. The assistant answers from the shop's own knowledge and catalog. Prices come from catalog tools, and a validator checks every amount before a reply is sent, so a made-up discount is refused. An order is only a proposal until the customer taps confirm. Each confirmed order gets its own PromptPay QR with the exact amount and an order reference, and payment slips are checked in code (the QR on the slip, duplicate transaction reference, amount and receiver, with a vision read as a helper) before anything is marked paid. Slip checks are not bank verification, and we say so in the product. Staff can take over any chat; the bot stops immediately.
 
