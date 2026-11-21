@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F04 | business-settings | C3 | DOING | R | A | none | | 21 F04 tests passed, typecheck and ownership passed, two Playwright smoke cases discovered | 2569-11-21 12:08 +07:00 | Production smoke and remaining F04 slices pending |
+| F04 | business-settings | C3 | DOING | R | A | none | | 28 F04 tests passed and 32 with tenancy isolation, typecheck and ownership passed, three Playwright smoke cases discovered | 2569-11-21 12:33 +07:00 | Production smoke and remaining F04 slices pending |
 
 ## Log
 
@@ -15,3 +15,6 @@
 - S2 hours and closures, S3 profile and policy editing, and production validation remain pending.
 - S1 merged as PR #8 at 42f2446c37b1d12d15ca9396236e088e9bc52167 with green CI. Production smoke awaits a verified public host.
 - The F10 dependency slice makes getEffectiveAnswerRules real. Five integration assertions failed against the setup stub and passed with the database implementation. The full F04 suite passed 21 tests, including eight resolver cases. Tenant-specific restrictions, corrupt stored policy and capabilities, unconfigured businesses, and unknown business IDs are covered.
+- The effective-rules contract merged as PR #11 at 7e45255b74cc0a92b5fe55ab91068f7e1faf9ebd with green CI and a B2 handoff.
+- S2 adds versioned weekly hours, audited special closures, the public open-state service, and the Thai and English business-hours page. F04 passed 28 tests. Combined checks exercised 14/15 distinct isolation paths with 42 cross-tenant requests.
+- Opening calculations use the stored timezone. The current core display helper renders dates and times in Asia/Bangkok. Production smoke and S3 profile and policy editing remain pending.

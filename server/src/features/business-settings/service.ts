@@ -1,13 +1,18 @@
+import type { WeeklyHours } from '@nless/shared/core/types';
 import type {
-  AnswerPolicy, BusinessOpenState, BusinessProfile, BusinessSettings, EffectiveAnswerRules,
+  AnswerPolicy, BusinessClosure, BusinessOpenState, BusinessProfile, BusinessSettings, EffectiveAnswerRules,
   MerchantCapabilities, SettingsView,
 } from '@nless/shared/features/business-settings/types';
-import { AppError, audit, db, log, publish } from '../../core';
+import { AppError, db, log } from '../../core';
 import type { DbExecutor } from '../../core';
 import { DEFAULT_CAPABILITIES, DEFAULT_HOURS, RESTRICTIVE_POLICY } from './defaults';
 import { resolveRules } from './policy';
-import { ensureRow, readProfile, readSettings, updateAiSwitch } from './repo';
+import { bumpSettingsVersion, ensureRow, readProfile, readSettings, updateAiSwitch } from './repo';
 import { AnswerPolicySchema, CapabilitiesSchema } from './schemas';
+import { insertClosure, lockClosures, readClosures, removeClosure } from './closures';
+import type { ClosureInput } from './closures';
+import { calculateOpenState, localParts, validateWeeklyHours } from './hours';
+import { recordSettingsChange } from './settings-audit';
 
 type SettingsRow = Awaited<ReturnType<typeof readSettings>>;
 
@@ -84,19 +89,8 @@ export async function setAiEnabled(businessId: string, enabled: boolean, actorUs
     return { changed, view: await getSettingsView(businessId, tx) };
   });
   if (changed) {
-    await audit({
-      action: 'business-settings.ai.toggle',
-      businessId,
-      actorUserId,
-      targetType: 'business',
-      targetId: businessId,
-      details: { from: !enabled, to: enabled },
-    });
-    publish(businessId, {
-      type: 'custom',
-      featureId: 'F04',
-      name: 'business-settings.changed',
-      data: { version: changed.version },
+    await recordSettingsChange(businessId, actorUserId, 'business-settings.ai.toggle', changed.version, {
+      from: !enabled, to: enabled,
     });
   }
   return view;
@@ -112,7 +106,61 @@ export async function getEffectiveAnswerRules(businessId: string): Promise<Effec
 }
 
 export async function getBusinessOpenState(businessId: string, at?: string): Promise<BusinessOpenState> {
-  throw new AppError('SERVICE_NOT_READY', 'getBusinessOpenState is not implemented');
+  const instant = at === undefined ? new Date() : new Date(at);
+  if (!Number.isFinite(instant.getTime())) throw new AppError('VALIDATION_ERROR', 'Invalid opening-state time');
+  const settings = await getBusinessSettings(businessId);
+  const { date } = localParts(instant, settings.timezone);
+  const closures = await readClosures(businessId, date);
+  return calculateOpenState(settings.hours, settings.timezone, closures, instant);
+}
+
+export async function updateHours(
+  businessId: string, actorUserId: string, hours: WeeklyHours, expectedVersion: number,
+): Promise<SettingsView> {
+  const view = await db.tx(async (tx) => {
+    await ensureRow(businessId, tx);
+    const { version } = await tx.one<{ version: number }>(
+      'SELECT version FROM business_settings WHERE business_id=$1 FOR UPDATE', [businessId],
+    );
+    if (version !== expectedVersion) {
+      throw new AppError('VERSION_CONFLICT', 'Business settings changed', { details: { currentVersion: version } });
+    }
+    const issues = validateWeeklyHours(hours);
+    if (issues.length) throw new AppError('VALIDATION_ERROR', 'Invalid weekly opening hours', { details: { issues } });
+    await tx.query(
+      'UPDATE business_settings SET hours=$2::jsonb, version=version+1, updated_by=$3, updated_at=now() WHERE business_id=$1',
+      [businessId, JSON.stringify(hours), actorUserId],
+    );
+    return getSettingsView(businessId, tx);
+  });
+  await recordSettingsChange(businessId, actorUserId, 'business-settings.hours.update', view.settings.version);
+  return view;
+}
+
+export async function listClosures(businessId: string, scope: 'upcoming' | 'all'): Promise<BusinessClosure[]> {
+  const { timezone } = await readSettings(businessId);
+  return readClosures(businessId, scope === 'upcoming' ? localParts(new Date(), timezone).date : null);
+}
+
+export async function createClosure(businessId: string, actorUserId: string, input: ClosureInput): Promise<BusinessClosure> {
+  const result = await db.tx(async (tx) => {
+    await lockClosures(businessId, tx);
+    const closure = await insertClosure(businessId, actorUserId, input, tx);
+    return { closure, version: await bumpSettingsVersion(businessId, actorUserId, tx) };
+  });
+  const { id: closureId, startDate, endDate } = result.closure;
+  await recordSettingsChange(businessId, actorUserId, 'business-settings.closure.create', result.version,
+    { closureId, startDate, endDate });
+  return result.closure;
+}
+
+export async function deleteClosure(businessId: string, actorUserId: string, closureId: string): Promise<void> {
+  const version = await db.tx(async (tx) => {
+    await lockClosures(businessId, tx);
+    await removeClosure(businessId, closureId, tx);
+    return bumpSettingsVersion(businessId, actorUserId, tx);
+  });
+  await recordSettingsChange(businessId, actorUserId, 'business-settings.closure.delete', version, { closureId });
 }
 
 export async function getBusinessProfile(businessId: string): Promise<BusinessProfile> {

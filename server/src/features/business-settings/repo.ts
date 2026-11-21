@@ -54,3 +54,12 @@ export function updateAiSwitch(businessId: string, enabled: boolean, actorUserId
     [businessId, enabled, actorUserId],
   );
 }
+
+export async function bumpSettingsVersion(businessId: string, actorUserId: string, ex: DbExecutor): Promise<number> {
+  await ensureRow(businessId, ex);
+  const { version } = await ex.one<{ version: number }>(
+    'UPDATE business_settings SET version=version+1, updated_by=$2, updated_at=now() WHERE business_id=$1 RETURNING version',
+    [businessId, actorUserId],
+  );
+  return version;
+}
