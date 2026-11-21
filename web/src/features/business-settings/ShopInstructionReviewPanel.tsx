@@ -4,23 +4,18 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useTranslation } from 'react-i18next';
-import type { ShopInstructionCandidate, ShopInstructionVersion } from '@nless/shared/features/business-settings/shop-instructions-types';
+import type {
+  ShopInstructionActivation, ShopInstructionReview, ShopInstructionVersion,
+} from '@nless/shared/features/business-settings/shop-instructions-types';
 import { ConfirmDialog, EmptyState, formatDateTime, SectionCard, useApiMutation, useApiQuery, useSession } from '../../core';
 import ShopInstructionReviewComparison from './ShopInstructionReviewComparison';
 import { apiFailure } from './settings-errors';
 
 const endpoint = '/settings/shop-instructions';
 
-interface InstructionReviewView {
-  activeVersionId: string | null;
-  candidates: ShopInstructionCandidate[];
-  versions: ShopInstructionVersion[];
-}
-
-type ReviewAction = {
+type ReviewAction = ShopInstructionActivation & {
   kind: 'publish' | 'rollback';
   id: string;
-  expectedActiveVersionId: string | null;
 };
 
 export default function ShopInstructionReviewPanel() {
@@ -31,7 +26,7 @@ export default function ShopInstructionReviewPanel() {
 
 function InstructionReview() {
   const { t } = useTranslation('business-settings');
-  const query = useApiQuery<InstructionReviewView>(endpoint);
+  const query = useApiQuery<ShopInstructionReview>(endpoint);
   const [selectedId, setSelectedId] = useState<string>();
   const [action, setAction] = useState<ReviewAction | null>(null);
   const [notice, setNotice] = useState<'published' | 'rolledBack' | 'conflict' | null>(null);
@@ -39,7 +34,7 @@ function InstructionReview() {
   const submitting = useRef(false);
   const historyId = useId();
   const actionPath = action ? actionEndpoint(action) : endpoint;
-  const mutation = useApiMutation<{ expectedActiveVersionId: string | null }, ShopInstructionVersion>(
+  const mutation = useApiMutation<ShopInstructionActivation, ShopInstructionVersion>(
     'POST', actionPath, { toastOnError: false },
   );
 
