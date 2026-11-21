@@ -12,6 +12,7 @@ export { publish } from './realtime';
 export { storage, assertUploadAllowed } from './storage';
 export { audit, auditInTransaction, type AuditInput } from './audit';
 export { defineFeatureRoutes, isFeatureHidden } from './features';
+export { getBuildMetadata } from './meta';
 export { rateLimit, assertRateLimit, rateLimited } from './ratelimit';
 export { encryptSecret, decryptSecret } from './crypto';
 export type * from './types';

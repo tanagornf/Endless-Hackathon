@@ -3,6 +3,69 @@
     "title": "Release"
   },
   "page": {
-    "title": "Release"
+    "title": "Release",
+    "loading": "Loading release evidence",
+    "retry": "Retry",
+    "error": "Release evidence could not be loaded.",
+    "empty": "No release status snapshot is available.",
+    "stale": "The status snapshot could not be verified against the serving build."
+  },
+  "build": {
+    "title": "Serving build",
+    "serving": "Commit {{sha}}",
+    "schema": "Database schema {{schema}}",
+    "model": "Model mode {{mode}}",
+    "rollback": "Last verified rollback {{sha}}",
+    "unknown": "Unavailable",
+    "provider": "{{provider}} · {{mode}}"
+  },
+  "mode": {
+    "R": "Real",
+    "S": "Sandbox",
+    "A": "Adapter",
+    "U": "Unimplemented"
+  },
+  "provider": {
+    "line": "LINE",
+    "meta": "Meta",
+    "google": "Google",
+    "payment": "Payment",
+    "slip": "Slip verification"
+  },
+  "providerMode": {
+    "openai": "OpenAI",
+    "fake": "Fake",
+    "real": "Real",
+    "sandbox": "Sandbox",
+    "vision": "Vision",
+    "disabled": "Disabled"
+  },
+  "conflict": {
+    "claims_R_but_hidden": "{{id}} claims Real while its menu is hidden.",
+    "hidden_not_listed": "{{id}} is hidden and absent from the status snapshot.",
+    "R_but_placeholder": "{{id}} still uses a placeholder."
+  },
+  "table": {
+    "title": "Feature status",
+    "count": "{{mode}} ({{count}})",
+    "status": "Status",
+    "lane": "Lane",
+    "all": "All",
+    "feature": "Feature",
+    "tier": "Tier",
+    "target": "Target",
+    "menu": "Menu",
+    "evidence": "Evidence",
+    "openEvidence": "Evidence",
+    "openCommit": "Commit",
+    "blocker": "Blocker",
+    "noBlocker": "—",
+    "noMatches": "No features match these filters."
+  },
+  "flag": {
+    "placeholder": "Placeholder",
+    "visible": "Visible",
+    "hidden": "Hidden",
+    "unlisted": "No menu flag"
   }
 }
