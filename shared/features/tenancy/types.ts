@@ -45,3 +45,5 @@ export interface InvitationPreview {
   expiresAt: string;
   permissionsCount: number;
 }
+
+export type { MyBusinessRow, ProvisionedAccount } from './business-types';
