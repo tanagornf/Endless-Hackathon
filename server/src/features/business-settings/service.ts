@@ -255,3 +255,6 @@ export function updateLocale(
     return { timezone: { from: before.timezone, to: timezone }, language: { from: before.language, to: language } };
   });
 }
+export { answerOwnerConsult, isOwnerConsultActionPending, openOwnerConsult } from './owner-consult';
+export { readOwnerConsultAnswer, withOwnerConsultDraftConsent } from './owner-consult-answer';
+export { registerOwnerConsultAnswerConsumer } from './owner-consult-answer-outbox';
