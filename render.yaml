@@ -65,7 +65,7 @@ services:
       - { key: EMAIL_MODE,                value: sandbox }
       - { key: SESSION_TTL_HOURS,         value: "12" }
       # ---- ช่องทาง (เพิ่มค่าจริงตามชั่วโมง; ก่อนถึงเวลาปล่อยโหมดเป็น sandbox) ----
-      - { key: LINE_MODE,                 value: sandbox }   # → real ตอน 12:00
+      - { key: LINE_MODE,                 sync: false }
       - { key: LINE_CHANNEL_ID,           sync: false }
       - { key: LINE_CHANNEL_SECRET,       sync: false }
       - { key: LINE_CHANNEL_ACCESS_TOKEN, sync: false }

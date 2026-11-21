@@ -2,7 +2,8 @@
   "menu": {
     "title": "Members",
     "members": "Members",
-    "invitations": "Invitations"
+    "invitations": "Invitations",
+    "businesses": "My businesses"
   },
   "page": {
     "title": "Members"
@@ -192,5 +193,48 @@
       "rateLimited": "Too many requests. Try again later.",
       "accountDisabled": "This account is disabled"
     }
+  },
+  "businesses": {
+    "title": "My businesses",
+    "switch": "Switch to this business",
+    "current": "Current business",
+    "add": "Add a business",
+    "name": "Business name",
+    "timezone": "Time zone",
+    "timezoneError": "Enter a valid IANA time zone, such as Asia/Bangkok.",
+    "language": "Default language",
+    "thai": "Thai",
+    "english": "English",
+    "nameError": "Enter a business name with 2 to 80 characters.",
+    "delete": "Delete business",
+    "deleteMessage": "Type the business name “{{name}}” to confirm. The business stops operating immediately.",
+    "confirmName": "Confirm business name",
+    "confirmMismatch": "Enter the business name exactly as shown.",
+    "block": {
+      "seed_business": "The demo business is protected.",
+      "last_business": "Keep at least one active business in the account.",
+      "no_account": "An owner account is required to add a business.",
+      "inactive": "Business inactive"
+    },
+    "created": "Business added",
+    "deleted": "Business deleted",
+    "empty": "You have no businesses yet",
+    "loading": "Loading businesses",
+    "error": "Could not complete the business request"
+  },
+  "onboarding": {
+    "title": "Welcome. Let’s set up your shop",
+    "step": {
+      "business": "Set up shop info and hours",
+      "knowledge": "Add knowledge for the bot",
+      "catalog": "Add products and prices",
+      "channels": "Connect LINE",
+      "chat": "Try the bot in Demo Chat"
+    },
+    "open": "Open page",
+    "done": "Done",
+    "error": "Could not load the setup checklist",
+    "loading": "Loading the setup checklist",
+    "empty": "No setup steps are available right now"
   }
 }
