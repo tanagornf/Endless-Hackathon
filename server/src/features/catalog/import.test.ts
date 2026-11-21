@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, it, vi } from 'vitest';
 import { SEED } from '@nless/shared/core/fixtures';
 import { db } from '../../core';
+import type { DbExecutor } from '../../core';
 import { createItem, getItemAdmin, getProduct, importCatalogItems, listCatalogItems } from './service';
 import { CreateItemBody } from './schema';
 
@@ -111,27 +112,72 @@ it('updates an existing item without changing its identity, kind or publication'
   expect(events.rows).toEqual([{ action: 'catalog.item.update' }, { action: 'catalog.price.change' }]);
 }, 20_000);
 
-it('rolls back the drafts and their ledgers if the transaction cannot complete', async () => {
+it('canonicalizes padded item and variant SKUs before checking the registry', async () => {
+  const sku = 'IMPORT-PADDING-' + randomUUID();
+  const existing = await createItem(bizA, { userId: ownerA }, CreateItemBody.parse({
+    sku, kind: 'product', name: 'Existing product', priceMinor: 149000,
+  }));
+  const padding = ' '.repeat(300);
+  const result = await importCatalogItems({
+    businessId: bizA, actorUserId: ownerA, importId: randomUUID(), onError: 'skip_row',
+    rows: [
+      rowFor(padding + sku.toLowerCase() + padding),
+      { ...rowFor(sku + '-child', 2), variants: [{ name: 'Blue', sku: padding + 'Ａ-ＧＡＭＥ-０１' + padding }] },
+      rowFor(sku + '-new', 3),
+    ],
+  });
+  expect(result).toMatchObject({
+    applied: true, created: 1, updated: 0, skipped: 2,
+    errors: [{ rowNo: 1, code: 'sku_exists' }, { rowNo: 2, code: 'sku_taken' }],
+    items: [{ rowNo: 1, itemId: existing.id, action: 'skipped' },
+      { rowNo: 2, action: 'error' }, { rowNo: 3, action: 'created', itemId: expect.any(String) }],
+  });
+}, 20_000);
+
+it('rolls back catalog rows and their ledgers if audit fails after the writes', async () => {
   const sku = 'IMPORT-ROLLBACK-' + randomUUID();
   const importId = randomUUID();
+  const existing = await createItem(bizA, { userId: ownerA }, CreateItemBody.parse({
+    sku, kind: 'product', name: 'Existing product', priceMinor: 149000, stock: 2,
+  }));
+  const input = {
+    businessId: bizA, actorUserId: ownerA, importId, mode: 'update_existing' as const,
+    rows: [{ ...rowFor(sku), priceMinor: 159000 }, rowFor(sku + '-new', 2)],
+  };
   const transaction = db.tx.bind(db);
-  const failure = new Error('Synthetic failure after the catalog writes');
+  const failure = new Error('Synthetic audit write failure');
+  let attemptedAudit = false;
   const spy = vi.spyOn(db, 'tx').mockImplementationOnce((work) => transaction(async (tx) => {
-    await work(tx);
-    throw failure;
+    const query: DbExecutor['query'] = async <T>(sql: string, params?: readonly unknown[]) => {
+      if (/\bINSERT\s+INTO\s+audit_events\b/i.test(sql)) {
+        attemptedAudit = true;
+        expect(await tx.maybeOne('SELECT id FROM catalog_items WHERE business_id=$1 AND source_ref=$2', [bizA, importId]))
+          .not.toBeNull();
+        expect(await tx.one('SELECT version FROM catalog_items WHERE business_id=$1 AND id=$2', [bizA, existing.id]))
+          .toEqual({ version: 2 });
+        throw failure;
+      }
+      return tx.query<T>(sql, params);
+    };
+    return work({ ...tx, query });
   }));
   try {
-    await expect(importCatalogItems({
-      businessId: bizA, actorUserId: ownerA, importId, rows: [rowFor(sku), rowFor(sku + '-other', 2)],
-    })).rejects.toThrow(failure);
+    await expect(importCatalogItems(input)).rejects.toThrow(failure);
   } finally {
     spy.mockRestore();
   }
+  expect(attemptedAudit).toBe(true);
   expect(await db.maybeOne('SELECT id FROM catalog_items WHERE business_id=$1 AND source_ref=$2', [bizA, importId])).toBeNull();
-  expect(await db.maybeOne('SELECT item_id FROM catalog_sku_registry WHERE business_id=$1 AND sku_key=$2', [bizA, sku.toLowerCase()]))
+  expect(await db.maybeOne('SELECT item_id FROM catalog_sku_registry WHERE business_id=$1 AND sku_key=$2',
+    [bizA, sku.toLowerCase() + '-new'])).toBeNull();
+  expect(await getItemAdmin(bizA, existing.id)).toMatchObject({ version: 1, priceMinor: 149000, stock: 2 });
+  expect(await db.maybeOne('SELECT id FROM catalog_price_history WHERE business_id=$1 AND item_id=$2 AND version=2',
+    [bizA, existing.id])).toBeNull();
+  expect(await db.maybeOne('SELECT id FROM catalog_stock_moves WHERE business_id=$1 AND item_id=$2', [bizA, existing.id]))
     .toBeNull();
   expect(await db.maybeOne("SELECT id FROM audit_events WHERE business_id=$1 AND details->>'importId'=$2", [bizA, importId]))
     .toBeNull();
+  expect(await importCatalogItems(input)).toMatchObject({ applied: true, created: 1, updated: 1, errors: [] });
 }, 20_000);
 
 it('requires service duration and keeps service drafts unshippable and untracked', async () => {

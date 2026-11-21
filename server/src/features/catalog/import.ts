@@ -3,7 +3,7 @@ import type { DbExecutor } from '../../core';
 import type { CatalogImportError, CatalogImportResult, CatalogImportRow } from '@nless/shared/features/catalog/types';
 import { auditImport, writeDrafts, writeUpdates } from './import-writes';
 import { minorAmount } from './repo';
-import { CreateItemBody } from './schema';
+import { CatalogSku, CreateItemBody } from './schema';
 import { catalogKey, lockCatalogSkuWrites } from './sku';
 
 type Input = {
@@ -41,7 +41,8 @@ const errorMessages: Record<ErrorCode, string> = {
 };
 
 function lookupKey(value: unknown) {
-  return typeof value === 'string' && value.length <= 256 ? catalogKey(value) : '';
+  const sku = CatalogSku.safeParse(value);
+  return sku.success ? catalogKey(sku.data) : '';
 }
 
 async function getRegisteredSkus(tx: DbExecutor, input: Input) {
@@ -145,20 +146,17 @@ async function applyImport(tx: DbExecutor, input: Input) {
     result.created++;
     drafts.push({ result: resultRow, body });
   }
-  if (input.dryRun || (input.onError !== 'skip_row' && result.errors.length)) return { result, updates };
+  if (input.dryRun || (input.onError !== 'skip_row' && result.errors.length)) return result;
   await writeDrafts(tx, input, drafts);
   await writeUpdates(tx, input, updates);
+  await auditImport(tx, input, result, updates);
   result.applied = true;
-  return { result, updates };
+  return result;
 }
 
 export async function importCatalogItems(input: Input): Promise<CatalogImportResult> {
   if (!Array.isArray(input.rows) || input.rows.length < 1 || input.rows.length > 500) {
     throw new AppError('VALIDATION_ERROR', 'Catalog imports must contain between 1 and 500 rows');
   }
-  const { result, updates } = input.dryRun
-    ? await applyImport(db, input)
-    : await db.tx((tx) => applyImport(tx, input));
-  if (result.applied) await auditImport(input, result, updates);
-  return result;
+  return input.dryRun ? applyImport(db, input) : db.tx((tx) => applyImport(tx, input));
 }

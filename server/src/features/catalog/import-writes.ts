@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { audit } from '../../core';
-import type { DbExecutor } from '../../core';
+import { auditInTransaction } from '../../core';
+import type { AuditInput, DbExecutor } from '../../core';
 import type { CatalogImportResult } from '@nless/shared/features/catalog/types';
 import type { DraftRow, UpdateRow } from './import';
 import { catalogKey } from './sku';
@@ -82,23 +82,22 @@ export async function writeUpdates(tx: DbExecutor, { businessId, actorUserId }: 
   );
 }
 
-export async function auditImport({ businessId, actorUserId, importId }: Scope, result: CatalogImportResult, updates: UpdateRow[]) {
-  await audit({
+export async function auditImport(tx: DbExecutor, { businessId, actorUserId, importId }: Scope, result: CatalogImportResult, updates: UpdateRow[]) {
+  const events: AuditInput[] = [{
     action: 'catalog.import', businessId, actorUserId, targetType: 'catalog_item',
     details: { importId, created: result.created, updated: result.updated, skipped: result.skipped, errors: result.errors.length },
-  });
-  for (let index = 0; index < updates.length; index += 20) {
-    await Promise.all(updates.slice(index, index + 20).map(async ({ id, before, after, changed }) => {
-      await audit({
-        action: 'catalog.item.update', businessId, actorUserId, targetType: 'catalog_item', targetId: id,
-        details: { fields: changed, importId },
+  }];
+  for (const { id, before, after, changed } of updates) {
+    events.push({
+      action: 'catalog.item.update', businessId, actorUserId, targetType: 'catalog_item', targetId: id,
+      details: { fields: changed, importId },
+    });
+    if (before.priceMinor !== after.priceMinor) {
+      events.push({
+        action: 'catalog.price.change', businessId, actorUserId, targetType: 'catalog_item', targetId: id,
+        details: { oldPriceMinor: before.priceMinor, newPriceMinor: after.priceMinor, importId },
       });
-      if (before.priceMinor !== after.priceMinor) {
-        await audit({
-          action: 'catalog.price.change', businessId, actorUserId, targetType: 'catalog_item', targetId: id,
-          details: { oldPriceMinor: before.priceMinor, newPriceMinor: after.priceMinor, importId },
-        });
-      }
-    }));
+    }
   }
+  await auditInTransaction(tx, events);
 }
