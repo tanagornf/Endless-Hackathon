@@ -237,3 +237,36 @@ it.each([
     delivery_state: deliveryState,
   });
 });
+
+it('rejects generic retry of terminal deliveries and bulk retries a pending delivery instead', async () => {
+  const conversationId = SEED.conversations[0].id;
+  const sample = new Map<string, string>();
+  for (const [state, timestamp] of [
+    ['unknown', '1999-01-01T00:00:00Z'],
+    ['failed', '1999-01-02T00:00:00Z'],
+    ['pending', '2000-01-01T00:00:00Z'],
+  ]) {
+    const messageId = randomUUID();
+    await db.query(`INSERT INTO messages
+        (id,business_id,conversation_id,seq,direction,author,parts,channel,delivery_state)
+      SELECT $1,$2,$3,COALESCE(max(seq),0)+1,'outbound','system','[]'::jsonb,'web',$4
+      FROM messages WHERE conversation_id=$3`, [messageId, businessId, conversationId, state]);
+    const job = await db.one<{ id: string }>(`INSERT INTO jobs (type,business_id,state,payload,dedup_key,created_at)
+      VALUES ('core.deliver',$1,'dead',jsonb_build_object('messageId',$2::text),$3,$4) RETURNING id`,
+      [businessId, messageId, 'deliver:' + messageId, timestamp]);
+    sample.set(state, job.id);
+  }
+  for (const state of ['unknown', 'failed']) {
+    const route = base + '/jobs/' + sample.get(state) + '/retry';
+    const denied = await admin.post(route).set('X-Requested-With', 'nless').expect(422);
+    expect(denied.body.error.details.reason).toBe('delivery_not_pending');
+  }
+  const result = await admin.post(base + '/jobs/retry-dead').set('X-Requested-With', 'nless')
+    .send({ businessId, type: 'core.deliver', limit: 1 }).expect(200);
+  expect(result.body.data.retried).toBe(1);
+  for (const [state, jobId] of sample) {
+    expect(await db.one('SELECT state FROM jobs WHERE id=$1', [jobId])).toEqual({
+      state: state === 'pending' ? 'queued' : 'dead',
+    });
+  }
+});
