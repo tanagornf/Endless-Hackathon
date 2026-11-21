@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | af55437 | Locale gate focus 17/17. Receipt recovery #75 passed exact independent 117/117 and hosted CI. Typecheck and ownership passed. | 2026-11-21 14:20 +07:00 | Coordinated production locale retest and trace UI pending. |
+| F10 | ai-agent | B2 | DOING | R | A | Production core-loop 5/5 | 638e150 | C0 matched the English known SKU and follow-up to canonical v2 and the Thai unknown SKU to a price-free fallback. Three real OpenAI turns completed under 20 seconds. | 2026-11-21 14:32 +07:00 | S5 trace UI and its production smoke pending. |
 
 ## Log
 
@@ -31,6 +31,7 @@
 | 2026-11-21 14:17 | Released the F11 receipt consumer. | B0 verified one scoped handoff recovered without duplicate send or notification. | dedbac2 | Exact independent F10/F11/core suite 117/117 and hosted CI passed on ed45f12. | `MODEL_MODE=fake`, isolated cloud test DB. |
 | 2026-11-21 14:18 | Reproduced the current English question receiving a Thai quote after an older Thai AI-off inbound. | C0 confirmed the production trace selected Thai for that exact English message. | fd65ac3 | The scoped baseline had 7 failures and 7 passing controls in 34.40s, including a separate mixed-script quote and neutral-input cases. | `MODEL_MODE=fake`, B2 lane test DB. |
 | 2026-11-21 14:20 | Selected the current buyer language and validated localized monetary prose. | — | af55437 | Scoped 17/17 in 56.80s, including English after Thai AI-off, reverse Thai, neutral input, mixed-script repair, 990-baht negotiation, G14 and G17. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 14:32 | Closed core-loop gate step 3 on the confirmed production build. | C0 matched the exact visitor/F09 pairs to authenticated owner traces and called the gate 5/5. | 638e150 | English SKU and same-product follow-up quoted Ticket to Ride: USA at 1,490 baht from A-GAME-01 v2. The Thai unknown SKU had no price or catalog evidence. | Real OpenAI on production. |
 
 S1 serializes direct and queued turns with a short `ai.turn:<conversationId>` transaction lock and a fenced lease. The tests exercise a stale holder, a duplicate inbound, overlapping direct and queued turns, and four queued conversations with the default five-connection pool. The focused expired-lease test on the F35 base passed and verified exactly one AI save and one delivery enqueue call after a replacement holder finished.
 
@@ -38,7 +39,7 @@ After the reply is saved, the shop subscription receives `ai.turn` with `data.tu
 
 The S2 tests cover G2, G3, G4, G5, G13, G14 and G16. They use scripted OpenAI responses and the F07 and F08 application services. The dev S1 observations are recorded separately. [B0 gate evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058026663)
 
-The trace list, metrics and `/ai-settings` remain in S5. S3 covers explicit Thai and English requests, shop-hours-aware acknowledgement, the fallback wait, intent classification, staff offers and consent, and handoff after model failure. LINE is the external customer channel. Demo Chat is an internal test surface. Production verification remains pending.
+The trace list, metrics and `/ai-settings` remain in S5. S3 covers explicit Thai and English requests, shop-hours-aware acknowledgement, the fallback wait, intent classification, staff offers and consent, and handoff after model failure. LINE is the external customer channel. Demo Chat is an internal test surface.
 
 F10 saves a version marker only after a successful F11 assignment and reuses the same saved acknowledgement on delivery retry. Tests cover AI-off before save, a manual takeover race, and suppression after a later staff claim or handback to AI. [Core delivery guard](https://github.com/tanagornf/Endless-Hackathon/pull/26)
 
@@ -53,6 +54,16 @@ The subsequent deployed check confirmed the unknown SKU declined without a price
 ## P1 product photos
 
 The reply uses the current catalog quote to find the exact product in the same shop. It saves the photo reference with the guarded reply and reuses both on delivery retry. The isolated media suite passed two cases covering two shops with the same SKU, exact variant matching and a missing or unreadable upload. The enqueue replay case checks the persisted parts as well as the delivery message ID. LINE OA and public Demo Chat verification are pending.
+
+## Production core-loop gate
+
+C0 matched the three new messages to their sent replies and scoped traces on build `638e150`. All three turns completed in under 20 seconds. The visitor observed approximate persisted-to-visible intervals of 4, 3 and 8 seconds. [Official gate verdict](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059326357) · [Visitor correlation](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059314964)
+
+| OpenAI turn | Reply language | Turn latency (ms) | Context (ms) | Model stages (ms) | Guard (ms) | Persist (ms) | Enqueue (ms) |
+|---|---|---:|---:|---|---:|---:|---:|
+| A-GAME-01 | en | 2,427 | 425 | 1,937 | 6 | 12 | 13 |
+| Same product | en | 1,883 | 288 | 1,544 | 1 | 12 | 12 |
+| Unknown SKU | th | 7,434 | 237 | 2,706 / 2,028 / 2,399 | 2 | 10 | 11 |
 
 ## S2 OpenAI development acceptance
 
