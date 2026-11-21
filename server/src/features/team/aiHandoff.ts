@@ -1,4 +1,6 @@
-import type { AiHandoffIntent, AiHandoffReceipt } from '@nless/shared/features/team/types';
+import type {
+  AiHandoffIntent, AiHandoffReceipt, ExplicitStaffRequestEvidence, ExplicitStaffRequestNotification,
+} from '@nless/shared/features/team/types';
 import { z } from 'zod';
 import { auditInTransaction, db, log, publish } from '../../core';
 import type { DbExecutor } from '../../core';
@@ -9,7 +11,18 @@ import { uuid } from './validation';
 const intentSchema = z.object({
   businessId: uuid, conversationId: uuid, turnId: uuid,
   reason: z.string().min(1), expectedVersion: z.number().int().min(1).max(2147483646),
-});
+  explicitRequestEvidence: z.enum(['customer_asked', 'accepted_staff_offer']).optional(),
+}).refine((intent) => intent.explicitRequestEvidence === undefined || intent.reason === 'customer_request');
+
+type StoredReceipt = Omit<AiHandoffReceipt, 'explicitRequestEvidence'> & {
+  explicitRequestEvidence: ExplicitStaffRequestEvidence | null;
+};
+
+function receiptValue(row: StoredReceipt | null): AiHandoffReceipt | null {
+  if (!row) return null;
+  const { explicitRequestEvidence, ...receipt } = row;
+  return explicitRequestEvidence ? { ...receipt, explicitRequestEvidence } : receipt;
+}
 
 type ReceiptKey = Pick<AiHandoffIntent, 'businessId' | 'conversationId' | 'turnId'>;
 
@@ -18,20 +31,37 @@ function keyParams(key: ReceiptKey) {
 }
 
 function intentParams(intent: AiHandoffIntent) {
-  return [...keyParams(intent), intent.reason, intent.expectedVersion];
+  return [...keyParams(intent), intent.reason, intent.expectedVersion, intent.explicitRequestEvidence ?? null];
 }
 
 const receiptColumns = `r.business_id AS "businessId", r.conversation_id AS "conversationId",
-  r.turn_id AS "turnId", r.reason, r.expected_version AS "expectedVersion", r.committed_version AS "committedVersion"`;
+  r.turn_id AS "turnId", r.reason, r.expected_version AS "expectedVersion", r.committed_version AS "committedVersion",
+  r.explicit_request_evidence AS "explicitRequestEvidence"`;
 const receiptKey = 'r.business_id = $1 AND r.conversation_id = $2 AND r.turn_id = $3';
 const joinConversation = 'c.id = r.conversation_id AND c.business_id = r.business_id';
 const stillQueued = `c.status = 'open' AND c.handler = 'human' AND c.assignee_user_id IS NULL
   AND c.version = r.committed_version`;
 
-function activeReceipt(tx: DbExecutor, intent: AiHandoffIntent) {
-  return tx.maybeOne<AiHandoffReceipt>(`SELECT ${receiptColumns}
+async function activeReceipt(tx: DbExecutor, intent: AiHandoffIntent) {
+  return receiptValue(await tx.maybeOne<StoredReceipt>(`SELECT ${receiptColumns}
     FROM team_ai_handoff_receipts r JOIN conversations c ON ${joinConversation}
-    WHERE ${receiptKey} AND r.reason = $4 AND r.expected_version = $5 AND ${stillQueued}`, intentParams(intent));
+    WHERE ${receiptKey} AND r.reason = $4 AND r.expected_version = $5
+      AND r.explicit_request_evidence IS NOT DISTINCT FROM $6 AND ${stillQueued}`, intentParams(intent)));
+}
+
+/** Reloads committed staff-request proof for F31 dispatch and authenticated notification taps. */
+export async function getExplicitStaffRequestForNotification(
+  businessId: string, dedupKey: string,
+): Promise<ExplicitStaffRequestNotification | null> {
+  const match = /^handoff:([a-f0-9-]{36}):v([1-9][0-9]{0,9})$/u.exec(dedupKey);
+  if (!match || match[0] !== dedupKey || !uuid.safeParse(businessId).success || !uuid.safeParse(match[1]).success) return null;
+  const version = Number(match[2]);
+  if (version > 2147483647) return null;
+  return db.maybeOne<ExplicitStaffRequestNotification>(`SELECT r.conversation_id AS "conversationId",
+    r.committed_version AS "committedVersion", r.explicit_request_evidence AS "explicitRequestEvidence"
+    FROM team_ai_handoff_receipts r JOIN conversations c ON ${joinConversation}
+    WHERE r.business_id=$1 AND r.conversation_id=$2 AND r.committed_version=$3 AND r.reason='customer_request'
+      AND r.explicit_request_evidence IS NOT NULL AND ${stillQueued}`, [businessId, match[1], version]);
 }
 
 export async function getAiHandoffReceipt(intent: AiHandoffIntent): Promise<AiHandoffReceipt | null> {
@@ -53,10 +83,10 @@ export async function applyAiHandoff(intent: AiHandoffIntent): Promise<AiHandoff
     if (row.handler !== 'ai' || row.version !== intent.expectedVersion) return null;
 
     // A turn can never acquire fresh proof after handback, even at a new expected version.
-    const receipt = await tx.maybeOne<AiHandoffReceipt>(`INSERT INTO team_ai_handoff_receipts AS r
-      (business_id, conversation_id, turn_id, reason, expected_version, committed_version)
-      VALUES ($1, $2, $3, $4, $5, $5::integer + 1)
-      ON CONFLICT (business_id, conversation_id, turn_id) DO NOTHING RETURNING ${receiptColumns}`, intentParams(intent));
+    const receipt = receiptValue(await tx.maybeOne<StoredReceipt>(`INSERT INTO team_ai_handoff_receipts AS r
+      (business_id, conversation_id, turn_id, reason, expected_version, committed_version, explicit_request_evidence)
+      VALUES ($1, $2, $3, $4, $5, $5::integer + 1, $6)
+      ON CONFLICT (business_id, conversation_id, turn_id) DO NOTHING RETURNING ${receiptColumns}`, intentParams(intent)));
     if (!receipt) return null;
     await tx.query(`UPDATE conversations SET handler = 'human', assignee_user_id = NULL, version = $3, updated_at = now()
       WHERE business_id = $1 AND id = $2`, [receipt.businessId, receipt.conversationId, receipt.committedVersion]);

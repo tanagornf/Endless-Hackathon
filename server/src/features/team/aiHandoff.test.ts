@@ -8,7 +8,7 @@ import * as settings from '../business-settings/service';
 import { saveMessage } from '../inbox/service';
 import * as notifications from '../notifications/service';
 import { retryDueAiHandoffNotifications } from './aiHandoff';
-import { applyAiHandoff, assignConversation, getAiHandoffReceipt, requestHumanHandoff } from './service';
+import { applyAiHandoff, assignConversation, getAiHandoffReceipt, getExplicitStaffRequestForNotification, requestHumanHandoff } from './service';
 
 const businessId = seedId('biz_demo_a');
 const otherBusiness = seedId('biz_demo_b');
@@ -245,4 +245,42 @@ test('an expired worker cannot complete a receipt held by the replacement worker
   expect(await result()).toEqual({ notification_result: 'sandbox' });
   expect(notified).toHaveBeenCalledTimes(2);
   expect(notified.mock.calls[0][0].dedupKey).toBe(notified.mock.calls[1][0].dedupKey);
+});
+
+test.each(['customer_asked', 'accepted_staff_offer'] as const)(
+  'returns current committed customer confirmation evidence for %s only in its owning shop',
+  async (explicitRequestEvidence) => {
+    const intent = { ...await newIntent(), explicitRequestEvidence };
+    const committedVersion = intent.expectedVersion + 1;
+    const key = 'handoff:' + intent.conversationId + ':v' + committedVersion;
+    const proof = { conversationId: intent.conversationId, committedVersion, explicitRequestEvidence };
+    expect(await getExplicitStaffRequestForNotification(businessId, key)).toBeNull();
+    expect(await applyAiHandoff(intent)).toEqual({ ...intent, committedVersion });
+    expect(await applyAiHandoff(intent)).toEqual({ ...intent, committedVersion });
+    expect(await getAiHandoffReceipt(intent)).toEqual({ ...intent, committedVersion });
+    expect(await getExplicitStaffRequestForNotification(businessId, key)).toEqual(proof);
+    expect(await getExplicitStaffRequestForNotification(otherBusiness, key)).toBeNull();
+    for (const invalid of [key + '0', key + '\n', key.replace(':v', ':v0'), 'handoff:' + intent.turnId]) {
+      expect(await getExplicitStaffRequestForNotification(businessId, invalid)).toBeNull();
+    }
+    const otherEvidence = explicitRequestEvidence === 'customer_asked' ? 'accepted_staff_offer' : 'customer_asked';
+    expect(await applyAiHandoff({ ...intent, explicitRequestEvidence: otherEvidence })).toBeNull();
+    await assignConversation(intent.conversationId, staff, { businessId });
+    expect(await getExplicitStaffRequestForNotification(businessId, key)).toBeNull();
+    const released = await assignConversation(intent.conversationId, null, { businessId });
+    await applyAiHandoff({ ...intent, turnId: randomUUID(), expectedVersion: released.version });
+    expect(await getExplicitStaffRequestForNotification(businessId, key)).toBeNull();
+  },
+);
+
+test('initial, model-only, legacy and fallback reasons cannot be promoted to an explicit confirmed handoff', async () => {
+  const intent = await newIntent();
+  expect(await applyAiHandoff({ ...intent, reason: 'ai_failed', explicitRequestEvidence: 'customer_asked' })).toBeNull();
+  const receipt = await applyAiHandoff(intent);
+  expect(receipt).toEqual({ ...intent, committedVersion: intent.expectedVersion + 1 });
+  expect(await applyAiHandoff({ ...intent, explicitRequestEvidence: 'customer_asked' })).toBeNull();
+  expect(await getAiHandoffReceipt({ ...intent, explicitRequestEvidence: 'accepted_staff_offer' })).toBeNull();
+  expect(await getExplicitStaffRequestForNotification(businessId, 'handoff:' + intent.conversationId + ':v' + receipt!.committedVersion)).toBeNull();
+  expect(await getExplicitStaffRequestForNotification(businessId, 'handoff:' + intent.turnId)).toBeNull();
+  expect(await counts(intent)).toEqual({ notes: 1, receipts: 1, audits: 1 });
 });
