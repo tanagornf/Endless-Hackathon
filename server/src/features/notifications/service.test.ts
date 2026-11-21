@@ -102,3 +102,15 @@ test('an in-app handoff key without consent provenance cannot enqueue a phone al
   expect(query.mock.lastCall?.[1][10]).toBeNull();
   expect(enqueueNotificationPush).not.toHaveBeenCalled();
 });
+
+
+test('persists push queue intent with an eligible bell even when immediate enqueue fails', async () => {
+  query.mockResolvedValueOnce({ rows: [{ userId: staffId, role: 'owner', permissions: [] }] });
+  query.mockResolvedValueOnce({ rows: [{ id: notificationId, userId: staffId, pushEligible: true }] });
+  vi.mocked(enqueueNotificationPush).mockRejectedValueOnce(new Error('push queue unavailable'));
+  const event = { ...input, to: { permission: 'chat.takeover' } as const, dedupKey: consentKey };
+  expect(await notify(event)).toEqual({ notificationIds: [notificationId], mode: 'real' });
+  const [insert] = query.mock.lastCall!;
+  expect(insert).toMatch(/push_purpose, push_queue_at\)/);
+  expect(insert).toContain('push_queue_at IS NOT NULL');
+});
