@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { beforeAll, expect, it } from 'vitest';
+import { beforeAll, expect, it, vi } from 'vitest';
 import { SEED } from '@nless/shared/core/fixtures';
 import type { RetrievalCaseResult } from '@nless/shared/features/knowledge-search/types';
-import { db } from '../../core';
+import { AppError, config, db, model } from '../../core';
 import { createTestAgent, loginAs } from '../../core/test-utils';
-import { computeRetrievalMetrics } from './eval';
+import { computeRetrievalMetrics, resolveFixtureExpectation } from './eval';
+import { retrievalSettings } from './search';
 
 const bizA = SEED.businesses.find(({ alias }) => alias === 'biz_demo_a')!.id;
 const bizB = SEED.businesses.find(({ alias }) => alias === 'biz_demo_b')!.id;
@@ -62,28 +63,53 @@ it('validates strategy inputs and never returns the other tenant marker even bel
   expect(english.body.data.hits[0]).toMatchObject({ title: 'นโยบายรับคืนสินค้า' });
 }, 20_000);
 
-it('repeats seeded evaluation on actual results and persists a scoped previous run', async () => {
+it('compares identical cases and index scope while preserving older runs as unknown', async () => {
+  const legacy = await db.one<{ id: string }>(
+    'INSERT INTO retrieval_runs (business_id,config,metrics,per_case) VALUES ($1,$2::jsonb,$3::jsonb,\'[]\') RETURNING id',
+    [bizA, JSON.stringify(retrievalSettings('lexical')), JSON.stringify(computeRetrievalMetrics([]))],
+  );
   const request = () => staffA.post(rootA + '/eval/run').set(...header)
     .send({ strategy: 'hybrid', includeFixture: true, includeSaved: false });
   const first = (await request().expect(200)).body.data;
   expect(first.config.strategy).toBe('lexical');
   expect(first.config.embedModel).toBe('fake-hash');
-  expect(first.metrics.cases).toBeGreaterThan(10);
+  expect(first.metrics.cases).toBe(22);
+  expect(first.coverage).toEqual({
+    fixtureCasesPlanned: 49, fixtureCasesEvaluated: 22, savedCasesEvaluated: 0, unresolvedForbiddenCases: 0,
+  });
+  expect(first.strategyCounts).toEqual({ lexical: 22, vector: 0, hybrid: 0 });
+  expect(first.comparison).toBe('unknown');
+  expect(first.previous).toBeNull();
   expect(first.metrics.forbidPassRate).toBe(1);
   expect(Object.keys(first.metrics.byGroup).sort()).toEqual(['en', 'th', 'xlang']);
   expect(first.perCase).toEqual(expect.arrayContaining([
-    expect.objectContaining({ id: 'q01', kind: 'positive', source: 'fixture', group: 'th', pass: true, rank: 1 }),
+    expect.objectContaining({ id: 'q01', kind: 'positive', source: 'fixture', group: 'th', pass: true, rank: 1, strategy: 'lexical' }),
     expect.objectContaining({ id: 'f01', kind: 'forbid', pass: true, topTitle: null }),
     expect.objectContaining({ id: 'x09', group: 'xlang' }),
   ]));
   const second = (await request().expect(200)).body.data;
   expect(second.id).not.toBe(first.id);
   expect(second.metrics).toEqual(first.metrics);
+  expect(second.comparison).toBe('comparable');
   expect(second.previous).toEqual(first.metrics);
-  const aRuns = await staffA.get(rootA + '/eval/runs?limit=1').expect(200);
-  expect(aRuns.body.data.items).toMatchObject([{ id: second.id }]);
+  const aRuns = await staffA.get(rootA + '/eval/runs?limit=3').expect(200);
+  expect(aRuns.body.data.items[0]).toMatchObject({ id: second.id, coverage: first.coverage });
+  expect(aRuns.body.data.items).toContainEqual(expect.objectContaining({ id: legacy.id, coverage: null, strategyCounts: null }));
   const bRuns = await ownerB.get(rootB + '/eval/runs').expect(200);
   expect(bRuns.body.data.items.map(({ id }: { id: string }) => id)).not.toContain(second.id);
+  const updateVisibility = (searchable: boolean) => db.query(
+    'UPDATE knowledge_chunks SET searchable=$3 WHERE business_id=$1 AND item_id=$2 AND revision=1',
+    [bizA, faq.id, searchable],
+  );
+  await updateVisibility(false);
+  try {
+    const changed = (await request().expect(200)).body.data;
+    expect(changed.metrics.cases).toBe(22);
+    expect(changed.comparison).toBe('different_scope');
+    expect(changed.previous).toBeNull();
+  } finally {
+    await updateVisibility(true);
+  }
 }, 40_000);
 
 it('reads and measures saved cases only in the selected business', async () => {
@@ -102,6 +128,48 @@ it('reads and measures saved cases only in the selected business', async () => {
   expect(evaluated.body.data.perCase).toContainEqual(expect.objectContaining({ id: aCase, source: 'saved', pass: true }));
   expect(evaluated.body.data.perCase).not.toContainEqual(expect.objectContaining({ id: bCase }));
 }, 20_000);
+
+it('records the effective method of each case when one query falls back to words', async () => {
+  const hybridCase = randomUUID();
+  const fallbackCase = randomUUID();
+  const fallbackQuery = 'English fallback check';
+  await db.query(
+    `INSERT INTO retrieval_cases (id,business_id,query,expect_item_ids,expect_none)
+    VALUES ($1,$2,'Hybrid check',$3,false),($4,$2,$5,$3,false)`,
+    [hybridCase, bizA, [faq.id], fallbackCase, fallbackQuery],
+  );
+  const baseline = await model.embed({
+    usage: { featureId: 'F07', purpose: 'test', businessId: bizA }, texts: ['Synthetic runs'], purpose: 'query',
+  });
+  const original = config.MODEL_MODE;
+  const embed = vi.spyOn(model, 'embed').mockImplementation(async (input) => {
+    if (input.texts[0] === fallbackQuery) throw new AppError('PROVIDER_UNAVAILABLE', 'Synthetic provider fallback');
+    return { ...baseline, mode: 'openai', model: 'fake-hash' };
+  });
+  try {
+    config.MODEL_MODE = 'openai';
+    const run = (await staffA.post(rootA + '/eval/run').set(...header)
+      .send({ strategy: 'hybrid', includeFixture: false, includeSaved: true }).expect(200)).body.data;
+    expect(run.perCase).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: hybridCase, strategy: 'hybrid' }),
+      expect.objectContaining({ id: fallbackCase, strategy: 'lexical' }),
+    ]));
+    expect(run.strategyCounts.lexical).toBe(1);
+    expect(run.strategyCounts.hybrid).toBe(run.perCase.length - 1);
+  } finally {
+    config.MODEL_MODE = original;
+    embed.mockRestore();
+  }
+}, 20_000);
+
+it('does not resolve a forbidden case when any of its aliases are missing', () => {
+  const itemId = randomUUID();
+  const ids = new Map([['known', itemId]]);
+  const query = { id: 'forbid', business: 'A', text: 'Synthetic forbidden case', expect: [] };
+  expect(resolveFixtureExpectation({ ...query, forbid: ['known', 'unavailable'] }, ids, new Set())).toBeNull();
+  expect(resolveFixtureExpectation({ ...query, forbid: ['known'] }, ids, new Set()))
+    .toEqual({ kind: 'forbid', itemIds: [itemId] });
+});
 
 it('computes grouped recall, reciprocal rank and independent none and forbidden pass rates', () => {
   const result = (id: string, kind: RetrievalCaseResult['kind'], group: RetrievalCaseResult['group'],

@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F02 | auth | C3 | DOING | R | A | none | 6c4ecafc2bd1f4a797dbf778a271c61da3457b11 | C3 focused suite passed 16 tests in 4 files with fake model mode. CI passed and 3 Playwright smoke cases were discovered. | 2026-11-21 12:48 | Production smoke, dev-login cutover, and later auth slices pending |
+| F02 | auth | C3 | DOING | R | A | none | 8f7781b99a199f5a919f59ff94bab2ac6671ccee | 82 combined C3 tests, 2 focused rollback cases, 31 locale checks, 8 Playwright cases discovered, and production verification header checked | 2026-11-21 14:26 +07:00 | Seeded production login, cutover and recovery production smoke pending |
 
 ## Log
 
@@ -26,3 +26,16 @@
 - The integrated Auth commit `5ef52b13dbb3f1dec9a1a886d2856094e2ad2f20` passed GitHub CI, including Auth S2 route tests. [CI job](https://github.com/tanagornf/Endless-Hackathon/actions/runs/44876140199/job/136761138667)
 - The public merge is gated on C1 serving the initial `/verify-email` document with `Referrer-Policy: no-referrer`. The S2 browser smoke checks that header and verifies that the address bar no longer carries the token.
 - CI or the approved C3 checkout can run `npm test -- server/src/features/auth web/src/features/auth`. Production smoke, sandbox mailbox UI, password recovery, and dev-login cutover are pending.
+
+### 2026-11-21 Bangkok · S3 password recovery and account management
+
+- Added generic forgot responses, single-use password reset, password change, session revocation, and per-address or per-user rate limits. Password reset changes the credential and consumes its token in the same transaction.
+- Added the account section, profile and locale updates, verification status, sign-out everywhere, and the encrypted sandbox mailbox. Ordinary users can read their own mailbox. Administrators can explicitly request all mailboxes.
+- Added hourly expiry cleanup and tests for reset retries, session rotation, mailbox permissions, and secret-free logs.
+- Twenty isolated Auth tests passed locally, and Playwright discovered eight Auth smoke cases. Database checks run in isolated GitHub CI or in the C3 owner's approved checkout with `MODEL_MODE=fake` using `npm test -- server/src/features/auth web/src/features/auth`.
+- All seven S3 route tests passed in the first integrated GitHub run. That run found a Thai label in the English locale selector. The corrected labels pass the focused Auth translation check. [Initial CI results](https://github.com/tanagornf/Endless-Hackathon/actions/runs/44878443110/job/136768222880)
+- Public merge requires the C1 `Referrer-Policy: no-referrer` header on the initial `/reset-password` document. The recovery smoke checks the header and verifies that the page removes the token from the URL. Production smoke and the owner-controlled dev-login cutover are pending.
+
+- C3 exercised F02 S2 on its deployed merge 74189fc4fc6c0d525f9764f86d0324a00d93e2ba. The initial anonymous synthetic verification request returned HTTP 200 HTML with Referrer-Policy: no-referrer. Build metadata matched before and after. No verification POST or login was performed.
+- Both password reset and authenticated password change now revoke existing sessions inside the same transaction as the credential change and its audit. The reset token consumption shares that transaction. C1's additive helper merged at c2b33412516547071cf1ace1d0b87a58021a2712 and the reset initial-document header at 3f4c3a6c9fcd783b6e420f10901145f52c5eeb92.
+- The C3 recovery cases injected an error after the actual session update. They confirmed the old password and sessions remain active and the same reset token can retry. A successful retry invalidated old sessions and accepted the replacement credential. Both passed in 26.70 seconds. The exact rebased source 8f7781b99a199f5a919f59ff94bab2ac6671ccee then passed all 82 Auth and tenancy tests across 21 files in 186.61 seconds with MODEL_MODE=fake. Types, paths, 31 locale checks, whitespace and eight Auth smoke discoveries passed. Only this evidence changed afterward.
