@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import type { Response } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SEED } from '@nless/shared/core/fixtures';
 import type { SaveMessageInput } from '@nless/shared/features/inbox/types';
-import { db, jobs } from '../../core';
+import { createSession, db, jobs } from '../../core';
 import { createTestAgent, drainJobs, loginAs } from '../../core/test-utils';
 import { assignConversation } from '../team/service';
 import { partsToText } from './mappers';
@@ -144,13 +145,11 @@ describe('F09 inbox persistence', { timeout: 30000 }, () => {
     expect(await getCustomerLanguage(conversation.id)).toBe('en');
     await saveMessage({ ...input, conversationId: conversation.id, parts: [{ type: 'text', text: 'ขอบคุณค่ะ' }] });
     expect(await getCustomerLanguage(conversation.id)).toBe('th');
-    await db.query("UPDATE businesses SET language='en' WHERE id=$1", [shopB.id]);
-    try {
-      expect(await getCustomerLanguage(conversation.id, { businessId: shopB.id })).toBe('en');
-      expect(await getCustomerLanguage(randomUUID(), { businessId: shopB.id })).toBe('en');
-    } finally {
-      await db.query('UPDATE businesses SET language=$2 WHERE id=$1', [shopB.id, shopB.language]);
-    }
+    const account = SEED.accounts.find(({ alias }) => alias === shopB.accountAlias)!;
+    const englishShop = await db.one<{ id: string }>("INSERT INTO businesses (account_id,name,language) VALUES ($1,$2,'en') RETURNING id",
+      [account.id, 'English Test Shop']);
+    expect(await getCustomerLanguage(conversation.id, { businessId: englishShop.id })).toBe('en');
+    expect(await getCustomerLanguage(randomUUID(), { businessId: englishShop.id })).toBe('en');
     expect(await getCustomerLanguage('bad-id')).toBe('th');
     const image = await saveMessage(inbound({ triggerAi: false, parts: [{ type: 'image', fileId: randomUUID() }] }));
     expect(image.message.text).toBe('[รูปภาพ]');
@@ -185,21 +184,17 @@ describe('F09 inbox persistence', { timeout: 30000 }, () => {
     expect((await owner.get(resource + other)).status).toBe(404);
     expect((await owner.get(resource + other + '/messages')).status).toBe(404);
     expect((await owner.post(resource + other + '/read').set('X-Requested-With', 'nless')).status).toBe(404);
-    const fixture = SEED.users.find(({ alias }) => alias === 'staff_a')!;
-    const { permissions } = await db.one<{ permissions: string[] }>('SELECT permissions FROM memberships WHERE business_id=$1 AND user_id=$2',
-      [shopA.id, fixture.id]);
-    await db.query("UPDATE memberships SET permissions=array_remove(permissions,'chat.read') WHERE business_id=$1 AND user_id=$2",
-      [shopA.id, fixture.id]);
-    try {
-      const staff = await createTestAgent();
-      await loginAs(staff, fixture.email);
-      expect((await staff.get(resource + conversation.id)).status).toBe(403);
-      expect((await staff.get(resource + conversation.id + '/messages')).status).toBe(403);
-      expect((await staff.post(resource + conversation.id + '/read').set('X-Requested-With', 'nless')).status).toBe(403);
-    } finally {
-      await db.query('UPDATE memberships SET permissions=$3 WHERE business_id=$1 AND user_id=$2',
-        [shopA.id, fixture.id, permissions]);
-    }
+    const staffUser = await db.one<{ id: string }>('INSERT INTO users (email) VALUES ($1) RETURNING id',
+      [randomUUID() + '@example.test']);
+    await db.query("INSERT INTO memberships (business_id,user_id,role) VALUES ($1,$2,'staff')", [shopA.id, staffUser.id]);
+    const cookie = vi.fn();
+    await createSession(staffUser.id, 'dev', { cookie } as unknown as Response);
+    const [cookieName, cookieValue] = cookie.mock.calls[0]!;
+    const session = cookieName + '=' + cookieValue;
+    const staff = await createTestAgent();
+    expect((await staff.get(resource + conversation.id).set('Cookie', session)).status).toBe(403);
+    expect((await staff.get(resource + conversation.id + '/messages').set('Cookie', session)).status).toBe(403);
+    expect((await staff.post(resource + conversation.id + '/read').set('Cookie', session).set('X-Requested-With', 'nless')).status).toBe(403);
   });
 });
 
