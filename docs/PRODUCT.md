@@ -6,16 +6,16 @@ It describes the product a judge will hold in their hand at 17:15. It does not r
 
 ## 1. Endless in one paragraph
 
-Endless is an AI sales assistant that lives in the chat apps where small Thai shops already sell. A customer writes to the shop on LINE, Facebook Messenger, Instagram or a web chat page. Endless answers within seconds, in the customer's language, using only what the shop has entered: its products, prices, stock, policies and opening hours. It can take the customer from a question to a confirmed order and a payment QR. When it does not know, or when the customer wants a person, it says so and hands the conversation to the shop's staff, who see everything in one shared inbox and can take over with one click. The shop owner can see why the AI said what it said, and how well it is doing.
+Endless is an AI sales assistant that helps small Thai shops sell on LINE, the release’s only external messaging channel. The team uses the web Demo Chat to verify the core flow internally. Endless answers within seconds, in the customer's language, using only what the shop has entered: its products, prices, stock, policies and opening hours. It can take the customer from a question to a confirmed order and a payment QR. When it does not know, or when the customer wants a person, it says so and hands the conversation to the shop's staff, who see everything in one shared inbox and can take over with one click. The shop owner can see why the AI said what it said, and how well it is doing.
 
 ## 2. Who uses it
 
 | Person | What they want | Where they meet Endless |
 |---|---|---|
-| **Customer** of the shop | A fast, correct answer; to order without waiting for an admin; a person when it matters | LINE, Messenger, Instagram, or the public Demo Chat page. They never log in and never see the word "AI settings" |
+| **Customer** of the shop | A fast, correct answer; to order without waiting for an admin; a person when it matters | The shop’s LINE Official Account. They never log in and never see the word "AI settings" |
 | **Staff** (admin, sales) | Fewer repeated questions; to step in on the hard cases with the full history in front of them | The web app: inbox, orders, customers |
 | **Owner** | To trust the bot with customers and money; to know what it costs and what it brings | The web app: shop settings, knowledge, catalog, AI trace, dashboard |
-| **Judge** | To try to break it on their own phone | They scan a QR and become a customer. Then they look over the owner's shoulder |
+| **Judge** | To try to break it on their own phone | They scan the LINE Official Account QR to try the customer flow. Then they look over the owner's shoulder |
 
 The shops are Thai retailers and wholesalers that sell through chat, have the same questions every day, and have little time to answer. The owner decides to buy; staff use it daily.
 
@@ -57,8 +57,8 @@ This is the path the demo walks, with the demo shop (section 10). Build so that 
 
 ### 6.1 The customer
 
-- **Chat in their own app.** LINE first; Messenger and Instagram with the team's test users. Replies look like a person wrote them: short, polite, no markdown symbols, no system text, no internal IDs.
-- **Demo Chat on the web** (`/demo-chat/s/<shop>`): a public page that opens on a phone in about three seconds with no login. It shows the shop name, a greeting, suggested questions, a `TH | EN` switch and the message box. A "typing" state appears at once while the AI works. Closing and reopening the page keeps the history.
+- **Chat in their own app.** Customers reach the shop through its LINE Official Account. Replies look like a person wrote them: short, polite, no markdown symbols, no system text, no internal IDs.
+- **Internal verification with web Demo Chat** (`/demo-chat/s/<shop>`): the team checks the core flow on a phone. The page opens in about three seconds with no login. It shows the shop name, a greeting, suggested questions, a `TH | EN` switch and the message box. A "typing" state appears at once while the AI works. Closing and reopening the page keeps the history.
 - **Cards built by code:** product card, order summary with Confirm and Cancel, booking summary, payment link, receipt. Every label on a card is in the customer's language.
 - **The payment page:** public, shows the order, the QR, the amount and the slip upload, in Thai or English.
 - **Language:** the reply language is decided for every message from what the customer wrote. Thai gets Thai, English gets English, and a customer can switch at any time. The shop's language setting is only the default when a message shows no language (a number, a photo).
@@ -75,10 +75,10 @@ One web app, served from the same address as the API, in Thai and English on eve
 | Knowledge | `/knowledge`, `/imports`, `/knowledge-search` | Write and organise what the shop knows (FAQ, policies) through draft, review, active; import text and CSV; try a search and measure how well retrieval works, per language |
 | Catalog | `/catalog` | Products and services with Thai and English names, SKU, variants, price, stock. Changing a price takes effect on the next question |
 | AI | `/ai-settings`, `/ai-quality`, `/follow-ups` | The trace of every AI turn; eval results with a pass rate for Thai and for English; the polite follow-up nudge and its settings |
-| Commerce | `/orders`, `/payments`, `/appointments`, `/calendar`, `/product-codes`, `/live` | Orders and their status, payment checks, bookings and reminders, Google Calendar sync, live-selling product codes |
+| Commerce | `/orders`, `/payments`, `/appointments`, `/calendar` | Orders and their status, payment checks, bookings and reminders, Google Calendar sync |
 | Customers | `/customers`, `/broadcast`, `/templates` | Customer profiles and tags, audiences and broadcasts with a confirmation step, saved rich messages |
 | Insights | `/dashboard`, `/usage`, `/traces`, `/insights` | What the assistant did for the shop (share of chats resolved without staff, first-response time, handoff rate, orders from chat), model cost and latency, conversation summaries |
-| Channels | `/channels`, `/channels/meta`, `/comment-replies` | Connect LINE, Messenger and Instagram; see connection health; comment-to-DM rules |
+| Channels | `/channels` | Connect the shop’s LINE Official Account and check connection health |
 | Settings | `/business`, `/bot-settings`, `/members`, `/invitations`, `/notifications` | Shop profile, opening hours, language, tone, what the AI may do, the AI on/off switch, staff and their permissions, the notification bell |
 | Access | `/login`, `/signup` and the rest of sign-in | Real accounts and sessions |
 | Operations | `/ops` | For the team only: job queue, feature flags, demo reset |
@@ -100,9 +100,9 @@ An owner can do everything in their shop. Staff start with reading chats, produc
 
 ## 8. Everything in scope
 
-31 features. The tier says when work may start (`LEAD: OPEN <tier>`), not how much the feature matters to the user.
+The frozen registry keeps all 31 feature IDs. The release plan includes 29 eligible features. A tier gives the earliest point work can start under the tier-opening rules.
 
-**P0, the core loop (real on production by the 13:00 gate)**
+**P0, the 11 core features (real on production by the 13:00 gate)**
 
 - F01 core: the project, database, web shell, UI kit, language switch, model wrapper.
 - F35 jobs: durable background jobs with retries, and the ops page.
@@ -111,24 +111,29 @@ An owner can do everything in their shop. Staff start with reading chats, produc
 - F05 knowledge: the shop's knowledge and its draft → active life cycle.
 - F07 knowledge search: indexing and retrieval in Thai, English and across the two.
 - F08 catalog: products, services, variants, canonical price and stock.
-- F09 inbox and Demo Chat: conversations, messages, history, live updates, the public web chat.
+- F09 inbox and Demo Chat: conversations, messages, history, live updates, and the web QA chat.
 - F10 AI agent: the turn itself, tools, guards, language, handoff, trace.
 - F11 team (slice 1): take over and hand back.
 - F17 LINE: the real LINE Official Account, in and out.
 
-**P1, so the shop can check answers and handle problems, plus depth and channels**
+**P1, seven features for reviewing answers, handling problems, and extending the shop flow**
 
 - First: the F10 trace page, F11 staff status with automatic assignment and a waiting queue, and the F31 in-app bell that rings when the AI or a background job fails for good.
-- F02 real sign-in. F06 knowledge import (text and CSV first). F13 orders (proposal, confirmation, staff actions). F14 payments (PromptPay QR per order, slip check). F18 Messenger and Instagram. F24 customers and tags. F36 release, evidence and the submission pack.
+- F02 real sign-in. F06 knowledge import (text and CSV first). F13 orders (proposal, confirmation, staff actions). F14 payments (PromptPay QR per order, slip check). F24 customers and tags. F36 release, evidence and the submission pack.
 
-**P2, extras**
+**P2, ten additional features**
 
-- F37 AI evals and the AI quality page. F38 follow-up nudges. F39 ChatGPT-ready catalog (product feed and a small MCP server). F12 rich messages and templates. F15 booking. F16 Google Calendar. F21 comment-to-DM. F22 live commerce codes. F23 broadcast. F26 insights. F27 dashboard, usage and seller impact. F31 notification settings and web push.
+- F37 AI evals and the AI quality page. F38 follow-up nudges. F39 ChatGPT-ready catalog (product feed and a small MCP server). F12 rich messages and templates. F15 booking. F16 Google Calendar. F22 product codes typed in LINE chat, leading to a cart and F13 order confirmation once verified. F23 broadcast. F26 insights. F27 dashboard, usage and seller impact. F31 (P1) notification settings and web push can follow during P2.
 - Optional polish with no spec, only when the demo path is solid: responsive polish across pages, tap to enlarge images, dark mode.
 
-**P3**
+**P3, one feature**
 
 - F30 browser voice with the same agent.
+
+**Deferred for this release (U)**
+
+- F18 Messenger and Instagram (P1) and F21 comment-to-DM (P2) retain their registry entries and stay out of the menu and demo.
+- Meta comment ingestion for F22 is also deferred. F22 is currently U. Its LINE typed-code flow remains eligible after P2 opens. Keep it hidden and out of the demo until the full LINE flow passes the production bar.
 
 ## 9. What "good" means here
 
@@ -139,7 +144,7 @@ A feature is done (status **R**) only when all of this is true on the production
 - **Works on a phone.** The judge uses their own phone on mobile data. 360 to 430 pixels wide, no sideways scrolling, tap targets at least 44 pixels high, Thai vowels and tone marks not clipped, the message box stays visible above the keyboard.
 - **Feels finished.** Loading, empty and error states on every screen. The shared UI kit and theme, so the app looks like one product: teal primary colour, Noto Sans Thai and Inter for text, rounded cards. Tables paginate. A double click does not send twice.
 - **Safe.** Permission and shop isolation checked on the server. Webhook signatures verified before parsing. No secrets in the repository, logs or the browser bundle. An audit row whenever money or customer data changes.
-- **Honest.** Status is R, S, A or U and matches the evidence. The slip check is not a bank confirmation and is never described as one. Messenger and Instagram work with test users of a Meta app in development mode. The ChatGPT-ready catalog is a feed and an MCP server of our own, not a listing inside ChatGPT. Numbers shown anywhere are measured, never invented; with no data the page says "no data yet".
+- **Honest.** Status is R, S, A or U and matches the evidence. The slip check is not a bank confirmation and is never described as one. The ChatGPT-ready catalog is a feed and an MCP server of our own, not a listing inside ChatGPT. Numbers shown anywhere are measured, never invented; with no data the page says "no data yet".
 - **Hidden if not real.** Anything that is not R at 15:30 is hidden from the menu by a feature flag and reported as it is.
 
 When time is short, a smaller feature that is real beats a larger one that is half there.
@@ -172,7 +177,7 @@ The shop's knowledge is written in Thai and English in the same entries, and eve
 - Not a general chatbot. It talks about this shop and declines the rest politely.
 - Not a marketplace or a checkout inside another app. Orders are the shop's own; payment is a PromptPay QR and a slip check, with no payment gateway and no real money on the day.
 - No plans, quotas or billing for shops inside the app. The pricing idea (charging per AI reply delivered) is part of the pitch only. Cost per model call is recorded and shown.
-- No platform admin pages, legal or consent pages, customer forms, help desk, or import of old chat history. No channels beyond LINE, Messenger, Instagram and the web Demo Chat.
+- No platform admin pages, legal or consent pages, customer forms, help desk, or import of old chat history. LINE is the only external channel. The team uses web Demo Chat for internal verification.
 - No AI provider other than OpenAI, and one text model for every job.
 
 ## 12. Names

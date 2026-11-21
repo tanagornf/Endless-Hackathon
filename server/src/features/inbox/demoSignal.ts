@@ -1,5 +1,4 @@
 type Waiter = { conversationId: string; finish: () => void };
-
 const waiting = new Map<string, Waiter>();
 
 export function signalDemoConversation(conversationId: string) {
@@ -8,17 +7,26 @@ export function signalDemoConversation(conversationId: string) {
   }
 }
 
-export function waitForDemoUpdate(identity: string, conversationId: string, waitMs: number): Promise<void> {
+export function watchDemoConversation(identity: string, conversationId: string) {
   waiting.get(identity)?.finish();
-  if (waiting.size >= 200) return Promise.resolve();
-  return new Promise((resolve) => {
-    const limit = Math.min(20000, waitMs);
-    const finish = () => {
-      clearTimeout(timer);
-      if (waiting.get(identity)?.finish === finish) waiting.delete(identity);
-      resolve();
-    };
-    const timer = setTimeout(finish, limit);
-    waiting.set(identity, { conversationId, finish });
-  });
+  let done = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let resolveUpdate!: () => void;
+  const updated = new Promise<void>((resolve) => { resolveUpdate = resolve; });
+  function finish() {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    if (waiting.get(identity)?.finish === finish) waiting.delete(identity);
+    resolveUpdate();
+  }
+  if (waiting.size >= 200) finish();
+  else waiting.set(identity, { conversationId, finish });
+  return {
+    finish,
+    wait(waitMs: number) {
+      if (!done) timer = setTimeout(finish, Math.min(20000, waitMs));
+      return updated;
+    },
+  };
 }

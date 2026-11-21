@@ -13,11 +13,19 @@ import type { HandoffCheckpoint, TurnDraft, TurnLease } from './repo';
 const delayRetry = (ms: number) => new Date(Date.now() + ms).toISOString();
 const elapsed = (start: number) => Math.round(performance.now() - start);
 
-function result(turnId: string, state: ChatTurnResult['state'], draft?: TurnDraft | null): ChatTurnResult {
+const noDelivery = { mode: 'real', state: 'not_required' } as const;
+const enqueueFailureCode = 'DELIVERY_ENQUEUE_FAILED';
+
+function result(
+  turnId: string,
+  state: ChatTurnResult['state'],
+  draft?: TurnDraft | null,
+  delivery: ChatTurnResult['delivery'] = noDelivery,
+): ChatTurnResult {
   return {
     turnId, state,
     reply: { parts: draft?.parts ?? [], evidenceIds: draft?.evidenceIds ?? [] },
-    delivery: { mode: 'real', state: 'not_required' },
+    delivery,
   };
 }
 
@@ -29,6 +37,22 @@ interface TurnRequest extends GenerateReplyOptions {
 interface TurnExecution {
   response: ChatTurnResult;
   retryAt?: string;
+}
+
+async function readSavedDelivery(conversation: ConversationRecord, inbound: MessageRecord, replyMessageId: string) {
+  const { id, businessId } = conversation;
+  const options = { businessId, limit: 50 };
+  let page = await getHistory(id, options);
+  for (;;) {
+    const message = page.items.find((item) => item.id === replyMessageId && item.author === 'ai' && item.direction === 'outbound');
+    if (message) return message.delivery;
+    if (!page.nextCursor || page.items.some((item) => item.seq <= inbound.seq)) return null;
+    page = await getHistory(id, { ...options, before: page.nextCursor });
+  }
+}
+
+function deliveryResult(stored: MessageRecord['delivery'] | null): ChatTurnResult['delivery'] {
+  return { mode: stored?.mode ?? 'real', state: stored?.state ?? 'unknown' };
 }
 
 async function loadInbound(conversation: ConversationRecord, triggerMessageId?: string) {
@@ -91,7 +115,10 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
   const previousDraft = readDraft(turn);
   if (claim.status === 'finished') {
     const state = turn.state === 'completed' || turn.state === 'handoff' || turn.state === 'awaiting_confirmation' ? turn.state : 'failed';
-    return { response: result(turn.id, state, state === 'failed' ? null : previousDraft) };
+    const delivery = request.deliver && turn.reply_message_id
+      ? deliveryResult(await readSavedDelivery(conversation, inbound, turn.reply_message_id).catch(() => null))
+      : noDelivery;
+    return { response: result(turn.id, state, state === 'failed' ? null : previousDraft, delivery) };
   }
 
   const lease = new AbortController();
@@ -157,6 +184,8 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
     }
     let replyMessageId = turn.reply_message_id ?? undefined;
+    let delivery: ChatTurnResult['delivery'] = noDelivery;
+    let deliveryErrorCode: string | undefined;
     if (request.deliver) {
       if (draft.handoffReason && !handoff) {
         if (await canRequestHandoff(conversation.businessId).catch(() => false)) {
@@ -208,10 +237,17 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       }
       const sendStart = performance.now();
       try {
-        await sendToCustomer(conversationId, parts, { businessId: conversation.businessId, messageId: replyMessageId });
+        const receipt = await sendToCustomer(conversationId, parts, { businessId: conversation.businessId, messageId: replyMessageId });
+        delivery = receipt.delivery;
       } catch (error) {
-        log.warn({ turnId: turn.id, replyMessageId }, 'Saved AI reply could not be queued for delivery');
-        if (turn.attempts < MAX_ATTEMPTS && (!(error instanceof AppError) || error.retryable)) {
+        // Enqueue can commit even when its acknowledgement fails. Only report
+        // failure if the scoped message carries core's definitive marker.
+        const stored = await readSavedDelivery(conversation, inbound, replyMessageId).catch(() => null);
+        delivery = deliveryResult(stored);
+        const accepted = stored?.state === 'pending' || stored?.state === 'sent' || stored?.state === 'unknown';
+        if (stored?.state === 'failed' && stored.error === enqueueFailureCode) deliveryErrorCode = enqueueFailureCode;
+        log.warn({ turnId: turn.id, replyMessageId, state: delivery.state }, 'Delivery enqueue did not return a receipt');
+        if (!accepted && turn.attempts < MAX_ATTEMPTS && (!(error instanceof AppError) || error.retryable)) {
           const retryAt = delayRetry(4000 * turn.attempts);
           draft.timings.sendMs = elapsed(sendStart);
           await closeTurn(turn, { state: 'failed', replyMessageId, retryAt, timings: draft.timings });
@@ -220,8 +256,8 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       }
       draft.timings.sendMs = elapsed(sendStart);
     }
-    await closeTurn(turn, { state, replyMessageId, timings: draft.timings });
-    return { response: result(turn.id, state, draft) };
+    await closeTurn(turn, { state, replyMessageId, timings: draft.timings, deliveryErrorCode });
+    return { response: result(turn.id, state, draft, delivery) };
   } catch (error) {
     await releaseClaim(turn).catch(() => undefined);
     throw error;

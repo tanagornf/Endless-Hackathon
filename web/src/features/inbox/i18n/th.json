@@ -105,7 +105,7 @@
     "soldOut": "หมด"
   },
   "public": {
-    "badge": "ร้านตัวอย่างสำหรับทดลอง · Endless",
+    "badge": "แชตสำหรับทดสอบภายใน · Endless",
     "language": "เปลี่ยนภาษาแชต",
     "languageLabel": "TH | EN",
     "reset": "เริ่มแชตใหม่",
@@ -136,8 +136,8 @@
     }
   },
   "tester": {
-    "linkTitle": "ลิงก์ Demo Chat สำหรับผู้ทดลอง",
-    "enabled": "เปิดลิงก์สาธารณะ",
+    "linkTitle": "ลิงก์ Demo Chat สำหรับทดสอบภายใน",
+    "enabled": "เปิดลิงก์ทดสอบ",
     "slug": "ชื่อในลิงก์",
     "welcomeTh": "ข้อความต้อนรับภาษาไทย",
     "welcomeEn": "ข้อความต้อนรับภาษาอังกฤษ",

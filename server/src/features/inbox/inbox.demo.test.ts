@@ -5,6 +5,7 @@ import { db } from '../../core';
 import { createTestAgent } from '../../core/test-utils';
 import { getHistory, saveMessage } from './service';
 import { signVisitorToken, verifyVisitorToken } from './visitor';
+import { signalDemoConversation, watchDemoConversation } from './demoSignal';
 
 const demoA = '/api/v1/public/demo-chat/demo-boardgame';
 const demoB = '/api/v1/public/demo-chat/demo-repair';
@@ -26,6 +27,15 @@ afterAll(async () => {
 });
 
 describe('F09 public Demo Chat', { timeout: 30000 }, () => {
+  it('retains a notification received between starting a poll and awaiting updates', async () => {
+    const conversationId = randomUUID();
+    const watcher = watchDemoConversation(randomUUID(), conversationId);
+    signalDemoConversation(conversationId);
+    try {
+      await watcher.wait(10000);
+    } finally { watcher.finish(); }
+  }, 1000);
+
   it('rejects tampered and expired visitor tokens', () => {
     const id = randomUUID();
     const token = signVisitorToken(id);
@@ -48,11 +58,12 @@ describe('F09 public Demo Chat', { timeout: 30000 }, () => {
     const first = await publicAgent.post(demoA + '/messages').send(message);
     expect(first.status).toBe(200);
     expect(first.body.data.created).toBe(true);
+    expect(first.body.data.message.clientRequestId).toBe(message.clientRequestId);
     const replay = await publicAgent.post(demoA + '/messages').send(message);
     expect(replay.body.data).toMatchObject({ created: false, message: { id: first.body.data.message.id } });
     const reload = await publicAgent.get(demoA + '/poll');
     expect(reload.body.data.items).toHaveLength(1);
-    expect(reload.body.data.items[0]).toMatchObject({ author: 'customer', parts: [{ type: 'text', text: message.text }] });
+    expect(reload.body.data.items[0]).toMatchObject({ author: 'customer', clientRequestId: message.clientRequestId, parts: [{ type: 'text', text: message.text }] });
     expect(reload.body.data).toMatchObject({ pending: { state: 'typing' } });
     expect((await publicAgent.get(demoB + '/poll')).body.data.items).toEqual([]);
     expect((await publicAgent.get(demoA + '/files/' + randomUUID())).status).toBe(404);
@@ -84,10 +95,11 @@ describe('F09 public Demo Chat', { timeout: 30000 }, () => {
       .then((response) => response);
     await new Promise<void>((resolve) => setTimeout(resolve, 200));
     await saveMessage({ businessId: bizA, conversationId, direction: 'outbound', author: 'staff',
-      parts: [{ type: 'text', text: 'Staff reply' }] });
+      clientRequestId: 'staff-' + randomUUID(), parts: [{ type: 'text', text: 'Staff reply' }] });
     const poll = await polling;
     expect(Date.now() - start).toBeLessThan(9000);
     expect(poll.body.data.items).toMatchObject([{ author: 'staff', parts: [{ type: 'text', text: 'Staff reply' }] }]);
+    expect(poll.body.data.items[0]).not.toHaveProperty('clientRequestId');
     const reset = await agent.post(demoA + '/reset').set('X-Demo-Visitor', token).send({});
     expect(reset.status).toBe(200);
     const next = await agent.post(demoA + '/messages').set('X-Demo-Visitor', token).send(input('Start again'));

@@ -148,6 +148,8 @@ export interface InboxCounts {
 
 export interface DemoChatMessage {
   id: string;
+  /** Echoed only for this visitor's own submitted message. */
+  clientRequestId?: string;
   seq: number;
   direction: MessageDirection;
   author: 'customer' | 'ai' | 'staff';

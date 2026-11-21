@@ -59,7 +59,20 @@ export default function CustomerChatView({ transport, greeting, suggestions, lim
   const conversation = useRef<string | null>(null);
   const liveRequest = useRef<AbortController | undefined>(undefined);
   const pollNow = useRef<() => void>(() => {});
-  const inFlight = useRef(false);
+  const activeAttempt = useRef<DeliveryAttempt | undefined>(undefined);
+
+  function showAttempt(next?: DeliveryAttempt) {
+    activeAttempt.current = next;
+    setAttempt(next);
+  }
+
+  function acknowledge(id: string) {
+    const current = activeAttempt.current;
+    if (current?.id !== id) return;
+    showAttempt();
+    setDraft((text) => text.trim() === current.text ? '' : text);
+    setError(undefined);
+  }
   const unauthorized = useRef(onUnauthorized);
   unauthorized.current = onUnauthorized;
   const reviewKeys = useRef(new Map<string, string>());
@@ -80,16 +93,27 @@ export default function CustomerChatView({ transport, greeting, suggestions, lim
       const timeout = window.setTimeout(() => request.abort('timeout'), waitMs + 8_000);
       let interval = 0;
       try {
-        const page = await transport.poll(cursor.current, waitMs, request.signal);
+        const requestedCursor = cursor.current;
+        const page = await transport.poll(requestedCursor, waitMs, request.signal);
         if (disposed || request.signal.aborted) return;
         if (page.conversationId !== conversation.current) {
           conversation.current = page.conversationId;
           cursor.current = null;
           setMessages([]);
+          setPending(null);
+          if (requestedCursor) {
+            // A second tab can reset the conversation while this request still carries its old cursor.
+            timer = window.setTimeout(() => void poll(true), 0);
+            return;
+          }
         }
         if (!ignoreClosed || !page.closed) {
           if (page.cursor) cursor.current = page.cursor;
           setMessages((previous) => mergeMessages(previous, page.items));
+          const attemptId = activeAttempt.current?.id;
+          if (attemptId && page.items.some((row) => row.author === 'customer' && row.clientRequestId === attemptId)) {
+            acknowledge(attemptId);
+          }
           setPending(page.pending);
         }
         failures = 0;
@@ -146,18 +170,18 @@ export default function CustomerChatView({ transport, greeting, suggestions, lim
 
   async function sendText(input: string, retainedId?: string) {
     const text = input.trim();
-    if (capReached || inFlight.current || !text) return;
+    if (capReached || activeAttempt.current?.state === 'sending' || !text) return;
     if (Array.from(text).length > limit) {
       setError('public.errors.length');
       return;
     }
     const id = retainedId ?? crypto.randomUUID();
-    inFlight.current = true;
     keepScroll.current = true;
-    setAttempt({ id, text, state: 'sending' });
+    showAttempt({ id, text, state: 'sending' });
     setError(undefined);
     try {
       const result = await transport.send(text, id);
+      if (activeAttempt.current?.id !== id) return;
       if (conversation.current !== result.conversationId) {
         conversation.current = result.conversationId;
         cursor.current = null;
@@ -165,16 +189,15 @@ export default function CustomerChatView({ transport, greeting, suggestions, lim
       } else {
         setMessages((previous) => mergeMessages(previous, [result.message]));
       }
-      setDraft((previous) => previous.trim() === text ? '' : previous);
-      setAttempt(undefined);
+      acknowledge(id);
       setPending({ since: result.message.createdAt, state: 'typing' });
       pollNow.current();
     } catch (cause) {
-      setAttempt({ id, text, state: 'failed' });
+      if (activeAttempt.current?.id !== id) return;
+      showAttempt({ id, text, state: 'failed' });
       setError(errorKey(cause));
       if (errorCode(cause) === 'AUTH_REQUIRED') onUnauthorized?.();
-    } finally {
-      inFlight.current = false;
+      pollNow.current();
     }
   }
 
