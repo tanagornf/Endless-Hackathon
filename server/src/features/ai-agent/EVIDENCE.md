@@ -80,3 +80,7 @@ B2 used `generateReply` with synthetic web conversations and indexed demo knowle
 | G13 English name and catalog price | 28e03daf-f587-4d7c-a339-a68e870fc220 | en | 2 | 5362 | 2609 | 53 | 7671 | 4732 |
 | G14 switch back to Thai opening hours | eda5a2ea-09d0-4406-b70c-a26d026c18e0 | th | 1 | 2650 | 2596 | 22 | 613 | 3025 |
 | G16 English return policy | f1d4f7a4-9f88-4f5b-8670-776f834cc3c5 | en | 1 | 2564 | 0 | 14 | 6549 | 2992 |
+
+## S5 owner trace and metrics
+
+The authenticated `/ai-settings` page shows the seven-day summary, paginated histories and selected turn details in Thai and English. The two added APIs require `chat.read` and scope all queries to the authenticated business. Buyer and reply text stay in the inbox. The list cursor preserves PostgreSQL timestamp precision with a UUID tie-breaker. Metrics combine skipped and superseded replies and compute the median over eligible response states. The exported topic reader only includes saved reply turns in the requested time range. Local PostgreSQL trace and reporting tests passed 8/8. Production owner smoke is pending.

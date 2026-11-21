@@ -1,8 +1,119 @@
 {
   "menu": {
-    "title": "AI settings"
+    "title": "AI replies"
   },
   "page": {
-    "title": "AI settings"
+    "title": "AI replies",
+    "description": "Review how AI handled each chat. Turn AI replies on or off in Bot settings.",
+    "openChat": "Open chat",
+    "none": "—",
+    "error": "Could not load AI replies"
+  },
+  "metrics": {
+    "title": "Last 7 days",
+    "median": "Median reply time",
+    "seconds": "{{value}} s"
+  },
+  "list": {
+    "title": "Reply history",
+    "time": "Time",
+    "chat": "Chat",
+    "intent": "Intent",
+    "state": "Status",
+    "language": "Language",
+    "tools": "Tools",
+    "evidence": "Sources",
+    "guards": "Checks",
+    "ms": "Milliseconds",
+    "allStates": "Any status",
+    "allIntents": "Any intent",
+    "more": "Load more",
+    "empty": "No matching AI turns",
+    "emptyHint": "Try changing the filters or send a message in Demo Chat."
+  },
+  "state": {
+    "running": "In progress",
+    "completed": "Answered",
+    "awaiting_confirmation": "Awaiting confirmation",
+    "handoff": "Handed to staff",
+    "failed": "Failed",
+    "skipped": "Skipped",
+    "superseded": "Superseded"
+  },
+  "intent": {
+    "GREETING": "Greeting",
+    "GOODBYE": "Goodbye",
+    "QUESTION": "Question",
+    "REQUEST": "Request",
+    "STATUS_CHECK": "Status check",
+    "FEEDBACK": "Feedback",
+    "CLARIFICATION": "Clarification",
+    "ESCALATION": "Staff request",
+    "OFF_TOPIC": "Off topic",
+    "PRICE_CALC": "Price or total",
+    "PRODUCT_FILTER": "Product search",
+    "BUSINESS_HOURS": "Store hours",
+    "BOOKING_AVAILABILITY": "Booking availability",
+    "UNKNOWN": "Unknown"
+  },
+  "language": {
+    "th": "Thai",
+    "en": "English"
+  },
+  "detail": {
+    "title": "Turn details",
+    "skip": "Skip reason",
+    "source": "Intent source",
+    "confidence": "Confidence",
+    "evidence": "Source IDs",
+    "products": "Products",
+    "inputTokens": "Input tokens",
+    "outputTokens": "Output tokens",
+    "cachedTokens": "Cached tokens",
+    "cost": "Approximate cost (USD)",
+    "unknown": "Unknown",
+    "attempts": "Attempts",
+    "error": "Error code",
+    "name": "Name",
+    "result": "Result",
+    "ok": "Succeeded",
+    "toolFailed": "Failed",
+    "guard": "Check",
+    "action": "Action",
+    "description": "Details",
+    "timing": "Step timings"
+  },
+  "source": {
+    "regex": "Rule",
+    "classifier": "Classifier",
+    "fallback": "Fallback"
+  },
+  "action": {
+    "repair": "Corrected",
+    "strip": "Removed",
+    "fallback": "Used fallback",
+    "note": "Recorded"
+  },
+  "skip": {
+    "business_inactive": "Business is inactive",
+    "ai_off": "AI is off",
+    "takeover": "Staff is handling the chat",
+    "handoff_waiting": "Waiting for staff",
+    "conversation_closed": "Chat is closed",
+    "not_customer_message": "No customer message",
+    "takeover_during_generation": "Staff took over while AI was replying",
+    "ai_off_during_generation": "AI was turned off during the reply",
+    "superseded": "A newer message arrived",
+    "non_text_repeat": "Repeated non-text message"
+  },
+  "timing": {
+    "gate1Ms": "Initial eligibility",
+    "contextMs": "Context",
+    "classifyMs": "Intent classification",
+    "modelMs": "Model",
+    "guardMs": "Reply checks",
+    "gate2Ms": "Final eligibility",
+    "persistMs": "Save",
+    "sendMs": "Queue delivery"
   }
 }
