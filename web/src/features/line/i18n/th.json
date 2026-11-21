@@ -1,8 +1,152 @@
 {
   "menu": {
-    "title": "ช่องทาง"
+    "title": "ช่องทาง LINE"
   },
   "page": {
-    "title": "ช่องทาง"
+    "title": "ช่องทาง LINE",
+    "subtitle": "เชื่อม LINE Official Account ให้ลูกค้าคุยกับ AI และทีมงานผ่าน LINE"
+  },
+  "status": {
+    "title": "สถานะการเชื่อมต่อ",
+    "active": "เชื่อมต่อแล้ว",
+    "error": "ต้องแก้ไข",
+    "none": "ยังไม่เชื่อมต่อ",
+    "emptyDescription": "เชื่อมต่อ LINE Official Account ของร้านเพื่อรับและตอบข้อความลูกค้า",
+    "reason": {
+      "token_rejected": "LINE ปฏิเสธโทเค็น กรุณาออกใหม่แล้วเชื่อมต่ออีกครั้ง",
+      "bot_changed": "บัญชี OA เปลี่ยน กรุณาเชื่อมต่อใหม่"
+    }
+  },
+  "sandbox": {
+    "notice": "โหมดทดสอบ ระบบจะไม่ส่งข้อความจริงไป LINE"
+  },
+  "information": {
+    "channelId": "Channel ID",
+    "basicId": "Basic ID",
+    "lastEvent": "รับเหตุการณ์ล่าสุด",
+    "lastVerified": "ตรวจสอบล่าสุด",
+    "eventsTotal": "จำนวนเหตุการณ์ที่รับ",
+    "never": "ยังไม่มีข้อมูล",
+    "loading": "กำลังโหลดข้อมูลการเชื่อมต่อ",
+    "unavailable": "—"
+  },
+  "actions": {
+    "connect": "เชื่อมต่อ LINE OA",
+    "reconnect": "เชื่อมต่อใหม่",
+    "verify": "ตรวจสอบการเชื่อมต่อ",
+    "disconnect": "ตัดการเชื่อมต่อ",
+    "copy": "คัดลอก",
+    "copied": "คัดลอกแล้ว",
+    "copyFailed": "คัดลอกไม่สำเร็จ",
+    "refresh": "รีเฟรช",
+    "retry": "ลองอีกครั้ง"
+  },
+  "connect": {
+    "title": "เชื่อมต่อ LINE Official Account",
+    "channelId": "Channel ID",
+    "channelSecret": "Channel secret",
+    "accessToken": "Channel access token (ไม่บังคับ)",
+    "accessTokenHelp": "หากเว้นว่าง ระบบจะขอโทเค็นชั่วคราวจาก LINE",
+    "replaceTitle": "แทนที่การเชื่อมต่อ LINE?",
+    "replaceWarning": "การเชื่อมต่อ OA ตัวใหม่จะแทนที่ OA เดิมของร้าน",
+    "success": "เชื่อมต่อแล้ว กรุณาตั้งค่า webhook ใน LINE Developers Console",
+    "err": {
+      "channel_in_use": "ร้านอื่นเชื่อมต่อกับ OA นี้อยู่แล้ว",
+      "credentials_rejected": "LINE ไม่ยอมรับข้อมูลการเชื่อมต่อ",
+      "secret_mismatch": "Channel ID หรือ Channel secret ไม่ตรงกับข้อมูลที่ LINE",
+      "provider": "ติดต่อ LINE ไม่ได้ ลองใหม่อีกครั้ง",
+      "channelId": "Channel ID ต้องเป็นตัวเลข 5–20 หลัก",
+      "channelSecret": "Channel secret ต้องเป็นรหัสฐานสิบหก 32 ตัว",
+      "accessToken": "โทเค็นต้องยาว 40–400 ตัวอักษร"
+    }
+  },
+  "verify": {
+    "success": "ตรวจสอบการเชื่อมต่อแล้ว",
+    "error": "ตรวจสอบการเชื่อมต่อไม่สำเร็จ"
+  },
+  "disconnect": {
+    "title": "ตัดการเชื่อมต่อ LINE?",
+    "message": "ระบบจะหยุดรับข้อความใหม่และยกเลิกการส่งข้อความที่ค้างอยู่จนกว่าจะเชื่อมต่ออีกครั้ง",
+    "success": "ตัดการเชื่อมต่อ LINE แล้ว",
+    "error": "ตัดการเชื่อมต่อ LINE ไม่สำเร็จ"
+  },
+  "friend": {
+    "title": "เพิ่มเพื่อน",
+    "help": "ให้ลูกค้าสแกน QR นี้เพื่อคุยกับร้าน",
+    "qrAlt": "QR เพิ่มเพื่อน LINE ของร้าน"
+  },
+  "webhook": {
+    "title": "ตั้งค่า webhook",
+    "url": "Webhook URL",
+    "httpsWarning": "LINE ต้องการ Webhook URL ที่ขึ้นต้นด้วย https",
+    "step1": "เปิด LINE Developers Console แล้วเลือกช่อง Messaging API ของ OA นี้",
+    "step2": "ในแท็บ Messaging API แก้ไข Webhook URL วาง URL ด้านบน แล้วกด Update",
+    "step3": "กด Verify เมื่อขึ้น Success ให้เปิด Use webhook และเปิด Webhook redelivery หากมีตัวเลือก",
+    "step4": "ปิด Auto-reply messages และ Greeting messages ใน LINE Official Account Manager"
+  },
+  "usage": {
+    "title": "การใช้ Push เดือนนี้",
+    "mine": "ส่ง Push แล้ว {{messages}} ข้อความ ({{calls}} ครั้ง)",
+    "line": "โควตา LINE ใช้ {{used}} จาก {{value}} ข้อความ",
+    "lineUnlimited": "ส่งตามที่ LINE นับ {{used}} ข้อความ",
+    "note": "การตอบภายใน 50 วินาทีใช้ Reply ซึ่งไม่นับโควตา หลังจากนั้นใช้ Push"
+  },
+  "events": {
+    "title": "เหตุการณ์ล่าสุด",
+    "time": "เวลา",
+    "type": "ชนิดเหตุการณ์",
+    "messageType": "ชนิดข้อความ",
+    "redelivery": "ส่งซ้ำ",
+    "state": "สถานะ",
+    "note": "หมายเหตุ",
+    "empty": "ยังไม่มีเหตุการณ์",
+    "yes": "ใช่",
+    "no": "ไม่ใช่",
+    "other": "อื่น ๆ",
+    "pages": "หน้าเหตุการณ์",
+    "pagination": {
+      "page": "หน้า {{page}}",
+      "first": "หน้าแรก",
+      "last": "หน้าสุดท้าย",
+      "next": "หน้าถัดไป",
+      "previous": "หน้าก่อนหน้า"
+    }
+  },
+  "eventType": {
+    "message": "ข้อความ",
+    "follow": "เพิ่มเพื่อน",
+    "unfollow": "เลิกติดตาม",
+    "postback": "กดปุ่ม"
+  },
+  "messageType": {
+    "text": "ข้อความ",
+    "image": "รูปภาพ",
+    "sticker": "สติกเกอร์",
+    "audio": "เสียง",
+    "video": "วิดีโอ",
+    "file": "ไฟล์",
+    "location": "ตำแหน่ง"
+  },
+  "eventState": {
+    "received": "รับแล้ว",
+    "done": "เสร็จแล้ว",
+    "ignored": "ข้าม",
+    "failed": "ไม่สำเร็จ"
+  },
+  "eventNote": {
+    "connection_gone": "ยกเลิกการเชื่อมต่อแล้ว",
+    "business_inactive": "ร้านไม่เปิดใช้งาน",
+    "invalid_event_payload": "ข้อมูลเหตุการณ์ไม่ถูกต้อง",
+    "invalid_event": "รูปแบบเหตุการณ์ไม่ถูกต้อง",
+    "stale": "เหตุการณ์เก่าเกินกำหนด",
+    "group_source": "เหตุการณ์นอกแชตส่วนตัว",
+    "empty": "ข้อความว่าง",
+    "unsupported_type": "ชนิดที่ยังไม่รองรับ",
+    "processing_failed": "ประมวลผลไม่สำเร็จ"
+  },
+  "readOnly": "คุณดูได้อย่างเดียว ต้องมีสิทธิ์จัดการช่องทาง",
+  "error": {
+    "events": "โหลดเหตุการณ์ LINE ไม่สำเร็จ",
+    "connection": "โหลดการเชื่อมต่อ LINE ไม่สำเร็จ"
   }
 }

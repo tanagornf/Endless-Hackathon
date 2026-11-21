@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { test, expect } from '../../../../../tests/e2e/fixtures';
+import { test, expect, expectPageInEnglish } from '../../../../../tests/e2e/fixtures';
 import { SEED } from '@nless/shared/core/fixtures';
 import type { ApiResult, BusinessRecord } from '@nless/shared/core/types';
 import type { LineConnectionView } from '@nless/shared/features/line/types';
@@ -36,4 +36,17 @@ test('production LINE connection verifies and rejects an unsigned webhook', asyn
   const events = await api.get(path + '/events?limit=5');
   expect(events.ok()).toBeTruthy();
   expect((await events.json()).data.items).toBeInstanceOf(Array);
+});
+
+
+test('LINE settings render in Thai and English and can verify the connection', async ({ ownerPage }) => {
+  await ownerPage.goto('/channels');
+  await expect(ownerPage.getByRole('heading', { name: 'ช่องทาง LINE', exact: true })).toBeVisible();
+  await expect(ownerPage.getByText('เชื่อมต่อแล้ว', { exact: true })).toBeVisible();
+  await expectPageInEnglish(ownerPage, '/channels', 'LINE channel');
+  await expect(ownerPage.getByText('Connected', { exact: true })).toBeVisible();
+  await expect(ownerPage.getByRole('textbox', { name: 'Webhook URL' })).toHaveValue(/\/webhooks\/line\/[0-9]{5,20}$/);
+  await expect(ownerPage.getByRole('table')).toBeVisible();
+  await ownerPage.getByRole('button', { name: 'Check connection' }).click();
+  await expect(ownerPage.getByRole('alert')).toContainText('Connection verified');
 });
