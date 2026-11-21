@@ -19,14 +19,16 @@
     "stock": "Stock",
     "soldOut": "Sold out",
     "untracked": "Untracked",
-    "status": "Status"
+    "status": "Status",
+    "updated": "Last edited"
   },
   "actions": {
     "add": "Add product or service",
     "save": "Save",
     "back": "Back to catalog",
     "reload": "Load latest version",
-    "leave": "Leave page"
+    "leave": "Leave page",
+    "delete": "Delete"
   },
   "form": {
     "name": "Name",
@@ -38,7 +40,12 @@
     "stockHelp": "Leave blank for untracked stock.",
     "price": "Price (baht)",
     "duration": "Duration (minutes)",
-    "active": "On sale"
+    "active": "On sale",
+    "defaultUnit": "item",
+    "category": "Category",
+    "unit": "Unit",
+    "description": "Description",
+    "shippable": "Can be shipped"
   },
   "kind": {
     "product": "Product",
@@ -56,16 +63,41 @@
     "duration": "Enter a service duration from 5 to 1,440 minutes.",
     "save": "Could not save this item.",
     "skuTaken": "This SKU is already in use.",
-    "conflict": "This item has changed. Load the latest version before saving again."
+    "conflict": "This item has changed. Load the latest version before saving again.",
+    "unit": "Enter a unit for this item.",
+    "skuInvalid": "Enter a valid SKU."
   },
   "confirm": {
     "priceTitle": "Save the new price?",
     "priceMessage": "Open quotes will check the new price when the customer confirms.",
     "leaveTitle": "Leave without saving?",
-    "leaveMessage": "Your unsaved changes will be lost."
+    "leaveMessage": "Your unsaved changes will be lost.",
+    "deleteTitle": "Delete this item?",
+    "deleteMessage": "This item will no longer appear to customers. Its history will remain available."
   },
   "toast": {
     "created": "Item added",
-    "saved": "Saved"
+    "saved": "Saved",
+    "deleted": "Deleted"
+  },
+  "filter": {
+    "search": "Search name, SKU or category",
+    "all": "All",
+    "inactive": "Off sale",
+    "categoriesError": "Could not load categories."
+  },
+  "history": {
+    "title": "History",
+    "version": "Version",
+    "prices": "Prices",
+    "stock": "Stock",
+    "noneValue": "—",
+    "empty": "No history yet",
+    "oldPrice": "Previous price",
+    "newPrice": "New price",
+    "delta": "Change",
+    "changedAt": "Changed on",
+    "changedBy": "Changed by",
+    "error": "Could not load history."
   }
 }

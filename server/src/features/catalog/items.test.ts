@@ -9,7 +9,8 @@ const bizA = SEED.businesses.find((entry) => entry.alias === 'biz_demo_a')!.id;
 const bizB = SEED.businesses.find((entry) => entry.alias === 'biz_demo_b')!.id;
 const owner = SEED.users.find((entry) => entry.alias === 'owner_a')!;
 const staff = SEED.users.find((entry) => entry.alias === 'staff_a')!;
-const path = '/api/v1/businesses/' + bizA + '/catalog/items';
+const catalogPath = '/api/v1/businesses/' + bizA + '/catalog';
+const path = catalogPath + '/items';
 const header = ['X-Requested-With', 'nless'] as const;
 const makeInput = (sku: string) => ({
   sku, kind: 'product', name: 'เกมทดสอบ', nameEn: 'Test board game', priceMinor: 149000, stock: 5,
@@ -111,3 +112,63 @@ it('keeps the stock adapter side-effect-free at the documented return shape', as
   );
   expect(moves.count).toBe(0);
 }, 20_000);
+
+it('checks normalized SKU collisions for items and variants within the current business', async () => {
+  const agent = await createTestAgent();
+  await loginAs(agent, owner.email);
+  const sku = 'TEST-CHECK-' + randomUUID();
+  const variantSku = sku + '-V';
+  const created = await agent.post(path).set(...header).send({
+    ...makeInput(sku), variants: [{ name: 'Blue', sku: variantSku }],
+  });
+  expect(created.status).toBe(201);
+  const itemId = created.body.data.id;
+  const check = (query: { sku: string; excludeItemId?: string }) => agent.get(catalogPath + '/sku-check').query(query);
+  expect((await check({ sku: sku.toLowerCase() })).body.data).toEqual({ taken: true, itemId });
+  expect((await check({ sku, excludeItemId: itemId })).body.data).toEqual({ taken: false, itemId: null });
+  expect((await check({ sku: variantSku, excludeItemId: itemId })).body.data).toEqual({ taken: true, itemId });
+  expect((await check({ sku: 'bad?sku' })).status).toBe(400);
+  expect((await agent.get('/api/v1/businesses/' + bizB + '/catalog/sku-check').query({ sku })).status).toBe(404);
+}, 20_000);
+
+it('soft deletes once, frees the SKU and keeps scoped price and stock history', async () => {
+  const agent = await createTestAgent();
+  const staffAgent = await createTestAgent();
+  await loginAs(agent, owner.email);
+  await loginAs(staffAgent, staff.email);
+  const sku = 'TEST-DELETE-' + randomUUID();
+  const category = 'หมวด ' + randomUUID();
+  const input = { ...makeInput(sku), category };
+  const created = await agent.post(path).set(...header).send(input);
+  expect(created.status).toBe(201);
+  const itemId = created.body.data.id;
+  const item = path + '/' + itemId;
+  expect((await agent.get(catalogPath + '/categories')).body.data.items).toContainEqual({ name: category, count: 1 });
+  expect((await agent.get(path).query({ category: category.toUpperCase(), kind: 'product', status: 'active' })).body.data.items)
+    .toEqual([expect.objectContaining({ id: itemId })]);
+  const edited = await agent.patch(item).set(...header).send({ expectedVersion: 1, priceMinor: 159000, stock: 6 });
+  expect(edited.body.data).toMatchObject({ version: 2, priceMinor: 159000, stock: 6 });
+  const history = await staffAgent.get(item + '/history');
+  expect(history.status).toBe(200);
+  expect(history.body.data.prices).toEqual([
+    expect.objectContaining({ version: 2, oldPriceMinor: 149000, newPriceMinor: 159000 }),
+    expect.objectContaining({ version: 1, oldPriceMinor: null, newPriceMinor: 149000 }),
+  ]);
+  expect(history.body.data.stock).toEqual([expect.objectContaining({ delta: 1, stockAfter: 6 })]);
+  const foreignItem = SEED.catalog.find((entry) => entry.businessAlias === 'biz_demo_b')!;
+  expect((await agent.get(path + '/' + foreignItem.id + '/history')).status).toBe(404);
+  expect((await agent.delete(path + '/' + foreignItem.id).set(...header)).status).toBe(404);
+  expect((await staffAgent.delete(item).set(...header)).status).toBe(403);
+  const deleted = await agent.delete(item).set(...header);
+  expect(deleted.status).toBe(200);
+  expect(deleted.body.data).toEqual({ id: itemId, deletedAt: expect.any(String) });
+  expect((await agent.delete(item).set(...header)).body.data).toEqual(deleted.body.data);
+  expect(await db.one('SELECT version,active FROM catalog_items WHERE business_id=$1 AND id=$2', [bizA, itemId]))
+    .toMatchObject({ version: 3, active: false });
+  expect((await agent.get(item)).status).toBe(404);
+  expect(await getProduct(bizA, { sku })).toBeNull();
+  expect((await agent.get(item + '/history')).body.data).toEqual(history.body.data);
+  expect((await agent.get(catalogPath + '/categories')).body.data.items).not.toContainEqual({ name: category, count: 1 });
+  expect((await agent.get(catalogPath + '/sku-check').query({ sku })).body.data).toEqual({ taken: false, itemId: null });
+  expect((await agent.post(path).set(...header).send(input)).status).toBe(201);
+}, 30_000);

@@ -120,3 +120,37 @@ export interface CatalogItemAdminDetail extends CatalogItem {
   updatedAt: string;
   variants: (CatalogVariant & { active: boolean; position: number; effectivePriceMinor: number; effectiveStock: number | null })[];
 }
+
+
+export interface CatalogSkuCheck {
+  taken: boolean;
+  itemId: string | null;
+}
+
+export interface CatalogCategories {
+  items: { name: string; count: number }[];
+}
+
+export interface PriceHistoryRow {
+  version: number;
+  variantId: string | null;
+  oldPriceMinor: number | null;
+  newPriceMinor: number;
+  changedAt: string;
+  changedByName: string | null;
+}
+
+export interface StockMoveRow {
+  variantId: string | null;
+  delta: number;
+  stockAfter: number;
+  reason: string;
+  note: string | null;
+  changedAt: string;
+  changedByName: string | null;
+}
+
+export interface CatalogHistory {
+  prices: PriceHistoryRow[];
+  stock: StockMoveRow[];
+}
