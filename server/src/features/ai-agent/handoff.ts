@@ -24,7 +24,8 @@ export async function canRequestHandoff(businessId: string): Promise<boolean> {
 
 type HandoffResult =
   | { status: 'recorded'; checkpoint: HandoffCheckpoint }
-  | { status: 'stale' | 'lost' };
+  | { status: 'stale' }
+  | { status: 'lost' };
 
 export async function beginHandoff(
   turn: TurnLease,
