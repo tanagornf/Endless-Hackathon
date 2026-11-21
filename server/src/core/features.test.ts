@@ -1,4 +1,5 @@
 import { afterAll, expect, test, vi } from 'vitest';
+import { SEED } from '@nless/shared/core/fixtures';
 import { config } from './config';
 import * as registry from './features';
 import { visiblePublicFeatures } from './features';
@@ -77,4 +78,17 @@ test('the public feature flags route leaves merchant and administrative routes p
   expect(flags.body.data).toEqual({ visibleFeatureIds: expect.any(Array) });
   expect((await agent.get('/api/v1/features')).status).toBe(401);
   expect((await agent.put('/api/v1/ops/features/F13').set('X-Requested-With','nless').send({ hidden: false })).status).toBe(401);
+});
+
+test('the LINE-only release keeps the deferred feature IDs hidden and future fixtures internal', async () => {
+  const admin = await createTestAgent();
+  await loginAs(admin, 'admin@example.test');
+  const flags = (await admin.get('/api/v1/features').expect(200)).body.data.items;
+  expect(flags).toHaveLength(29);
+  for (const id of ['F18', 'F21']) {
+    expect(flags.find((row: { featureId: string }) => row.featureId === id)).toMatchObject({ hidden: true, visible: false });
+    const response = await admin.put('/api/v1/ops/features/' + id).set('X-Requested-With', 'nless').send({ hidden: false });
+    expect(response.body.error).toMatchObject({ code: 'POLICY_BLOCKED', details: { reason: 'release_scope' } });
+  }
+  expect([...SEED.customers, ...SEED.conversations].every(({ channel }) => channel === 'line' || channel === 'web')).toBe(true);
 });

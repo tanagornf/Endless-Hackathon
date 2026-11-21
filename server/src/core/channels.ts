@@ -9,6 +9,10 @@ import type { DeliveryChange } from './outbox';
 import type { ChannelSender, OutboundDelivery, SendReceipt, SendToCustomerOptions } from './types';
 
 const senders = new Map<Channel, ChannelSender>();
+
+function canDispatch(channel: Channel): boolean {
+  return channel === 'line' || channel === 'web';
+}
 export function registerChannelSender(channel: Channel, sender: ChannelSender): void {
   if (channel !== sender.channel) throw new Error('Sender channel does not match registration');
   if (senders.has(channel)) log.warn({ channel }, 'Replacing channel sender');
@@ -65,6 +69,9 @@ export async function sendToCustomer(conversationId: string, parts: MessagePart[
   const conversation = await getConversation(conversationId, { businessId: opts?.businessId });
   if (!conversation) throw new AppError('NOT_FOUND', 'Conversation not found');
   const { businessId, channel } = conversation;
+  if (!canDispatch(channel)) throw new AppError('POLICY_BLOCKED', 'This messaging channel is deferred for the release', {
+    details: { reason: 'channel_deferred' },
+  });
   const sender = senders.get(channel);
   if (!sender) throw new AppError('CHANNEL_NOT_CONNECTED', 'Channel is unavailable');
   const messageId = opts?.messageId ?? (await saveMessage({
@@ -75,13 +82,12 @@ export async function sendToCustomer(conversationId: string, parts: MessagePart[
   let jobId: string;
   try {
     const job = await db.tx(async (transaction) => {
-      const stored = await transaction.query(`UPDATE messages SET delivery_mode=COALESCE(delivery_mode,$4),
-        delivery_error=CASE WHEN delivery_state='failed' AND delivery_error=$5 THEN NULL ELSE delivery_error END,
-        delivery_state=CASE WHEN delivery_state='not_required' OR (delivery_state='failed' AND delivery_error=$5)
-          THEN 'pending' ELSE delivery_state END
-        WHERE id=$1 AND conversation_id=$2 AND business_id=$3 AND direction='outbound'`,
-      [messageId, conversationId, businessId, sender.mode, DELIVERY_ENQUEUE_FAILED]);
-      if (!stored.rowCount) throw new AppError('NOT_FOUND', 'Outbound message not found');
+      const scope = [messageId, conversationId, businessId];
+      const stored = await transaction.maybeOne(`
+        SELECT id FROM messages WHERE id=$1 AND conversation_id=$2 AND business_id=$3
+          AND direction='outbound' FOR UPDATE`, scope);
+      if (!stored) throw new AppError('NOT_FOUND', 'Outbound message not found');
+
       const job = await enqueueJob(transaction, 'core.deliver', { messageId }, enqueueOptions);
       if (job.deduped) {
         const existing = await transaction.one<{ state: string }>(
@@ -92,7 +98,14 @@ export async function sendToCustomer(conversationId: string, parts: MessagePart[
             details: { reason: 'delivery_job_terminal' },
           });
         }
+        return job;
       }
+      await transaction.query(`UPDATE messages SET delivery_mode=COALESCE(delivery_mode,$4),
+        delivery_error=CASE WHEN delivery_state='failed' AND delivery_error=$5 THEN NULL ELSE delivery_error END,
+        delivery_state=CASE WHEN delivery_state='not_required' OR (delivery_state='failed' AND delivery_error=$5)
+          THEN 'pending' ELSE delivery_state END
+        WHERE id=$1 AND conversation_id=$2 AND business_id=$3 AND direction='outbound'`,
+      [...scope, sender.mode, DELIVERY_ENQUEUE_FAILED]);
       return job;
     });
     jobId = job.jobId;
@@ -135,12 +148,16 @@ registerJob('core.deliver', async ({ payload, businessId, attempt, maxAttempts, 
   if (!row) return;
   const { author, handoffAckVersion, previousError, ...delivery } = row;
   const previousAmbiguity = isAmbiguousRetry(previousError);
-  const sender = senders.get(delivery.channel);
-  if (!sender) throw new AppError('CHANNEL_NOT_CONNECTED', 'Channel is unavailable');
   const key = { messageId, businessId: delivery.businessId };
   signal.throwIfAborted();
   const checkpoint = await markInflight(key, attempt);
   if (!checkpoint) return resolveAmbiguous(key);
+  if (!canDispatch(delivery.channel)) {
+    if (previousAmbiguity) return resolveAmbiguous(key);
+    return settleDelivery(key, checkpoint, { state: 'failed', error: 'CHANNEL_DEFERRED' });
+  }
+  const sender = senders.get(delivery.channel);
+  if (!sender) throw new AppError('CHANNEL_NOT_CONNECTED', 'Channel is unavailable');
 
   let allowed: boolean;
   try {

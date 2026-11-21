@@ -7,6 +7,7 @@ import { saveMessage } from '../features/inbox/service';
 import { assignConversation, requestHumanHandoff } from '../features/team/service';
 import { registerChannelSender, sendToCustomer } from './channels';
 import { closeDb, db } from './db';
+import { jobs } from './jobs';
 import { createTestAgent, loginAs } from './test-utils';
 import { drainJobs } from './worker';
 
@@ -84,3 +85,41 @@ test('queued delivery rechecks AI-off and takeover and preserves only the curren
     staff.messageId, system.messageId, currentAck.messageId, ordinaryReply.messageId,
   ].sort());
 }, 30_000);
+
+test.each([
+  { channel: 'facebook' as const, checkpoint: null, expected: { state: 'failed', error: 'CHANNEL_DEFERRED' } },
+  { channel: 'instagram' as const, checkpoint: 'inflight:1', expected: { state: 'unknown' } },
+])('deferred $channel rejects new delivery and settles existing queued work without calling a sender', async ({ channel, checkpoint, expected }) => {
+  const businessId = SEED.businesses[0].id;
+  const parts: MessagePart[] = [{ type: 'text', text: 'Synthetic historical conversation' }];
+  const inbound = await saveMessage({
+    businessId, customer: { channel, externalId: randomUUID() }, direction: 'inbound',
+    author: 'customer', parts, triggerAi: false,
+  });
+  const conversationId = inbound.conversation.id;
+  const send = vi.fn(async () => ({ state: 'sent', mode: 'real' } as const));
+  registerChannelSender(channel, { channel, mode: 'real', send });
+
+  await expect(sendToCustomer(conversationId, parts, { businessId, author: 'system' })).rejects.toMatchObject({
+    code: 'POLICY_BLOCKED', details: { reason: 'channel_deferred' },
+  });
+  expect(await db.one("SELECT count(*)::int AS count FROM messages WHERE conversation_id=$1 AND business_id=$2 AND direction='outbound'",
+    [conversationId, businessId])).toEqual({ count: 0 });
+
+  const legacy = await saveMessage({
+    businessId, conversationId, direction: 'outbound', author: 'system', parts, triggerAi: false,
+  });
+  const messageId = legacy.message.id;
+  await db.query("UPDATE messages SET delivery_state='pending',delivery_error=$2 WHERE id=$1 AND business_id=$3",
+    [messageId, checkpoint, businessId]);
+  const queued = await jobs.enqueue('core.deliver', { messageId }, {
+    businessId, dedupKey: 'deliver:' + messageId, lockKey: 'conversation:' + conversationId,
+  });
+  await drainJobs({ type: 'core.deliver' });
+  expect(send).not.toHaveBeenCalled();
+  expect(await jobs.get(queued.jobId)).toMatchObject({ state: 'succeeded' });
+  expect(await db.one('SELECT channel,delivery_state AS state,delivery_error AS error FROM messages WHERE id=$1 AND business_id=$2',
+    [messageId, businessId])).toMatchObject({ channel, ...expected });
+  expect(await db.one('SELECT channel FROM conversations WHERE id=$1 AND business_id=$2', [conversationId, businessId])).toEqual({ channel });
+  expect(await db.one('SELECT channel FROM messages WHERE id=$1 AND business_id=$2', [inbound.message.id, businessId])).toEqual({ channel });
+}, 20_000);

@@ -223,3 +223,13 @@ test.each([
     businessId, 'deliver:' + messageId,
   ])).toEqual({ count: 1 });
 }, 20_000);
+
+test('deduping a succeeded job preserves its legacy stored message state', async () => {
+  const { jobId, messageId, conversationId } = await queueDelivery();
+  await db.tx(async (tx) => {
+    await tx.query("UPDATE jobs SET state='succeeded',finished_at=now() WHERE id=$1", [jobId]);
+    await tx.query("UPDATE messages SET delivery_state='not_required' WHERE id=$1", [messageId]);
+  });
+  expect((await sendToCustomer(conversationId, parts, { businessId, messageId })).jobId).toBe(jobId);
+  expect(await deliveryState(messageId)).toMatchObject({ state: 'not_required', error: null });
+}, 20_000);
