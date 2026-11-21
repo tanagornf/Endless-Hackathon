@@ -102,3 +102,12 @@ export interface ChatAttachment {
   sizeBytes: number;
   kind: 'image' | 'file';
 }
+
+export interface ConversationDetail {
+  conversation: ConversationRecord;
+  assigneeName: string | null;
+  waitingSince: string | null;
+  isWaiting: boolean;
+  aiPending: boolean;
+  aiEnabled: boolean;
+}
