@@ -132,7 +132,7 @@ function InboxRows({ path, selected, onSelect, hasSearch }: {
         if (!row) return null;
         const name: string = row.customerName || t('list.customer');
         const waitingMinutes = row.waitingSince ? Math.max(0, Math.floor((Date.now() - Date.parse(row.waitingSince)) / 60_000)) : 0;
-        return <ListItemButton key={id} selected={selected === id} onClick={() => onSelect(id)}
+        return <ListItemButton key={id} data-conversation-id={id} selected={selected === id} onClick={() => onSelect(id)}
           sx={{ gap: 1.5, px: 1, py: 1.25, borderRadius: 2, alignItems: 'flex-start' }}>
           <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
             {Array.from(name)[0]}

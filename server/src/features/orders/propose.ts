@@ -78,7 +78,7 @@ async function quoteLines(input: Input, language: CustomerLanguage): Promise<Sto
     quantity: q.quantity, unitPriceMinor: q.unitPriceMinor, lineTotalMinor: q.subtotalMinor, catalogVersion: q.version }));
 }
 
-export async function propose(raw: Input): Promise<Result> {
+export async function propose(raw: Input, replacing?: { id: string; origin: string }): Promise<Result> {
   const parsed = request.safeParse(raw);
   if (!parsed.success) throw new AppError('VALIDATION_ERROR', 'Invalid order proposal',
     { details: { field: parsed.error.issues[0]?.path.at(-1) } });
@@ -102,13 +102,17 @@ export async function propose(raw: Input): Promise<Result> {
   const subtotal = lines.reduce((total, line) => total + line.lineTotalMinor, 0);
   const fee = computeShipping(rule, subtotal, deliveryMethod);
   const prefix = clientRequestId.split(':')[0];
-  const origin = ['ai','staff','live'].includes(prefix) ? prefix : 'other';
+  const origin = replacing?.origin ?? (['ai','staff','live'].includes(prefix) ? prefix : 'other');
   return db.tx(async tx => {
     // Different conversations can reuse an idempotency key concurrently. Acquire both locks in a fixed order.
     await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', ['order-request:' + businessId + ':' + clientRequestId]);
     await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', ['order-conversation:' + businessId + ':' + conversationId]);
     const winner = await replay(tx, input, hash);
     if (winner) return winner;
+    if (replacing) {
+      const latest=await tx.maybeOne<{id:string}>('SELECT id FROM order_proposals WHERE business_id=$1 AND conversation_id=$2 ORDER BY version DESC LIMIT 1',[businessId,conversationId]);
+      if (latest?.id!==replacing.id) throw new AppError('VERSION_CONFLICT','A newer proposal is already available',{details:{reason:'superseded',latestProposalId:latest?.id}});
+    }
     await tx.query("UPDATE order_proposals SET state='superseded',decided_at=now() WHERE business_id=$1 AND conversation_id=$2 AND state='open'",
       [businessId, conversationId]);
     const row = await tx.one<ProposalRow>(`INSERT INTO order_proposals
