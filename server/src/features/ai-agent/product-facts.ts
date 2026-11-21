@@ -15,7 +15,12 @@ import { inspectReply } from './guards';
 import { skuPattern } from './money';
 import { asKnowledgeEvidence } from './tools';
 
+const washTopic = 'washing and machine-wash instructions';
 const requestPatterns: [topic: string, pattern: RegExp][] = [
+  [washTopic, /^how (?:do|should|can) i wash (?:the |my )?(.+)$/iu],
+  [washTopic, /^can i (?:machine[- ]wash (?:the |my )?(.+)|put (?:the |my )?(.+?) in (?:the |my )?washing machine)$/iu],
+  [washTopic, /^(.+?)(?:ของร้าน(?:นี้)?)?\s*ซัก(?:อย่างไร|ยังไง|ยังงัย)$/u],
+  [washTopic, /^(?:เอา)?(.+?)(?:ของร้าน(?:นี้)?)?\s*(?:เข้าเครื่องซัก|ซักเครื่อง)(?:ได้)?(?:ไหม|มั้ย|หรือเปล่า)$/u],
   ['dimensions', /^(?:what are (?:the )?(?:dimensions|measurements) of|what size is|how (?:big|wide|tall|long) is)\s+(.+)$/iu],
   ['dimensions', /^(?:ขนาดของ\s*(.+?)\s*(?:เท่าไหร่|เท่าไร)|(.+?)\s*(?:ขนาดเท่าไหร่|ขนาดเท่าไร|กว้างเท่าไหร่))$/iu],
   ['weight', /^(?:what(?:'s| is) (?:the )?weight of\s+(.+)|how much does\s+(.+?)\s+weigh)$/iu],
@@ -243,7 +248,7 @@ export async function replyWithProductFact(input: {
   const fail = () => fallback(language, 'no_answer', productRefs);
 
   const publicName = publicProductName.safeParse(variant ? variant.name : product ? product.nameEn || product.name : subject);
-  const publicQuestion = publicName.success && !isCommerce(publicName.data) &&
+  const publicQuestion = topic !== washTopic && publicName.success && !isCommerce(publicName.data) &&
     (standard || publicModel.test(publicName.data))
     ? publicName.data + ' · ' + topic + ' (' + language + ')' : null;
   let hasDraft = false;
