@@ -17,6 +17,10 @@ const bizB = SEED.businesses.find((entry) => entry.alias === 'biz_demo_b')!.id;
 const owner = SEED.users.find((entry) => entry.alias === 'owner_a')!;
 const actor = { userId: owner.id };
 const faq = SEED.knowledge.find((entry) => entry.alias === 'kn_a_faq')!;
+const seedAliases = new Map([...SEED.businesses, ...SEED.knowledge].map((entry) => [entry.alias, entry.id]));
+const runSeed = (knowledge = SEED.knowledge) => seed.run({
+  db, fixtures: { ...SEED, knowledge }, id: (alias) => seedAliases.get(alias)!, log: () => {},
+});
 
 async function indexFaq(businessId: string, title: string, body: string) {
   const item = await createKnowledgeItem(businessId, { userId: null }, { title, body, kind: 'faq', folderId: null });
@@ -174,8 +178,7 @@ describe('F07 durable knowledge indexing', () => {
   }, 20_000);
 
   it('seeds exactly the expected published revisions and retrieval honors tenant, folder and readiness', async () => {
-    const aliases = new Map([...SEED.businesses, ...SEED.knowledge].map((entry) => [entry.alias, entry.id]));
-    await seed.run({ db, fixtures: SEED, id: (alias) => aliases.get(alias)!, log: () => {} });
+    await runSeed();
     const state = await db.query<{ item_id: string; searchable: boolean }>(
       'SELECT DISTINCT item_id,searchable FROM knowledge_chunks WHERE business_id=ANY($1::uuid[]) AND item_id=ANY($2::uuid[])',
       [[bizA, bizB], SEED.knowledge.map((entry) => entry.id)],
@@ -194,6 +197,72 @@ describe('F07 durable knowledge indexing', () => {
     expect((await searchKnowledge(bizA, 'ร้านเปิดกี่โมง', { folderIds: [folder.id] })).hits)
       .not.toContainEqual(expect.objectContaining({ knowledgeItemId: faq.id }));
     expect(await searchKnowledge(bizA, '  ')).toEqual({ query: '', hits: [], strategy: 'lexical', mode: 'fake' });
+  }, 15_000);
+
+  it.each([
+    ['missing chunk', 'DELETE FROM knowledge_chunks'],
+    ['null vector', 'UPDATE knowledge_chunks SET embedding=NULL'],
+    ['wrong chunk model', "UPDATE knowledge_chunks SET embed_model='stale-fixture-model'"],
+  ])('repairs %s beneath ready metadata without publishing the historical fixture', async (_label, mutation) => {
+    const fixture = SEED.knowledge.find((entry) => entry.alias === 'kn_a_deleted')!;
+    const keys = [bizA, fixture.id, fixture.revision];
+    const scope = ' WHERE business_id=$1 AND item_id=$2 AND revision=$3';
+    await db.query(mutation + scope, keys);
+    const embed = vi.spyOn(model, 'embed');
+    try {
+      await runSeed([fixture]);
+      expect(embed).toHaveBeenCalledTimes(1);
+      const { rows } = await db.query(
+        'SELECT embedding IS NOT NULL AS embedded,embed_model,embed_dim,searchable FROM knowledge_chunks' + scope, keys,
+      );
+      expect(rows).toEqual([{ embedded: true, embed_model: 'fake-hash', embed_dim: INDEX_DIMENSIONS, searchable: false }]);
+      await runSeed([fixture]);
+      expect(embed).toHaveBeenCalledTimes(1);
+    } finally {
+      embed.mockRestore();
+    }
+  }, 15_000);
+
+  it('repairs visibility from current item status without embedding again', async () => {
+    const deleted = SEED.knowledge.find((entry) => entry.alias === 'kn_a_deleted')!;
+    await db.query(
+      'UPDATE knowledge_chunks SET searchable=(item_id=$3) WHERE business_id=$1 AND item_id=ANY($2::uuid[])',
+      [bizA, [faq.id, deleted.id], deleted.id],
+    );
+    const embed = vi.spyOn(model, 'embed');
+    try {
+      await runSeed([{ ...faq, status: 'inactive' }, { ...deleted, status: 'active' }]);
+      expect(embed).not.toHaveBeenCalled();
+      const { rows } = await db.query(
+        'SELECT DISTINCT item_id,searchable FROM knowledge_chunks WHERE business_id=$1 AND item_id=ANY($2::uuid[])',
+        [bizA, [faq.id, deleted.id]],
+      );
+      expect(rows).toHaveLength(2);
+      expect(rows).toEqual(expect.arrayContaining([
+        { item_id: faq.id, searchable: true }, { item_id: deleted.id, searchable: false },
+      ]));
+      expect((await searchKnowledge(bizA, 'TENANT_A_ONLY_FOX_731')).hits[0]).toMatchObject({ knowledgeItemId: faq.id });
+      expect((await searchKnowledge(bizA, 'ราคาเก่า 990')).hits)
+        .not.toContainEqual(expect.objectContaining({ knowledgeItemId: deleted.id }));
+    } finally {
+      embed.mockRestore();
+    }
+  }, 15_000);
+
+  it.each(['not_started', 'indexing'])('reports fixture readiness failure while its generation is %s', async (state) => {
+    const keys = [bizA, faq.id, faq.revision];
+    await db.query('UPDATE knowledge_index_states SET state=$4 WHERE business_id=$1 AND item_id=$2 AND revision=$3',
+      [...keys, state]);
+    const embed = vi.spyOn(model, 'embed');
+    try {
+      await expect(runSeed([faq])).rejects.toMatchObject({ code: 'SERVICE_NOT_READY' });
+      expect(embed).not.toHaveBeenCalled();
+      expect(await db.one('SELECT state FROM knowledge_index_states WHERE business_id=$1 AND item_id=$2 AND revision=$3', keys))
+        .toEqual({ state });
+    } finally {
+      embed.mockRestore();
+      await db.query("UPDATE knowledge_index_states SET state='ready' WHERE business_id=$1 AND item_id=$2 AND revision=$3", keys);
+    }
   }, 15_000);
 
   it('uses matching provider vectors for cross-language queries and excludes a closer other-tenant vector', async () => {
