@@ -21,8 +21,6 @@ export function ShopSwitcher({ onSelect }: { onSelect: (id: string) => void }) {
       sx={{ fontWeight: 600, lineHeight: 1.6 }}>{currentBusiness.name}</Typography>
   </Box>;
 
-  if (businesses.length === 1) return identity;
-
   return <Select value={currentBusiness.id} onChange={event => onSelect(event.target.value)}
     inputProps={{ 'aria-label': t('pages.shop') }} renderValue={() => identity}
     IconComponent={KeyboardArrowDownRounded}

@@ -1,4 +1,4 @@
-import { Box, ButtonBase, LinearProgress, Paper, Stack, Typography } from '@mui/material';
+import { Box, Button, ButtonBase, LinearProgress, Paper, Stack, Typography } from '@mui/material';
 import AllInclusiveOutlined from '@mui/icons-material/AllInclusiveOutlined';
 import ArrowForwardOutlined from '@mui/icons-material/ArrowForwardOutlined';
 import ExpandMoreOutlined from '@mui/icons-material/ExpandMoreOutlined';
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { menuIcon } from '../icons';
 import { useNavigation } from '../layout/AppShell';
 import { groups } from '../layout/Navigation';
+import { PageHeader } from '../layout/PageHeader';
 import { useSession } from '../session';
 import { EmptyState } from '../ui';
 
@@ -19,17 +20,17 @@ const shortcuts = [
   { path: '/members', label: '' },
 ];
 
-export default function WorkspaceHome() {
+export default function WorkspaceHome({ showDirectory }: { showDirectory: boolean }) {
   const { t } = useTranslation('common');
   const { entries, flags, error } = useNavigation();
   const { currentBusiness } = useSession();
-  if (!flags && !error) return <LinearProgress aria-label={t('pages.loading')} />;
+  if (showDirectory && !flags && !error) return <LinearProgress aria-label={t('pages.loading')} />;
   const actions = shortcuts.flatMap(({ path, label }) => {
     const entry = entries.find(item => item.path === path);
     return entry ? [{ ...entry, label: t(label || entry.labelKey) }] : [];
   });
   return <Stack spacing={{ xs: 2.5, sm: 3.5 }}>
-    <Box component="section" aria-labelledby="workspace-title" sx={{
+    {showDirectory ? <Box component="section" aria-labelledby="workspace-title" sx={{
       position: 'relative', isolation: 'isolate', overflow: 'hidden', borderRadius: '18px',
       background: 'linear-gradient(110deg, #103F40 12%, #15534E 65%, #227466)',
       color: 'white', px: { xs: 2.5, sm: 4 }, py: { xs: 3, sm: 4 },
@@ -45,7 +46,14 @@ export default function WorkspaceHome() {
       <Typography id="workspace-title" component="h1" variant="h4" sx={{
         mt: .5, fontSize: { xs: '1.65rem', sm: '2.15rem' }, lineHeight: 1.4,
       }}>{t('workspace.title')}</Typography>
-    </Box>
+    </Box> : <>
+      <PageHeader title={t('pages.home')} actions={
+        <Button component={Link} to="/?view=workspace" endIcon={<ArrowForwardOutlined />}>
+          {t('workspace.title')}
+        </Button>
+      } />
+      <Typography>{t('pages.welcome')}</Typography>
+    </>}
     {flags && actions.length > 0 && <Paper component="section" variant="outlined" aria-labelledby="shop-shortcuts" sx={{ p: { xs: 1.5, sm: 2 } }}>
       <Typography id="shop-shortcuts" component="h2" variant="h6" sx={{ mb: 1.5 }}>{t('workspace.shortcuts')}</Typography>
       <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: 'repeat(auto-fit, minmax(min(130px, 100%), 1fr))' }}>
@@ -63,7 +71,7 @@ export default function WorkspaceHome() {
       </Box>
     </Paper>}
 
-    {entries.length > 0 ? <Box component="section" aria-labelledby="directory-title">
+    {showDirectory && (entries.length > 0 ? <Box component="section" aria-labelledby="directory-title">
       <Typography id="directory-title" component="h2" variant="h6" sx={{ mb: 1.5 }}>
         {t('workspace.allTools')}
       </Typography>
@@ -103,6 +111,6 @@ export default function WorkspaceHome() {
           </Paper>;
         })}
       </Box>
-    </Box> : <EmptyState title={t(error ? 'errors.generic' : 'workspace.noPages')} />}
+    </Box> : <EmptyState title={t(error ? 'errors.generic' : 'workspace.noPages')} />)}
   </Stack>;
 }
