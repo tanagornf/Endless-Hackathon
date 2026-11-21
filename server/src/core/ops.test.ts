@@ -46,7 +46,9 @@ it('uses the current database admin bit and the core CSRF guard', async () => {
       res.sendStatus(204);
     });
     const issued = await request(sessionApp).post('/session').expect(204);
-    const [session] = issued.headers['set-cookie'] as string[];
+    const header: unknown = issued.headers['set-cookie'];
+    const session = Array.isArray(header) ? header[0] : header;
+    if (typeof session !== 'string') throw new Error('Session cookie was not issued');
     const cookie = session.split(';', 1)[0];
     const operator = await createTestAgent();
     await operator.get(base + '/summary').set('Cookie', cookie).expect(200);
