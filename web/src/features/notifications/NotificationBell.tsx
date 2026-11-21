@@ -18,7 +18,7 @@ import type {
 } from '@nless/shared/features/notifications/types';
 import { formatDateTime, useApiMutation, useApiQuery, useRealtime, useSession } from '../../core';
 
-import { notificationsRead } from './events';
+import { notificationsChanged } from './events';
 
 const icons = {
   'chat.handoff': ChatBubbleOutlineOutlined,
@@ -57,15 +57,19 @@ function Bell({ userId }: { userId: string }) {
   const reloadFeed = feed.reload;
 
   useEffect(() => {
+    const refresh = () => {
+      reloadUnread();
+      if (anchor) reloadFeed();
+    };
     const timer = window.setInterval(reloadUnread, 120000);
     window.addEventListener('focus', reloadUnread);
-    window.addEventListener(notificationsRead, reloadUnread);
+    window.addEventListener(notificationsChanged, refresh);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener('focus', reloadUnread);
-      window.removeEventListener(notificationsRead, reloadUnread);
+      window.removeEventListener(notificationsChanged, refresh);
     };
-  }, [reloadUnread]);
+  }, [anchor, reloadFeed, reloadUnread]);
 
   useRealtime('notification.created', (event) => {
     if (event.userId === userId) {
@@ -79,8 +83,7 @@ function Bell({ userId }: { userId: string }) {
 
   async function mark(input: MarkReadInput) {
     await read.run(input);
-    reloadUnread();
-    reloadFeed();
+    window.dispatchEvent(new Event(notificationsChanged));
   }
 
   async function openItem(item: NotificationItem) {

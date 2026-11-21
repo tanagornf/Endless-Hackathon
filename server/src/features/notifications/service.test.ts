@@ -1,11 +1,11 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import { notify } from './service';
 
-const { query, publish } = vi.hoisted(() => ({ query: vi.fn(), publish: vi.fn() }));
+const { query, publish, logError } = vi.hoisted(() => ({ query: vi.fn(), publish: vi.fn(), logError: vi.fn() }));
 vi.mock('../../core', () => ({
   db: { query },
   publish,
-  log: { warn: vi.fn(), error: vi.fn() },
+  log: { warn: vi.fn(), error: logError },
   AppError: class extends Error {
     constructor(public readonly code: string, message?: string) { super(message); }
   },
@@ -22,7 +22,7 @@ const input = {
   link: '/chat?c=synthetic', dedupKey: 'handoff:synthetic:v2',
 } as const;
 
-beforeEach(() => { query.mockReset(); publish.mockReset(); });
+beforeEach(() => { query.mockReset(); publish.mockReset(); logError.mockReset(); });
 
 test('publishes only new notification rows to eligible shop recipients across retries', async () => {
   const members = [
@@ -44,7 +44,7 @@ test('publishes only new notification rows to eligible shop recipients across re
   expect(await notify(event)).toEqual({ notificationIds: [notificationId], mode: 'real' });
   expect(await notify(event)).toEqual({ notificationIds: [], mode: 'real' });
   expect(publish).toHaveBeenCalledExactlyOnceWith(businessId, {
-    type: 'notification.created', userId: staffId, notificationId, title: 'Staff requested',
+    type: 'notification.created', userId: staffId, notificationId, title: 'Endless',
   }, { userIds: [staffId] });
 });
 
@@ -54,7 +54,23 @@ test.each(['https://evil.example', '//evil.example', '/\\evil.example'])('reject
 });
 
 test('does not fail the producer when storage is down', async () => {
-  query.mockRejectedValue(new Error('storage unavailable'));
+  query.mockResolvedValueOnce({ rows: [{ userId: staffId, role: 'owner', permissions: [] }] });
+  query.mockRejectedValueOnce(new Error('storage unavailable'));
   expect(await notify({ ...input, to: { role: 'owners' } })).toEqual({ notificationIds: [], mode: 'real' });
+  expect(publish).not.toHaveBeenCalled();
+});
+
+
+test.each([
+  [{ role: 'owners' }, true, null],
+  [{ permission: 'chat.takeover' }, false, 'chat.takeover'],
+] as const)('carries the original selector into the durable write for %j', async (to, ownersOnly, permission) => {
+  query.mockResolvedValueOnce({ rows: [{ userId: staffId, role: 'owner', permissions: [] }] });
+  query.mockResolvedValueOnce({ rows: [] });
+  await notify({ ...input, to });
+  const [sql, args] = query.mock.lastCall!;
+  expect(sql).toContain("NOT $9::boolean OR m.role = 'owner'");
+  expect(sql).toContain('$10 = ANY(m.permissions)');
+  expect(args.slice(8)).toEqual([ownersOnly, permission]);
   expect(publish).not.toHaveBeenCalled();
 });

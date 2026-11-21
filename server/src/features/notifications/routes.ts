@@ -1,7 +1,8 @@
 import { AppError, assertRateLimit, defineFeatureRoutes, isFeatureHidden } from '../../core';
 import type { RouteContext } from '../../core';
 import { markRead, notificationFeed, unreadCount } from './repo';
-import { FeedQuery, ReadBody } from './schemas';
+import { listPreferences, savePreferences } from './preferences';
+import { FeedQuery, PreferencesBody, ReadBody } from './schemas';
 import { notify } from './service';
 
 const path = '/businesses/:businessId/notifications';
@@ -14,6 +15,10 @@ export default defineFeatureRoutes({
   featureId: 'F31',
   slug: 'notifications',
   register(api) {
+    api.get('/notification-preferences', { auth: 'user', summary: 'List my notification preferences' },
+      async (ctx) => ({ items: await listPreferences(ctx.user!.id) }));
+    api.put('/notification-preferences', { auth: 'user', body: PreferencesBody, summary: 'Update my notification preferences' },
+      async (ctx) => ({ items: await savePreferences(ctx.user!.id, ctx.body.items) }));
     api.get(path, { auth: 'business', query: FeedQuery, summary: 'List my notifications' },
       async (ctx) => notificationFeed(recipient(ctx), ctx.query));
     api.get(path + '/unread-count', { auth: 'business', summary: 'Count my unread notifications' },

@@ -52,3 +52,15 @@ export function readCursor(cursor: string | undefined): z.infer<typeof FeedCurso
   }
   throw new AppError('VALIDATION_ERROR', 'Invalid notification cursor');
 }
+
+const PreferenceInput = z.strictObject({ type: NotificationType, inApp: z.boolean(), push: z.boolean() });
+export const PreferencesBody = z.strictObject({
+  items: z.array(PreferenceInput).min(1).max(NOTIFICATION_TYPES.length),
+}).superRefine(({ items }, ctx) => {
+  if (new Set(items.map(({ type }) => type)).size !== items.length) {
+    ctx.addIssue({ code: 'custom', path: ['items'], message: 'A notification type can only be set once' });
+  }
+  if (items.some(({ type, inApp }) => type === 'system' && !inApp)) {
+    ctx.addIssue({ code: 'custom', path: ['items'], message: 'System notifications must remain in the app' });
+  }
+});

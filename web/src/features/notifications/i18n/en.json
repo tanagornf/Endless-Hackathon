@@ -55,7 +55,14 @@
   "settings": {
     "sendTest": "Send myself a test notification",
     "testSent": "Test notification sent",
-    "testFailed": "Could not create a test notification"
+    "testFailed": "Could not create a test notification",
+    "title": "Notification types",
+    "inApp": "In app",
+    "push": "Device push",
+    "inAppType": "Show {{type}} in the app",
+    "pushType": "Send {{type}} to devices",
+    "saved": "Notification preferences saved",
+    "error": "Could not load notification preferences"
   },
   "common": {
     "retry": "Retry"

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Button, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -6,7 +6,8 @@ import type { MarkReadInput, NotificationFeed, NotificationItem } from '@nless/s
 import {
   DataTable, EmptyState, PageHeader, StatusChip, formatDateTime, useApiMutation, useApiQuery, useToast,
 } from '../../core';
-import { notificationsRead } from './events';
+import { notificationsChanged } from './events';
+import NotificationPreferences from './NotificationPreferences';
 
 function NotificationsList({ unreadOnly }: { unreadOnly: boolean }) {
   const { t } = useTranslation('notifications');
@@ -20,12 +21,20 @@ function NotificationsList({ unreadOnly }: { unreadOnly: boolean }) {
   const read = useApiMutation<MarkReadInput, { updated: number }>('POST', '/notifications/read');
   const items = [...new Map([...previous, ...(feed.data?.items ?? [])].map((item) => [item.id, item])).values()];
 
+  const reloadFeed = feed.reload;
+  useEffect(() => {
+    const refresh = () => {
+      setPrevious([]);
+      if (cursor) setCursor(null);
+      else reloadFeed();
+    };
+    window.addEventListener(notificationsChanged, refresh);
+    return () => window.removeEventListener(notificationsChanged, refresh);
+  }, [cursor, reloadFeed]);
+
   async function mark(input: MarkReadInput) {
     await read.run(input);
-    window.dispatchEvent(new Event(notificationsRead));
-    setPrevious([]);
-    if (cursor) setCursor(null);
-    else feed.reload();
+    window.dispatchEvent(new Event(notificationsChanged));
   }
 
   async function openItem(item: NotificationItem) {
@@ -61,14 +70,14 @@ function NotificationsList({ unreadOnly }: { unreadOnly: boolean }) {
 export default function NotificationsPage() {
   const { t } = useTranslation('notifications');
   const { success, error } = useToast();
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [tab, setTab] = useState('all');
   const test = useApiMutation<Record<string, never>, { notificationId: string | null }>('POST', '/notifications/test');
 
   async function sendTest() {
     const reply = await test.run({});
     if (reply.notificationId) {
       success(t('settings.testSent'));
-      window.dispatchEvent(new Event(notificationsRead));
+      window.dispatchEvent(new Event(notificationsChanged));
     } else {
       error(t('settings.testFailed'));
     }
@@ -77,11 +86,12 @@ export default function NotificationsPage() {
   return <>
     <PageHeader title={t('page.title')} actions={<Button variant="outlined" disabled={test.running}
       onClick={() => { void sendTest().catch(() => undefined); }}>{t('settings.sendTest')}</Button>} />
-    <Tabs value={unreadOnly ? 'unread' : 'all'} onChange={(_event, value: string) => setUnreadOnly(value === 'unread')}
+    <Tabs value={tab} onChange={(_event, value: string) => setTab(value)}
       aria-label={t('page.title')}>
       <Tab value="all" label={t('tabs.all')} />
       <Tab value="unread" label={t('tabs.unread')} />
+      <Tab value="settings" label={t('tabs.settings')} />
     </Tabs>
-    <NotificationsList key={Number(unreadOnly)} unreadOnly={unreadOnly} />
+    {tab === 'settings' ? <NotificationPreferences /> : <NotificationsList key={tab} unreadOnly={tab === 'unread'} />}
   </>;
 }

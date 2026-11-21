@@ -1,0 +1,471 @@
+{
+  "sourceSha256": "7d49a31f963cf4338e9f9b97a2f7eb3e7259aa5d83f1ed33ef5aea3f846b306b",
+  "memberships": [
+    {
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "userId": "00000002-0000-4000-8000-000000000001",
+      "role": "owner",
+      "membershipStatus": "active",
+      "userStatus": "active",
+      "staffPermissions": [],
+      "devicePushEnabled": true
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "userId": "00000002-0000-4000-8000-000000000002",
+      "role": "owner",
+      "membershipStatus": "active",
+      "userStatus": "active",
+      "staffPermissions": [],
+      "devicePushEnabled": true
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "userId": "00000002-0000-4000-8000-000000000004",
+      "role": "owner",
+      "membershipStatus": "active",
+      "userStatus": "active",
+      "staffPermissions": [],
+      "devicePushEnabled": true
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "userId": "00000002-0000-4000-8000-000000000005",
+      "role": "owner",
+      "membershipStatus": "active",
+      "userStatus": "active",
+      "staffPermissions": [],
+      "devicePushEnabled": false
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "userId": "00000002-0000-4000-8000-000000000006",
+      "role": "owner",
+      "membershipStatus": "revoked",
+      "userStatus": "active",
+      "staffPermissions": [],
+      "devicePushEnabled": true
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "userId": "00000002-0000-4000-8000-000000000003",
+      "role": "staff",
+      "membershipStatus": "active",
+      "userStatus": "active",
+      "staffPermissions": [
+        "chat.read",
+        "chat.takeover"
+      ],
+      "devicePushEnabled": true
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "userId": "00000002-0000-4000-8000-000000000007",
+      "role": "staff",
+      "membershipStatus": "active",
+      "userStatus": "active",
+      "staffPermissions": [
+        "chat.read"
+      ],
+      "devicePushEnabled": true
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "userId": "00000002-0000-4000-8000-000000000008",
+      "role": "owner",
+      "membershipStatus": "active",
+      "userStatus": "active",
+      "staffPermissions": [],
+      "devicePushEnabled": true
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "userId": "00000002-0000-4000-8000-000000000004",
+      "role": "owner",
+      "membershipStatus": "active",
+      "userStatus": "active",
+      "staffPermissions": [],
+      "devicePushEnabled": true
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "userId": "00000002-0000-4000-8000-000000000002",
+      "role": "staff",
+      "membershipStatus": "active",
+      "userStatus": "active",
+      "staffPermissions": [
+        "chat.read"
+      ],
+      "devicePushEnabled": true
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "userId": "00000002-0000-4000-8000-000000000009",
+      "role": "staff",
+      "membershipStatus": "active",
+      "userStatus": "active",
+      "staffPermissions": [
+        "chat.read",
+        "chat.takeover"
+      ],
+      "devicePushEnabled": true
+    },
+    {
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "userId": "00000002-0000-4000-8000-000000000010",
+      "role": "owner",
+      "membershipStatus": "active",
+      "userStatus": "disabled",
+      "staffPermissions": [],
+      "devicePushEnabled": true
+    }
+  ],
+  "cases": [
+    {
+      "id": "T01",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "offer_staff_once",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T02",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "offer_staff_once",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T03",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "ask_owner",
+      "receipt": {
+        "notificationType": "system",
+        "selector": "owners",
+        "key": "consult:00000001-0000-4000-8000-000000000001:00000015-0000-4000-8000-000000000007:needs-owner:initial",
+        "link": "/bot-settings?consult=00000015-0000-4000-8000-000000000007"
+      },
+      "replayKey": null,
+      "bellUserIds": [
+        "00000002-0000-4000-8000-000000000001",
+        "00000002-0000-4000-8000-000000000002",
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000005"
+      ],
+      "pushUserIds": [
+        "00000002-0000-4000-8000-000000000001",
+        "00000002-0000-4000-8000-000000000002",
+        "00000002-0000-4000-8000-000000000004"
+      ]
+    },
+    {
+      "id": "T04",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "ask_customer",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T05",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "notify_existing_confirmed_f11_receipt",
+      "receipt": {
+        "notificationType": "chat.handoff",
+        "selector": "chat.takeover",
+        "key": "handoff:0000000c-0000-4000-8000-000000000005:v4",
+        "link": "/chat?c=0000000c-0000-4000-8000-000000000005"
+      },
+      "replayKey": null,
+      "bellUserIds": [
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000008",
+        "00000002-0000-4000-8000-000000000009"
+      ],
+      "pushUserIds": [
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000008",
+        "00000002-0000-4000-8000-000000000009"
+      ]
+    },
+    {
+      "id": "T06",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "answer_faq",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T07",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "suppress_duplicate",
+      "receipt": null,
+      "replayKey": "consult:00000001-0000-4000-8000-000000000001:00000015-0000-4000-8000-000000000007:needs-owner:initial",
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T08",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "suppress_resolved",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T09",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "staff_already_holds",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T10",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "ask_owner",
+      "receipt": {
+        "notificationType": "system",
+        "selector": "owners",
+        "key": "consult:00000001-0000-4000-8000-000000000002:00000016-0000-4000-8000-000000000007:needs-owner:initial",
+        "link": "/bot-settings?consult=00000016-0000-4000-8000-000000000007"
+      },
+      "replayKey": null,
+      "bellUserIds": [
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000008"
+      ],
+      "pushUserIds": [
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000008"
+      ]
+    },
+    {
+      "id": "T11",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "answer_faq",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T12",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "ask_owner_case_exception",
+      "receipt": {
+        "notificationType": "system",
+        "selector": "owners",
+        "key": "consult:00000001-0000-4000-8000-000000000001:00000015-0000-4000-8000-000000000012:needs-owner:initial",
+        "link": "/bot-settings?consult=00000015-0000-4000-8000-000000000012"
+      },
+      "replayKey": null,
+      "bellUserIds": [
+        "00000002-0000-4000-8000-000000000001",
+        "00000002-0000-4000-8000-000000000002",
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000005"
+      ],
+      "pushUserIds": [
+        "00000002-0000-4000-8000-000000000001",
+        "00000002-0000-4000-8000-000000000002",
+        "00000002-0000-4000-8000-000000000004"
+      ]
+    },
+    {
+      "id": "T13",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "retry_retrieval",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T14",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "suppress_stale",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T15",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "commit_confirmed_f11_and_notify_once",
+      "receipt": {
+        "notificationType": "chat.handoff",
+        "selector": "chat.takeover",
+        "key": "handoff:0000000b-0000-4000-8000-000000000001:v4",
+        "link": "/chat?c=0000000b-0000-4000-8000-000000000001"
+      },
+      "replayKey": null,
+      "bellUserIds": [
+        "00000002-0000-4000-8000-000000000001",
+        "00000002-0000-4000-8000-000000000002",
+        "00000002-0000-4000-8000-000000000003",
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000005"
+      ],
+      "pushUserIds": [
+        "00000002-0000-4000-8000-000000000001",
+        "00000002-0000-4000-8000-000000000002",
+        "00000002-0000-4000-8000-000000000003",
+        "00000002-0000-4000-8000-000000000004"
+      ]
+    },
+    {
+      "id": "T16",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "commit_confirmed_f11_and_notify_once",
+      "receipt": {
+        "notificationType": "chat.handoff",
+        "selector": "chat.takeover",
+        "key": "handoff:0000000c-0000-4000-8000-000000000002:v4",
+        "link": "/chat?c=0000000c-0000-4000-8000-000000000002"
+      },
+      "replayKey": null,
+      "bellUserIds": [
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000008",
+        "00000002-0000-4000-8000-000000000009"
+      ],
+      "pushUserIds": [
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000008",
+        "00000002-0000-4000-8000-000000000009"
+      ]
+    },
+    {
+      "id": "T17",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "continue_ai",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T18",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "expire_or_leave_offer_without_handoff",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T19",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "continue_current_topic",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T20",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "ignore_replayed_confirmation",
+      "receipt": null,
+      "replayKey": "handoff:0000000b-0000-4000-8000-000000000001:v4",
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T21",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "offer_f30_voice_invite",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T22",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "offer_staff_once",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T23",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "do_not_repeat_existing_choice",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T24",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "offer_staff_once",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T25",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "reject_mismatched_offer",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T26",
+      "businessId": "00000001-0000-4000-8000-000000000001",
+      "action": "reject_expired_offer",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T27",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "keep_existing_staff_task_no_customer_transfer",
+      "receipt": null,
+      "replayKey": null,
+      "bellUserIds": [],
+      "pushUserIds": []
+    },
+    {
+      "id": "T28",
+      "businessId": "00000001-0000-4000-8000-000000000002",
+      "action": "commit_confirmed_f11_and_notify_once",
+      "receipt": {
+        "notificationType": "chat.handoff",
+        "selector": "chat.takeover",
+        "key": "handoff:0000000c-0000-4000-8000-000000000002:v4",
+        "link": "/chat?c=0000000c-0000-4000-8000-000000000002"
+      },
+      "replayKey": null,
+      "bellUserIds": [
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000008",
+        "00000002-0000-4000-8000-000000000009"
+      ],
+      "pushUserIds": [
+        "00000002-0000-4000-8000-000000000004",
+        "00000002-0000-4000-8000-000000000008",
+        "00000002-0000-4000-8000-000000000009"
+      ]
+    }
+  ]
+}

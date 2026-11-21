@@ -1,1 +1,1 @@
-export const notificationsRead = 'endless:notifications-read';
+export const notificationsChanged = 'endless:notifications-changed';
