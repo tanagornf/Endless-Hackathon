@@ -32,10 +32,14 @@ it('persists only the separate generalized candidate after real F04 owner consen
     const draft = await createOwnerConsultKnowledgeDraft(input);
     if (reuse === 'case_only') {
       expect(draft).toBeNull();
+      expect(await createOwnerConsultKnowledgeDraft(input)).toBeNull();
       continue;
     }
     expect(draft).toMatchObject({ revision: 1, created: true });
     try {
+      expect(await createOwnerConsultKnowledgeDraft(input)).toMatchObject({
+        itemId: draft!.itemId, revision: 1, created: false,
+      });
       const item = await getKnowledgeItem(businessId, draft!.itemId);
       expect(item).toMatchObject({ status: 'draft', indexState: 'not_started', source: 'owner-consult', title, body });
       expect(JSON.stringify(item)).not.toContain(privateRationale);

@@ -5,6 +5,7 @@
 - The F05 owner-consultation draft service accepts generalized title and body after rechecking a same-shop F04 receipt with explicit reuse consent. Replayed receipts are idempotent. The stored provenance is separate from imports and web citations. Customer case text, private rationale and reviewed customer-specific copy stay in F04.
 - At `/knowledge/:itemId`, the Thai and English approval dialog pins the exact revision the owner reviewed. Only the authenticated shop owner can activate it, and F05 rechecks the consent before approval. The actor, revision and opaque receipt ID are audited with the status change. F07 indexes only after approval, without publishing a pending draft.
 - The isolated paired B1/ef2d2ce test tree `1cff9d9` passed 3/3 in 37.93 s with `MODEL_MODE=fake`, including the real F04 answer route and tenant-scoped F07 worker. Thai and English rendered UI and i18n passed 34/34. The paired typecheck passed. Production integration is pending.
+- Rebased on the actual F04 merge `c923867`, isolated PostgreSQL and the rendered Thai and English confirmation and i18n checks passed 37/37 in 43.65 s. Replaying the same real F04 `case_only` receipt created zero drafts. Replaying the same `propose_draft` receipt returned the one existing inactive, unindexed draft. Typecheck and path ownership passed. The C3 runtime worker and production smoke remain separate.
 
 ## Status
 
