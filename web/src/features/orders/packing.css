@@ -1,0 +1,7 @@
+.packing-print { display: none; }
+.packing-row { overflow-wrap: anywhere; }
+@media print {
+  body:has(> .packing-print) > :not(.packing-print) { display: none !important; }
+  body > .packing-print { display: block; color: black; font: 11pt/1.5 sans-serif; }
+  .packing-print .packing-row { break-inside: avoid; border-top: 1px solid #777; padding: 4mm 0; }
+}
