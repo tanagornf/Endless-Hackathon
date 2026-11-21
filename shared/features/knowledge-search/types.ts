@@ -75,10 +75,22 @@ export interface RetrievalMetrics extends RetrievalGroupMetrics {
 export interface RetrievalCaseResult {
   id: string; query: string; source: 'fixture' | 'saved'; group: RetrievalGroup;
   kind: 'positive' | 'none' | 'forbid'; pass: boolean; rank: number | null; topTitle: string | null; topScore: number | null;
+  strategy?: RetrievalStrategy;
 }
-export interface RetrievalRunSummary { id: string; createdAt: string; metrics: RetrievalMetrics; config: RetrievalConfig }
+export interface RetrievalCoverage {
+  fixtureCasesPlanned: number;
+  fixtureCasesEvaluated: number;
+  savedCasesEvaluated: number;
+  unresolvedForbiddenCases: number;
+}
+export interface RetrievalRunSummary {
+  id: string; createdAt: string; metrics: RetrievalMetrics; config: RetrievalConfig;
+  coverage: RetrievalCoverage | null;
+  strategyCounts: Record<RetrievalStrategy, number> | null;
+}
 export interface RetrievalRunResult extends RetrievalRunSummary {
   perCase: RetrievalCaseResult[]; previous: RetrievalMetrics | null;
+  comparison: 'first' | 'comparable' | 'different_scope' | 'unknown' | 'scope_changed';
 }
 export interface RetrievalCaseRow {
   id: string; query: string; expectItemIds: string[]; expectTitles: string[]; expectNone: boolean; createdAt: string;

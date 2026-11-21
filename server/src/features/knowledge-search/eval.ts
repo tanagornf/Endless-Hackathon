@@ -1,12 +1,14 @@
+import { createHash } from 'node:crypto';
 import { SEED } from '@nless/shared/core/fixtures';
 import type {
-  RetrievalCaseResult, RetrievalCaseRow, RetrievalConfig, RetrievalGroup, RetrievalGroupMetrics, RetrievalMetrics,
-  RetrievalRunResult, RetrievalRunSummary,
+  RetrievalCaseResult, RetrievalCaseRow, RetrievalConfig, RetrievalCoverage, RetrievalGroup, RetrievalGroupMetrics,
+  RetrievalMetrics, RetrievalRunResult, RetrievalRunSummary, RetrievalStrategy,
 } from '@nless/shared/features/knowledge-search/types';
 import type { KnowledgeItemRow } from '@nless/shared/features/knowledge/types';
 import { AppError, db } from '../../core';
+import { getActiveKnowledgeItemIds } from '../knowledge/service';
 import type { EvalRunBody } from './schema';
-import { searchWorkbench } from './search';
+import { retrievalSettings, searchWorkbench } from './search';
 import { mixedQuery, scriptOf } from './text';
 import { listBusinessKnowledge } from './workbench';
 import fixture from './fixtures/retrieval-v1.json';
@@ -17,17 +19,36 @@ type FixtureQuery = {
   lang?: string; none?: boolean; forbid?: string[];
 };
 type SavedRow = { id: string; query: string; expect_item_ids: string[]; expect_none: boolean; created_at: Date };
-type RunRow = { id: string; config: RetrievalConfig; metrics: RetrievalMetrics; created_at: Date };
+type EvaluationMetadata = {
+  coverage: RetrievalCoverage;
+  strategyCounts: Record<RetrievalStrategy, number>;
+  comparisonKey: string | null;
+};
+type StoredConfig = RetrievalConfig & { evaluation?: EvaluationMetadata };
+type RunRow = { id: string; config: StoredConfig; metrics: RetrievalMetrics; created_at: Date };
 const seedItems = new Map(SEED.knowledge.map((item) => [item.alias, item.id]));
 const fixtureCases: { query: FixtureQuery; group: RetrievalGroup }[] = [
   ...fixture.queries.map((query) => ({ query, group: 'lang' in query && query.lang === 'en' ? 'en' as const : 'th' as const })),
   ...fixture.xlangQueries.map((query) => ({ query, group: 'xlang' as const })),
 ];
 
-function sampleCases(businessId: string, items: KnowledgeItemRow[]): Case[] {
+export function resolveFixtureExpectation(query: FixtureQuery, ids: Map<string, string>, available: Set<string>) {
+  if (query.none) return { kind: 'none' as const, itemIds: [] };
+  if (query.forbid) {
+    const itemIds = query.forbid.flatMap((key) => ids.has(key) ? [ids.get(key)!] : []);
+    return itemIds.length === query.forbid.length && itemIds.length
+      ? { kind: 'forbid' as const, itemIds } : null;
+  }
+  const itemIds = query.expect.flatMap((key) => ids.has(key) && available.has(ids.get(key)!) ? [ids.get(key)!] : []);
+  return itemIds.length ? { kind: 'positive' as const, itemIds } : null;
+}
+
+function sampleCases(businessId: string, items: KnowledgeItemRow[]): {
+  cases: Case[]; planned: number; unresolvedForbiddenCases: number;
+} {
   const business = SEED.businesses.find((entry) => entry.id === businessId)?.alias;
   const shop = business === 'biz_demo_a' ? 'A' : business === 'biz_demo_b' ? 'B' : null;
-  if (!shop) return [];
+  if (!shop) return { cases: [], planned: 0, unresolvedForbiddenCases: 0 };
   const available = new Set(items.filter((item) => item.status === 'active' && item.indexState === 'ready').map((item) => item.id));
   const names = new Map(items.filter((item) => item.source === 'fixture' && available.has(item.id))
     .map((item) => [item.title, item.id]));
@@ -37,20 +58,15 @@ function sampleCases(businessId: string, items: KnowledgeItemRow[]): Case[] {
     const match = names.get(item.title);
     if (match) ids.set(item.key, match);
   }
-  const result: Case[] = [];
-  for (const { query, group } of fixtureCases) {
-    if (query.business !== shop) continue;
-    const base = { id: query.id, query: query.text, source: 'fixture' as const, group };
-    if (query.none) {
-      result.push({ ...base, kind: 'none', itemIds: [] });
-    } else if (query.forbid) {
-      result.push({ ...base, kind: 'forbid', itemIds: query.forbid.flatMap((key) => ids.has(key) ? [ids.get(key)!] : []) });
-    } else {
-      const itemIds = query.expect.flatMap((key) => ids.has(key) && available.has(ids.get(key)!) ? [ids.get(key)!] : []);
-      if (itemIds.length) result.push({ ...base, kind: 'positive', itemIds });
-    }
+  const availableCases = fixtureCases.filter(({ query }) => query.business === shop);
+  const cases: Case[] = [];
+  let unresolvedForbiddenCases = 0;
+  for (const { query, group } of availableCases) {
+    const expectation = resolveFixtureExpectation(query, ids, available);
+    if (expectation) cases.push({ id: query.id, query: query.text, source: 'fixture', group, ...expectation });
+    else if (query.forbid) unresolvedForbiddenCases++;
   }
-  return result;
+  return { cases, planned: availableCases.length, unresolvedForbiddenCases };
 }
 
 async function savedRows(businessId: string): Promise<SavedRow[]> {
@@ -104,8 +120,34 @@ export function computeRetrievalMetrics(rows: RetrievalCaseResult[]): RetrievalM
   };
 }
 
-const viewRun = ({ id, config, metrics, created_at }: RunRow): RetrievalRunSummary =>
-  ({ id, config, metrics, createdAt: created_at.toISOString() });
+function viewRun({ id, config: stored, metrics, created_at }: RunRow): RetrievalRunSummary {
+  const { evaluation, ...config } = stored;
+  return {
+    id, config, metrics, createdAt: created_at.toISOString(),
+    coverage: evaluation?.coverage ?? null, strategyCounts: evaluation?.strategyCounts ?? null,
+  };
+}
+
+async function publishedCorpus(businessId: string) {
+  return db.tx(async (tx) => {
+    const { rows } = await tx.query<{
+      item_id: string; revision: number; embed_model: string; embed_dim: number; chunks: number; vectors: number;
+    }>(
+      `SELECT item_id,revision,embed_model,embed_dim,count(*)::int AS chunks,count(embedding)::int AS vectors
+      FROM knowledge_chunks WHERE business_id=$1 AND searchable GROUP BY item_id,revision,embed_model,embed_dim
+      ORDER BY item_id,revision,embed_model,embed_dim`, [businessId],
+    );
+    const activeIds = await getActiveKnowledgeItemIds(businessId, [...new Set(rows.map((row) => row.item_id))], tx);
+    return JSON.stringify(rows.filter((row) => activeIds.has(row.item_id)));
+  });
+}
+
+function measurementKey(cases: Case[], corpus: string, coverage: RetrievalCoverage): string {
+  const requests = [...cases].sort((left, right) => left.id.localeCompare(right.id)).map((entry) => ({
+    ...entry, itemIds: [...entry.itemIds].sort(),
+  }));
+  return createHash('sha256').update(JSON.stringify([fixture.version, coverage, requests, corpus])).digest('hex');
+}
 
 export async function listRetrievalRuns(businessId: string, limit: number): Promise<{ items: RetrievalRunSummary[] }> {
   const { rows } = await db.query<RunRow>(
@@ -118,16 +160,25 @@ export async function listRetrievalRuns(businessId: string, limit: number): Prom
 export async function runRetrievalEvaluation(businessId: string, userId: string, body: EvalRunBody): Promise<RetrievalRunResult> {
   const items = await listBusinessKnowledge(businessId);
   const byId = new Map(items.map((item) => [item.id, item]));
-  const cases = body.includeFixture ? sampleCases(businessId, items) : [];
+  const sample = body.includeFixture ? sampleCases(businessId, items) : { cases: [], planned: 0, unresolvedForbiddenCases: 0 };
+  const coverage: RetrievalCoverage = {
+    fixtureCasesPlanned: sample.planned, fixtureCasesEvaluated: sample.cases.length,
+    savedCasesEvaluated: 0, unresolvedForbiddenCases: sample.unresolvedForbiddenCases,
+  };
+  const cases = [...sample.cases];
   if (body.includeSaved) {
-    for (const row of await savedRows(businessId)) cases.push({
+    const rows = await savedRows(businessId);
+    coverage.savedCasesEvaluated = rows.length;
+    for (const row of rows) cases.push({
       id: row.id, query: row.query, source: 'saved', kind: row.expect_none ? 'none' : 'positive',
       group: savedGroup(row.query, row.expect_item_ids, byId), itemIds: row.expect_item_ids,
     });
   }
   if (!cases.length) throw new AppError('VALIDATION_ERROR', 'No retrieval cases available', { details: { code: 'no_eval_cases' } });
   const perCase: RetrievalCaseResult[] = [];
-  let config: RetrievalConfig | undefined;
+  const before = await publishedCorpus(businessId);
+  const strategies = new Map<RetrievalStrategy, RetrievalConfig>();
+  const strategyCounts = { lexical: 0, vector: 0, hybrid: 0 };
   for (let offset = 0; offset < cases.length; offset += 4) {
     const results = await Promise.all(cases.slice(offset, offset + 4).map(async ({ itemIds, ...entry }) => {
       const search = await searchWorkbench(businessId, entry.query, { ...body, topK: 5 });
@@ -135,23 +186,36 @@ export async function runRetrievalEvaluation(businessId: string, userId: string,
       const rank = entry.kind === 'positive' && found >= 0 ? found + 1 : null;
       const pass = entry.kind === 'positive' ? rank !== null : entry.kind === 'none' ? search.hits.length === 0 : found < 0;
       return { config: search.config, result: {
-        ...entry, pass, rank, topTitle: search.hits[0]?.title ?? null, topScore: search.hits[0]?.score ?? null,
+        ...entry, pass, rank, strategy: search.strategy,
+        topTitle: search.hits[0]?.title ?? null, topScore: search.hits[0]?.score ?? null,
       } };
     }));
-    config ??= results[0].config;
-    for (const { result } of results) perCase.push(result);
+    for (const { config, result } of results) {
+      strategies.set(config.strategy, config);
+      strategyCounts[config.strategy]++;
+      perCase.push(result);
+    }
   }
+  const after = await publishedCorpus(businessId);
+  const comparisonKey = before === after ? measurementKey(cases, before, coverage) : null;
+  const actual = strategies.size === 1 ? strategies.values().next().value : undefined;
+  const config: StoredConfig = {
+    ...(actual ?? retrievalSettings(body.strategy, body)), evaluation: { coverage, strategyCounts, comparisonKey },
+  };
   const metrics = computeRetrievalMetrics(perCase);
   return db.tx(async (tx) => {
     await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', ['retrieval-run:' + businessId]);
-    const previous = await tx.maybeOne<{ metrics: RetrievalMetrics }>(
-      'SELECT metrics FROM retrieval_runs WHERE business_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1', [businessId],
+    const previous = await tx.maybeOne<{ metrics: RetrievalMetrics; config: StoredConfig }>(
+      'SELECT metrics,config FROM retrieval_runs WHERE business_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1', [businessId],
     );
+    const previousKey = previous?.config.evaluation?.comparisonKey;
+    const comparison = !comparisonKey ? 'scope_changed' : !previous ? 'first' : !previousKey ? 'unknown'
+      : comparisonKey === previousKey ? 'comparable' : 'different_scope';
     const row = await tx.one<RunRow>(
       `INSERT INTO retrieval_runs (business_id,config,metrics,per_case,created_by)
       VALUES ($1,$2::jsonb,$3::jsonb,$4::jsonb,$5) RETURNING id,config,metrics,created_at`,
       [businessId, JSON.stringify(config), JSON.stringify(metrics), JSON.stringify(perCase), userId],
     );
-    return { ...viewRun(row), perCase, previous: previous?.metrics ?? null };
+    return { ...viewRun(row), perCase, comparison, previous: comparison === 'comparable' ? previous!.metrics : null };
   });
 }
