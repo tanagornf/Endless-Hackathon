@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { db, drainJobs } from '../../core';
 import { createTestAgent, loginAs } from '../../core/test-utils';
 import { saveMessage } from '../inbox/service';
-import { completeDeliveryBatch, findDeliveryBatch, reserveReplyBatch } from './repo';
+import { completeDeliveryBatch, findDeliveryBatch, reservePushBatch, reserveReplyBatch } from './repo';
 
 test('LINE routes isolate connection credentials and accept one signed event across concurrent redelivery', async () => {
   const a = SEED.businesses.find((shop) => shop.alias === 'biz_demo_a')!.id;
@@ -88,6 +88,10 @@ test('LINE routes isolate connection credentials and accept one signed event acr
     expect(await findDeliveryBatch(key)).toMatchObject({ state: 'accepted', sent_ids: ['fixture-reply'] });
 
     const pushed = { ...key, index: 1, retryKey: randomUUID() };
+    const reserved = await reservePushBatch(pushed);
+    expect(reserved).toMatchObject({ retry_key: pushed.retryKey });
+    expect(await reservePushBatch({ ...pushed, retryKey: randomUUID() })).toEqual(reserved);
+    expect(await findDeliveryBatch(pushed)).toMatchObject({ state: 'pending' });
     const stats = await db.one<{ calls: number }>('SELECT COALESCE(sum(push_calls), 0)::int AS calls FROM line_push_usage WHERE business_id = $1', [a]);
     const pushResult = { state: 'accepted' as const, sent_ids: ['fixture-push'], request_id: null };
     await completeDeliveryBatch(pushed, 'push', pushResult, 1);
