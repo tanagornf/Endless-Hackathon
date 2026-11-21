@@ -48,3 +48,15 @@ export interface OrderMetrics {
   /** Sum of total_minor of those paid orders, in satang. */
   revenueMinor: number;
 }
+
+export interface OrderSettingsView {
+  businessId: string;
+  enabled: boolean;
+  shippingKind: 'flat' | 'threshold';
+  shippingFeeMinor: number;
+  freeFromSubtotalMinor: number | null;
+  pickupEnabled: boolean;
+  proposalTtlMinutes: number;
+  orderExpiryDays: number;
+  version: number;
+}

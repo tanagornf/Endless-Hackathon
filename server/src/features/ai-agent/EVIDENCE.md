@@ -50,6 +50,10 @@ In the earlier production gate, the unknown explicit SKU received the previous k
 
 The subsequent deployed check confirmed the unknown SKU declined without a price. F10 now selects the required reply language from the latest decisive buyer message. A neutral input uses the nearest decisive message. Older unanswered questions stay in model context. [Production visitor evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059123386)
 
+## P1 product photos
+
+The reply uses the current catalog quote to find the exact product in the same shop. It saves the photo reference with the guarded reply and reuses both on delivery retry. The isolated media suite passed two cases covering two shops with the same SKU, exact variant matching and a missing or unreadable upload. The enqueue replay case checks the persisted parts as well as the delivery message ID. LINE OA and public Demo Chat verification are pending.
+
 ## S2 OpenAI development acceptance
 
 B2 used `generateReply` with synthetic web conversations and indexed demo knowledge on commit `2f3cca0`. The nine cases passed with `gpt-6.2-sol`. The measurements are F10 generation data and exclude channel delivery and F07 embedding costs. The English return-policy check used the bilingual seed. The controlled G16 test separately covered a Thai-only excerpt.
