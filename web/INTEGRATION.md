@@ -10,7 +10,7 @@ From the repository root, install the pinned dependencies with `npm ci`, then ru
 node node_modules/vite/bin/vite.js --config web/preview.config.ts
 ```
 
-Open [the shop workspace](http://127.0.0.1:5189/?view=workspace). The preview binds to loopback, provides a synthetic signed-in shop for navigation, and returns a service-unavailable response for feature requests. It needs no database, secrets or provider account. Stop it with Ctrl+C. The normal web build uses `web/vite.config.ts` and the actual session, API and feature flags.
+Open [the shop workspace](http://127.0.0.1:5189/?view=workspace). The preview binds to loopback and serves fictional shop data for the navigation pages. Open a row in [Knowledge](http://127.0.0.1:5189/knowledge) to read its article, or select Mali in [Chat](http://127.0.0.1:5189/chat) to inspect a two-message conversation. Unmocked requests return a service-unavailable response. The preview needs no database, secrets or provider account. Stop it with Ctrl+C. The normal web build uses `web/vite.config.ts` and the actual session, API and feature flags.
 
 ## Connect a feature
 
