@@ -24,11 +24,8 @@ jobs:
       DATABASE_URL: postgres://postgres:release-check@localhost:5432/nless_hack_c1
       TEST_DATABASE_URL: postgres://postgres:release-check@localhost:5432/nless_hack_c1_test
       APP_BASE_URL: http://127.0.0.1:3000
-      NODE_ENV: production
       PORT: '3000'
       UPLOAD_DIR: ./var/release-uploads
-      RUN_WORKER: '1'
-      RUN_SCHEDULER: '1'
       BUILD_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
@@ -41,13 +38,25 @@ jobs:
       - run: npm ci --include=dev --no-audit --no-fund
       - name: Generate isolated test configuration
         run: |
-          printf 'SESSION_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-          printf 'TOKEN_ENCRYPTION_KEY=%s\n' "$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          session="$(openssl rand -hex 32)"
+          encryption="$(openssl rand -base64 32)"
+          printf '::add-mask::%s\n' "$session" "$encryption"
+          printf 'SESSION_SECRET=%s\n' "$session" >> "$GITHUB_ENV"
+          printf 'TOKEN_ENCRYPTION_KEY=%s\n' "$encryption" >> "$GITHUB_ENV"
       - run: npm run db:create && npm run db:migrate && npm run db:seed -- --demo
-      - run: npm test
+      - name: Run the fake test suite
+        env:
+          NODE_ENV: test
+          DEV_LOGIN: '1'
+        run: npm test
       - run: npm run build
       - run: npm run release:status:check
       - name: Start compiled release and check identity and readiness
+        env:
+          NODE_ENV: production
+          DEV_LOGIN: '0'
+          RUN_WORKER: '1'
+          RUN_SCHEDULER: '1'
         run: |
           node --import tsx server/src/core/server.ts > /tmp/nless-release-check.log 2>&1 &
           pid=$!
