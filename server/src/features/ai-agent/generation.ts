@@ -264,7 +264,7 @@ export async function generateDraft(
     }
     if (!context.prices.length && context.tools.some(({ name, error, prefetch }) =>
       name === 'get_price' && error === 'NOT_FOUND' &&
-      (prefetch ? context.catalogRequest.skus.length > 0 : !context.knowledge.length),
+      (prefetch ? draftContext.catalogRequest.skus.length > 0 : !draftContext.knowledge.length),
     )) {
       text = fallbacks.product_not_found[language];
     }

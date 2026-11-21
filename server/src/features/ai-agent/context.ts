@@ -77,7 +77,7 @@ export function unansweredCustomerMessages(history: readonly MessageRecord[], in
 }
 
 function catalogText(text: string): string {
-  return arabicDigits(text).normalize('NFKC').replaceAll('’', "'").trim().toLowerCase();
+  return arabicDigits(text).normalize('NFKC').replaceAll('’', "'").replace(/\s+/gu, ' ').trim().toLowerCase();
 }
 
 function catalogSkus(text: string): string[] {

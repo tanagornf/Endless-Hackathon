@@ -1031,11 +1031,11 @@ describe('F10 catalog reference scope', { timeout: 20_000 }, () => {
   it('keeps totals for two explicitly requested products, using an SKU and a name', async () => {
     scriptedModel(
       { toolCalls: [call('current-total', 'calculate_total', {
-        items: [priceArguments('A-GAME-01', null, 1), priceArguments(null, 'Demo Cards set', 1)],
+        items: [priceArguments('A-GAME-01', null, 1), priceArguments(null, 'Demo Cards card set', 1)],
       })] },
       { text: 'The total is 1,589 baht.' },
     );
-    const inbound = await incoming('How much in total for A-GAME-01 and Demo Cards set?');
+    const inbound = await incoming('How much in total for A-GAME-01 and Demo   Cards card set?');
     await execute(inbound);
     expect((await replies(inbound.conversation.id))[0].text).toContain('1,589 baht');
     expect(await trace(inbound.message.id)).toMatchObject({
