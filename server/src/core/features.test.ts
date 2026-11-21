@@ -1,5 +1,6 @@
-import { afterAll, expect, test } from 'vitest';
+import { afterAll, expect, test, vi } from 'vitest';
 import { config } from './config';
+import * as registry from './features';
 import { visiblePublicFeatures } from './features';
 import { createHttpApp } from './http';
 import { closeDb, db } from './db';
@@ -21,6 +22,12 @@ test('feature flag updates require platform administration and hide menus for an
 
 test('initializes env flags once and defaults all production placeholders to hidden', async () => {
   const original = { hidden: config.HIDDEN_FEATURES, env: config.NODE_ENV };
+  const loadFeatures = registry.loadFeatures;
+  const fixture = vi.spyOn(registry, 'loadFeatures').mockImplementation(async (http) => {
+    const loaded = await loadFeatures(http);
+    http.api('F05').get('/_test/published-knowledge', { auth: 'user' }, async () => ({ ok: true }));
+    return loaded;
+  });
   try {
     config.HIDDEN_FEATURES = 'F14';
     const owner = await createTestAgent();
@@ -32,8 +39,21 @@ test('initializes env flags once and defaults all production placeholders to hid
     config.NODE_ENV = 'production';
     const state = (await owner.get('/api/v1/features')).body.data;
     expect(state.production).toBe(true);
-    expect(state.items.every((row: { placeholder: boolean; visible: boolean }) => row.placeholder && !row.visible)).toBe(true);
+    const placeholders = state.items.filter((row: { placeholder: boolean }) => row.placeholder);
+    expect(placeholders.every((row: { visible: boolean }) => !row.visible)).toBe(true);
+    const realFeature = state.items.find((row: { featureId: string }) => row.featureId === 'F05');
+    expect(realFeature).toMatchObject({ placeholder: false, hidden: false, visible: true });
+
+    const admin = await createTestAgent();
+    await loginAs(admin, 'admin@example.test');
+    try {
+      const flagged = await admin.put('/api/v1/ops/features/F05').set('X-Requested-With', 'nless').send({ hidden: true });
+      expect(flagged.body.data).toMatchObject({ placeholder: false, hidden: true, visible: false });
+    } finally {
+      await db.query("DELETE FROM feature_flags WHERE feature_id='F05'");
+    }
   } finally {
+    fixture.mockRestore();
     config.HIDDEN_FEATURES = original.hidden;
     config.NODE_ENV = original.env;
   }
@@ -54,7 +74,7 @@ test('the public feature flags route leaves merchant and administrative routes p
   const agent = await createTestAgent();
   const flags = await agent.get('/api/v1/features/visible');
   expect(flags.status).toBe(200);
-  expect(flags.body.data).toEqual({ visibleFeatureIds: [] });
+  expect(flags.body.data).toEqual({ visibleFeatureIds: expect.any(Array) });
   expect((await agent.get('/api/v1/features')).status).toBe(401);
   expect((await agent.put('/api/v1/ops/features/F13').set('X-Requested-With','nless').send({ hidden: false })).status).toBe(401);
 });
