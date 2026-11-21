@@ -26,3 +26,15 @@ export interface SearchKnowledgeOptions {
   minScore?: number;
   folderIds?: string[];
 }
+
+
+export function evidenceIdOf(hit: { knowledgeItemId: string; revision: number }): string {
+  return 'knowledge:' + hit.knowledgeItemId + ':r' + hit.revision;
+}
+
+export function parseEvidenceId(value: string): { knowledgeItemId: string; revision: number } | null {
+  const match = /^knowledge:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):r([1-9]\d*)$/.exec(value);
+  if (!match) return null;
+  const revision = Number(match[2]);
+  return Number.isSafeInteger(revision) ? { knowledgeItemId: match[1], revision } : null;
+}
