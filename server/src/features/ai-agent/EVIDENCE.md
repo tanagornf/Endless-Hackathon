@@ -103,3 +103,7 @@ Queued buyer replies on LINE and internal Demo Chat now ask for explicit staff c
 ## S4 order proposal
 
 F10 accepts explicit Thai or English purchase requests for catalog items with a confirmed quantity and delivery method. The guarded stage only calls F13 `propose` after the final conversation and policy check, and keeps one stable request ID through delivery or a lost acknowledgement. The review and all totals come from F13. A typed approval points to the card. F13/F14 handle confirmation and payment. Local 10/10 and independent Google 145/145 passed on the S4 candidate before the web rebase. Production order confirmation and smoke remain pending.
+
+## Scoped LINE owner consultation
+
+The owner consultation bridge records one unresolved question and reads only the committed F04 buyer-facing copy before resuming the original LINE conversation. A newer buyer turn, staff takeover, closure or AI-off suppresses delivery. A private rationale stays in the owner review and incomplete replies stay pending. The earlier 25/25 candidate validated the queue and deduplication; its production release was held pending the separate review fields. The privacy-fixed paired suite uses synthetic sends.
