@@ -1,8 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Avatar, Box, Drawer, IconButton, LinearProgress, Menu, MenuItem, Paper, Select, Stack, Typography } from '@mui/material';
+import { Avatar, Box, Drawer, IconButton, LinearProgress, Menu, MenuItem, Paper, Stack, Typography } from '@mui/material';
 import MenuOutlined from '@mui/icons-material/MenuOutlined';
-import StorefrontOutlined from '@mui/icons-material/StorefrontOutlined';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry, SlotContribution } from '@nless/shared/core/loader';
@@ -13,6 +12,7 @@ import { useSlot } from '../slots';
 import { LanguageSwitch } from '../ui/LanguageSwitch';
 import { useToast } from '../ui/toast';
 import { Navigation, groups } from './Navigation';
+import { ShopSwitcher } from './ShopSwitcher';
 import { menuIcon } from '../icons';
 
 const ops: MenuEntry = { path: '/ops', labelKey: 'common:pages.jobs', group: 'admin', icon: 'WorkOutlineOutlined', order: 10, platformAdminOnly: true };
@@ -52,12 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <Box sx={{flex:1,minWidth:0}}>
       <Paper square component="header" elevation={0} sx={{minHeight:56,px:{xs:.5,sm:2.5},gap:{xs:0,sm:1},display:'flex',alignItems:'center',borderBottom:1,borderColor:'divider'}}>
         <IconButton onClick={() => setDrawer(true)} aria-label={t('pages.menu')} sx={{display:{md:'none'}}}><MenuOutlined /></IconButton>
-        {session.businesses.length > 0 && <>
-          <StorefrontOutlined sx={{color:'primary.main',display:{xs:'none',sm:'inline'}}} />
-          <Select variant="standard" disableUnderline value={session.currentBusiness?.id ?? ''} inputProps={{'aria-label':t('pages.shop')}}
-            onChange={e => session.selectBusiness(e.target.value)} sx={{minWidth:0,maxWidth:320,fontSize:'.9rem',fontWeight:600,'& .MuiSelect-select':{minHeight:44,display:'block',lineHeight:'44px',py:0}}}>
-            {session.businesses.map(({business}) => <MenuItem key={business.id} value={business.id}>{business.name}</MenuItem>)}
-          </Select></>}
+        <ShopSwitcher />
         <Stack direction="row" sx={{ml:'auto',alignItems:'center',flexShrink:0}}>
           <LanguageSwitch compact />{actions.map(entry => <SlotItem key={entry.id} entry={entry} />)}
           <IconButton aria-label={t('pages.account')} onClick={e => setAnchor(e.currentTarget)}>
