@@ -68,15 +68,19 @@ test('queued delivery rechecks AI-off and takeover and preserves only the curren
   const staffTookOver = await newConversation();
   const staleAck = await queueAck(staffTookOver);
   await assignConversation(staffTookOver, owner.id, { businessId });
+  const resumed = await newConversation();
+  const resumedAck = await queueAck(resumed);
+  await assignConversation(resumed, null, { businessId });
   const ordinaryReply = await sendToCustomer(await newConversation(), parts, { businessId, author: 'ai' });
 
   await drainJobs({ type: 'core.deliver' });
   expect(await state(takeoverReply.messageId)).toEqual(suppressed);
   expect(await state(oldReply.messageId)).toEqual(suppressed);
   expect(await state(staleAck.messageId)).toEqual(suppressed);
+  expect(await state(resumedAck.messageId)).toEqual(suppressed);
   expect(await state(currentAck.messageId)).toEqual(sent);
   expect(await state(ordinaryReply.messageId)).toEqual(sent);
-  expect(send.mock.calls.map(([delivery]) => delivery.messageId).sort()).toEqual([
+  expect(send.mock.calls.filter(([delivery]) => delivery.businessId === businessId).map(([delivery]) => delivery.messageId).sort()).toEqual([
     staff.messageId, system.messageId, currentAck.messageId, ordinaryReply.messageId,
   ].sort());
 }, 30_000);

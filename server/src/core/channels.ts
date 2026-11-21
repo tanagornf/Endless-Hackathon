@@ -53,8 +53,9 @@ async function aiDeliveryAllowed(delivery: Pick<OutboundDelivery, 'businessId' |
   if (!(await getBusinessSettings(delivery.businessId)).aiEnabled) return false;
   const conversation = await getConversation(delivery.conversationId, { businessId: delivery.businessId });
   // F10's code-authored acknowledgement may follow its own handoff, at that exact assignment version.
-  const currentHandoffAck = typeof handoffAckVersion === 'number' && conversation?.version === handoffAckVersion;
-  return conversation?.status === 'open' && (conversation.handler === 'ai' || currentHandoffAck);
+  if (conversation?.status !== 'open') return false;
+  if (handoffAckVersion == null) return conversation.handler === 'ai';
+  return typeof handoffAckVersion === 'number' && conversation.version === handoffAckVersion;
 }
 
 registerJob('core.deliver', async ({ payload, businessId, attempt, maxAttempts, signal }) => {
