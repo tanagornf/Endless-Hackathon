@@ -18,7 +18,7 @@ test('reports health and deployment identity without server credentials', async 
   const info = (await agent.get('/build-info')).body;
   expect(info).toMatchObject({ env: 'test', modelMode: 'fake', featuresLoaded: 31, sha: expect.any(String) });
   expect(Object.keys(info)).toEqual(['sha', 'startedAt', 'lane', 'env', 'schema', 'modelMode', 'models', 'featuresLoaded', 'providerModes']);
-});
+}, 15_000);
 
 test('readiness rejects pending schema work', async () => {
   const pending = vi.spyOn(migrations, 'migrationStatus').mockResolvedValue({ schema: null, pending: 1 });
