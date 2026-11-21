@@ -17,12 +17,31 @@ const paths = {
   put: ['/features/F13'],
 };
 let admin: Awaited<ReturnType<typeof createTestAgent>>;
+const fixtureJobIds: string[] = [];
+const fixtureMessageIds: string[] = [];
+
+function newDeliveryFixtureId(): string {
+  const id = randomUUID();
+  fixtureMessageIds.push(id);
+  return id;
+}
 
 beforeAll(async () => {
   admin = await createTestAgent();
   await loginAs(admin, 'admin@example.test');
 });
-afterAll(closeDb);
+afterAll(async () => {
+  try {
+    await db.tx(async (tx) => {
+      await tx.query(`DELETE FROM jobs WHERE id=ANY($1::uuid[]) OR
+        (business_id=$3 AND type='core.deliver' AND payload->>'messageId'=ANY($2::text[]))`,
+      [fixtureJobIds, fixtureMessageIds, businessId]);
+      await tx.query('DELETE FROM messages WHERE business_id=$1 AND id=ANY($2::uuid[])', [businessId, fixtureMessageIds]);
+    });
+  } finally {
+    await closeDb();
+  }
+});
 
 it.each([['owner.a@example.test', 403], ['staff.a@example.test', 403], ['', 401]] as const)(
   'enforces platform admin on every operations route for %s', async (email, status) => {
@@ -79,10 +98,12 @@ it('provides live admin reads and a sanitized route catalog/build summary', asyn
 });
 
 async function createJob(type: string, state: string, createdAt = '2026-11-21T08:00:00.123456Z') {
-  return db.one<{ id: string }>(`INSERT INTO jobs
+  const job = await db.one<{ id: string }>(`INSERT INTO jobs
     (type,state,business_id,attempts,reschedules,last_error,payload,created_at)
     VALUES ($1,$2,$3,2,4,'synthetic failure', '{"secret":"synthetic private marker"}'::jsonb,$4)
     RETURNING id`, [type, state, businessId, createdAt]);
+  fixtureJobIds.push(job.id);
+  return job;
 }
 
 it('paginates jobs across microsecond precision, limits search, and redacts stored job detail', async () => {
@@ -169,7 +190,7 @@ it('prevalidates bulk feature flags and records one audit per feature plus the b
 
 it('resolves ambiguous deliveries atomically and redacts the response and audit', async () => {
   const conversationId = SEED.conversations[0].id;
-  const id = randomUUID();
+  const id = newDeliveryFixtureId();
   await db.query(`INSERT INTO messages
       (id,business_id,conversation_id,seq,direction,author,parts,text,channel,delivery_state,delivery_error)
     SELECT $1,$2,$3,COALESCE(max(seq),0)+1,'outbound','system','[]'::jsonb,
@@ -205,7 +226,7 @@ it('resolves ambiguous deliveries atomically and redacts the response and audit'
 
 it('blocks LINE resend without changing the ambiguous message or enqueuing a job', async () => {
   const conversation = SEED.conversations.find((entry) => entry.channel === 'line' && entry.businessAlias === 'biz_demo_a')!;
-  const messageId = randomUUID();
+  const messageId = newDeliveryFixtureId();
   await db.query(`INSERT INTO messages
       (id,business_id,conversation_id,seq,direction,author,parts,channel,delivery_state)
     SELECT $1,$2,$3,COALESCE(max(seq),0)+1,'outbound','system','[]'::jsonb,'line','unknown'
@@ -225,7 +246,7 @@ it.each([
   ['running', 'inflight:1', 'unknown'],
 ] as const)('settles a cancelled %s delivery job with checkpoint %s as %s', async (jobState, checkpoint, deliveryState) => {
   const conversationId = SEED.conversations[0].id;
-  const messageId = randomUUID();
+  const messageId = newDeliveryFixtureId();
   await db.query(`INSERT INTO messages
       (id,business_id,conversation_id,seq,direction,author,parts,channel,delivery_state,delivery_error)
     SELECT $1,$2,$3,COALESCE(max(seq),0)+1,'outbound','system','[]'::jsonb,'web','pending',$4
@@ -248,7 +269,7 @@ it('rejects generic retry of terminal deliveries and bulk retries a pending deli
     ['failed', '1999-01-02T00:00:00Z'],
     ['pending', '2000-01-01T00:00:00Z'],
   ]) {
-    const messageId = randomUUID();
+    const messageId = newDeliveryFixtureId();
     await db.query(`INSERT INTO messages
         (id,business_id,conversation_id,seq,direction,author,parts,channel,delivery_state)
       SELECT $1,$2,$3,COALESCE(max(seq),0)+1,'outbound','system','[]'::jsonb,'web',$4
