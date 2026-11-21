@@ -47,10 +47,30 @@ test('same intent serializes to one assignment, receipt, note, audit and Thai no
   expect(await applyAiHandoff(intent)).toEqual(expected);
   expect(await getAiHandoffReceipt(intent)).toEqual(expected);
   expect(await counts(intent)).toEqual({ notes: 1, receipts: 1, audits: 1 });
-  expect(published).toHaveBeenCalledTimes(1);
+  expect(published.mock.calls.filter(([, event]) => event.type === 'conversation.updated')).toEqual([
+    [businessId, { type: 'conversation.updated', conversationId: intent.conversationId,
+      handler: 'human', assigneeUserId: null, status: 'open', version: expected.committedVersion }],
+  ]);
   expect(notified).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
     title: 'ลูกค้าต้องการคุยกับพนักงาน', dedupKey: 'handoff:' + intent.conversationId + ':v' + expected.committedVersion,
   }));
+  const delivery = await notified.mock.results[0].value;
+  if (delivery.mode === 'real') {
+    // Redelivering the same logical notice must create neither another row nor another event.
+    const replay = await notifications.notify(notified.mock.calls[0][0]);
+    expect(replay).toEqual({ mode: 'real', notificationIds: [] });
+  }
+  const recipients: string[] = [];
+  const ids: string[] = [];
+  for (const [shop, event, scope] of published.mock.calls) {
+    if (event.type !== 'notification.created') continue;
+    expect(shop).toBe(businessId);
+    expect(scope).toEqual({ userIds: [event.userId] });
+    recipients.push(event.userId);
+    ids.push(event.notificationId);
+  }
+  expect(recipients.sort()).toEqual(delivery.mode === 'real' ? [seedId('owner_a'), staff].sort() : []);
+  expect(ids.sort()).toEqual([...delivery.notificationIds].sort());
 });
 
 test('current proof requires the exact tuple and current unassigned human queue version', async () => {

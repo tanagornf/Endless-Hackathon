@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F06 | knowledge-import | B3 | DOING | R | A | App-dev FAQ extraction passed; production pending | | S2 isolated F06 42/42 and final web 5/5 (43 unique tests). Typecheck passed. | 2026-11-21 14:50 | Production deploy and smoke, three-run pitch metric, and real F31 completion notification pending. |
+| F06 | knowledge-import | B3 | DOING | R | A | App-dev FAQ extraction passed; production pending | | S2 43/43 isolated, 82/82 independent, hosted green. S3 20-row cleanup rehearsal passed. | 2026-11-21 14:55 | Production deploy and smoke, three-run pitch metric, and real F31 completion notification pending. |
 
 ## Log
 
@@ -23,3 +23,10 @@
 - Pasted text and .txt/.md files become editable or excludable article and FAQ preview rows. Committing calls the real F05 draft contract. Article and FAQ entries remain unpublished. The completion notification calls the F31 sandbox adapter on this base.
 - App-dev real OpenAI acceptance used the isolated B3 development database and synthetic Thai shop text. One F06 extraction produced three ready preview rows with no warnings. Usage ID `9a77b8c3-d274-4475-a89b-8df4f92e6776`, model `gpt-6.2-sol`, 526 input and 220 output tokens, 3,252 USD micros estimated cost, 4,328 ms.
 - Playwright discovered two smoke tests for English text and Thai CSV. No production deployment, production smoke, or upload-to-answer timing is claimed here. URL, XLSX and PDF are outside this slice.
+
+### S3 timing harness
+
+- S2 merged at `35ec7b4ae27fa53664ebd725894113beb9e47f52` after 43/43 isolated focused tests, 82/82 independent cloud checks and the exact-head hosted check. The catalog, text, and error download routes are implemented in Thai and English.
+- The opt-in Playwright measurement records three rounds of the 20-row sheet with the spec's parse, commit, answer and median timings. It verifies the original active demo item is at 99 baht before each run, restores that price in a finally block and removes all 19 exact synthetic draft SKUs. This test skips before sign-in when `F06_METRIC` is absent.
+- An isolated B3 fake-model integration rehearsal with a separate 99-baht fixture passed. One 20-row import created 19 inactive drafts, updated the active fixture to 109 baht without changing its stock, then a second import restored 99 baht and the authorized catalog API removed the 19 drafts. This is cleanup and data-path evidence only. It does not provide an AI reply timing.
+- Production smoke and timing await C0's coordinated synthetic shop window. No production price or customer data was touched by B3. The live demo metric remains unmeasured.

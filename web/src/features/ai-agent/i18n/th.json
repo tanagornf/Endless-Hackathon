@@ -1,8 +1,119 @@
 {
   "menu": {
-    "title": "ตั้งค่า AI"
+    "title": "การตอบของ AI"
   },
   "page": {
-    "title": "ตั้งค่า AI"
+    "title": "การตอบของ AI",
+    "description": "ดูว่า AI จัดการแต่ละแชตอย่างไร เปิดหรือปิดการตอบได้ในตั้งค่าบอท",
+    "openChat": "เปิดแชต",
+    "none": "—",
+    "error": "โหลดประวัติการตอบของ AI ไม่สำเร็จ"
+  },
+  "metrics": {
+    "title": "7 วันที่ผ่านมา",
+    "median": "มัธยฐานเวลาตอบ",
+    "seconds": "{{value}} วินาที"
+  },
+  "list": {
+    "title": "ประวัติการตอบ",
+    "time": "เวลา",
+    "chat": "แชต",
+    "intent": "เจตนา",
+    "state": "สถานะ",
+    "language": "ภาษา",
+    "tools": "เครื่องมือ",
+    "evidence": "แหล่งอ้างอิง",
+    "guards": "การตรวจสอบ",
+    "ms": "มิลลิวินาที",
+    "allStates": "ทุกสถานะ",
+    "allIntents": "ทุกเจตนา",
+    "more": "โหลดเพิ่ม",
+    "empty": "ไม่พบการตอบที่ตรงกับตัวกรอง",
+    "emptyHint": "ลองเปลี่ยนตัวกรองหรือส่งข้อความในหน้า Demo Chat"
+  },
+  "state": {
+    "running": "กำลังทำงาน",
+    "completed": "ตอบแล้ว",
+    "awaiting_confirmation": "รอลูกค้ายืนยัน",
+    "handoff": "ส่งต่อพนักงานแล้ว",
+    "failed": "ไม่สำเร็จ",
+    "skipped": "ข้าม",
+    "superseded": "มีข้อความใหม่กว่า"
+  },
+  "intent": {
+    "GREETING": "ทักทาย",
+    "GOODBYE": "บอกลา",
+    "QUESTION": "สอบถาม",
+    "REQUEST": "ขอให้ดำเนินการ",
+    "STATUS_CHECK": "ตรวจสถานะ",
+    "FEEDBACK": "ข้อเสนอแนะ",
+    "CLARIFICATION": "ขอรายละเอียด",
+    "ESCALATION": "ขอคุยกับพนักงาน",
+    "OFF_TOPIC": "นอกเรื่อง",
+    "PRICE_CALC": "ราคาหรือยอดรวม",
+    "PRODUCT_FILTER": "ค้นหาสินค้า",
+    "BUSINESS_HOURS": "เวลาเปิดร้าน",
+    "BOOKING_AVAILABILITY": "เวลาจองที่ว่าง",
+    "UNKNOWN": "ไม่ทราบ"
+  },
+  "language": {
+    "th": "ไทย",
+    "en": "อังกฤษ"
+  },
+  "detail": {
+    "title": "รายละเอียดการตอบ",
+    "skip": "เหตุผลที่ข้าม",
+    "source": "ที่มาของเจตนา",
+    "confidence": "ความมั่นใจ",
+    "evidence": "รหัสแหล่งอ้างอิง",
+    "products": "สินค้า",
+    "inputTokens": "โทเคนขาเข้า",
+    "outputTokens": "โทเคนขาออก",
+    "cachedTokens": "โทเคนในแคช",
+    "cost": "ค่าใช้จ่ายโดยประมาณ (USD)",
+    "unknown": "ไม่ทราบ",
+    "attempts": "จำนวนครั้งที่ลอง",
+    "error": "รหัสข้อผิดพลาด",
+    "name": "ชื่อ",
+    "result": "ผล",
+    "ok": "สำเร็จ",
+    "toolFailed": "ไม่สำเร็จ",
+    "guard": "การตรวจสอบ",
+    "action": "การดำเนินการ",
+    "description": "รายละเอียด",
+    "timing": "เวลาของแต่ละขั้น"
+  },
+  "source": {
+    "regex": "กฎ",
+    "classifier": "ตัวจำแนก",
+    "fallback": "วิธีสำรอง"
+  },
+  "action": {
+    "repair": "แก้ไขแล้ว",
+    "strip": "นำออกแล้ว",
+    "fallback": "ใช้คำตอบสำรอง",
+    "note": "บันทึกแล้ว"
+  },
+  "skip": {
+    "business_inactive": "ร้านไม่ได้เปิดใช้งาน",
+    "ai_off": "ปิด AI อยู่",
+    "takeover": "พนักงานดูแลแชตอยู่",
+    "handoff_waiting": "รอพนักงาน",
+    "conversation_closed": "แชตปิดแล้ว",
+    "not_customer_message": "ไม่มีข้อความลูกค้า",
+    "takeover_during_generation": "พนักงานรับช่วงขณะที่ AI กำลังตอบ",
+    "ai_off_during_generation": "ปิด AI ระหว่างตอบ",
+    "superseded": "ได้รับข้อความใหม่กว่า",
+    "non_text_repeat": "ข้อความที่ไม่ใช่ข้อความตัวอักษรซ้ำ"
+  },
+  "timing": {
+    "gate1Ms": "ตรวจสิทธิ์เบื้องต้น",
+    "contextMs": "รวบรวมบริบท",
+    "classifyMs": "จำแนกเจตนา",
+    "modelMs": "โมเดล",
+    "guardMs": "ตรวจคำตอบ",
+    "gate2Ms": "ตรวจสิทธิ์ก่อนตอบ",
+    "persistMs": "บันทึก",
+    "sendMs": "จัดคิวส่ง"
   }
 }
