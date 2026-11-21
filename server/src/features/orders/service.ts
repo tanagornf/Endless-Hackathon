@@ -1,3 +1,4 @@
+import { propose } from './propose';
 import { AppError } from '../../core';
 import type { CreateOrderFromProposalInput, CreateOrderFromProposalResult, OrderMetrics, OrderSummary } from '@nless/shared/features/orders/types';
 import type { MetricsRange } from '@nless/shared/core/types';
@@ -13,7 +14,8 @@ import type { MetricsRange } from '@nless/shared/core/types';
  *   confirm: throws AppError('SERVICE_NOT_READY', 'F13 orders not merged yet') (R8).
  */
 export async function createOrderFromProposal(input: CreateOrderFromProposalInput): Promise<CreateOrderFromProposalResult> {
-  throw new AppError("SERVICE_NOT_READY", "createOrderFromProposal is not implemented");
+  if (input.stage === 'propose') return propose(input);
+  throw new AppError('SERVICE_NOT_READY', 'Order confirmation is not available yet');
 }
 
 /**
