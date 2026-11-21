@@ -220,7 +220,7 @@ function InboxThread({ id, goBack }: { id: string; goBack: () => void }) {
   const canTakeover = useCan('chat.takeover');
   const desktop = useMediaQuery(useTheme().breakpoints.up('md'));
   const composerSlots = useSlot('chatComposerActions').filter((slot) => slot.id !== 'team.quick' || !desktop);
-  const sideSlots = useSlot('chatSidePanels');
+  const sideSlots = useSlot('chatSidePanels').filter((slot) => desktop || slot.id !== 'team.panel');
   const [showSide, setShowSide] = useState(false);
 
   useEffect(() => { if (detail.data) setLoadedDetail(detail.data); }, [detail.data]);

@@ -31,3 +31,12 @@
 - Full workspace typecheck and whitespace checks passed before rebase. Migration and seed ran on the A1 development database. F09 remains A pending production verification with the deployed AI worker. No live model or production smoke result is claimed here.
 
 - After rebase onto the merged F11 takeover implementation, all 18 inbox tests passed in 84.58 seconds. GitHub CI also passed these tests. Its B2 trace fixture observed an unrelated synthetic AI job before its own trace. The F09 suite now removes its own queued replies by the fixture request IDs during teardown.
+
+### S4 mobile inbox and Demo Chat follow-up
+
+- The staff inbox filters the desktop-only Team side panel below the MUI md breakpoint. Details remains available when a mobile-capable side panel is registered.
+- Public Demo Chat follows the visual viewport during keyboard resize and scroll. The layout respects the top and bottom safe-area insets.
+- `npm test -- --project web web/src/features/inbox` passed 4/4. Both mobile Details assertions reproduced the issue before the filter. The desktop Team panel and visual viewport regressions passed on the finished branch.
+- `npm run typecheck`, `npm run check:paths`, and `git diff --check` passed.
+- Local Chromium with intercepted synthetic responses verified Thai wrapping at 360 px without horizontal overflow and a 44 × 44 px Send target. At a simulated keyboard viewport height of 435 px, the composer bottom moved from 451 px to 435 px and Send from 443 px to 427 px. Chromium also verified the 55 px viewport offset, 24 px top and bottom safe-area insets, and desktop at 1280 × 900.
+- Production smoke for this patch is pending.

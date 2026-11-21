@@ -16,15 +16,23 @@ function usePublicMetadata() {
     robots.content = 'noindex';
     document.head.append(robots);
     const visual = window.visualViewport;
-    function syncHeight() {
-      if (visual && visual.scale === 1) document.documentElement.style.setProperty('--demo-chat-height', Math.round(visual.height) + 'px');
+    const root = document.documentElement;
+    function syncViewport() {
+      if (!visual || visual.scale !== 1) return;
+      const top = Math.ceil(visual.offsetTop);
+      const bottom = Math.floor(visual.offsetTop + visual.height);
+      root.style.setProperty('--demo-chat-top', top + 'px');
+      root.style.setProperty('--demo-chat-height', (bottom - top) + 'px');
     }
-    syncHeight();
-    visual?.addEventListener('resize', syncHeight);
+    syncViewport();
+    visual?.addEventListener('resize', syncViewport);
+    visual?.addEventListener('scroll', syncViewport);
     return () => {
       robots.remove();
-      visual?.removeEventListener('resize', syncHeight);
-      document.documentElement.style.removeProperty('--demo-chat-height');
+      visual?.removeEventListener('resize', syncViewport);
+      visual?.removeEventListener('scroll', syncViewport);
+      root.style.removeProperty('--demo-chat-top');
+      root.style.removeProperty('--demo-chat-height');
       if (oldContent != null) viewport?.setAttribute('content', oldContent);
     };
   }, []);
@@ -91,9 +99,13 @@ function PublicSession({ path }: { path: string }) {
     }
   }
 
-  return <Stack component="main" sx={{ height: 'var(--demo-chat-height, 100vh)', '@supports (height: 100dvh)': { height: 'var(--demo-chat-height, 100dvh)' },
-    minWidth: 0, width: '100%', maxWidth: 760, mx: 'auto', bgcolor: 'background.paper' }}>
-    <Paper component="header" square elevation={0} sx={{ borderBottom: 1, borderColor: 'divider', px: 1.5, py: 0.5 }}>
+  return <Stack sx={{
+    position: 'fixed', insetInline: 0, top: 'var(--demo-chat-top, 0px)',
+    height: 'var(--demo-chat-height, 100vh)', '@supports (height: 100dvh)': { height: 'var(--demo-chat-height, 100dvh)' },
+    minWidth: 0, width: '100%', maxWidth: 760, mx: 'auto', bgcolor: 'background.paper',
+    pl: 'env(safe-area-inset-left)', pr: 'env(safe-area-inset-right)',
+  }}>
+    <Paper component="header" square elevation={0} sx={{ borderBottom: 1, borderColor: 'divider', px: 1.5, pt: 'max(4px, env(safe-area-inset-top))', pb: 0.5 }}>
       <Stack direction="row" sx={{ alignItems: 'center', gap: 1, minHeight: 52 }}>
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography component="h1" variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.25, overflowWrap: 'anywhere' }}>
