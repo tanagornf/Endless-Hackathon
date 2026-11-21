@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | 6e53dca | Final gate focus 10/10, typecheck and ownership passed. Prior fixed head passed 101/101 independently. | 2026-11-21 13:56 +07:00 | Deployed gate step 3 retest, trace UI and F11 crash recovery receipt pending. |
+| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | 74dc80f | Gate fix #69 passed exact independent 102/102 and hosted CI. F11 receipt recovery 5/5 with the real F11/F09/F35 path. Typecheck and ownership passed. | 2026-11-21 14:11 +07:00 | Production gate retest, receipt CI and trace UI pending. |
 
 ## Log
 
@@ -26,6 +26,8 @@
 | 2026-11-21 13:47 | Reproduced the gate's old-SKU price surviving an explicit unknown SKU, a fresh missing-name lookup and a model tool call to an older SKU. | C0 correlated the unknown Thai turn and its one catalog source with the exact sent F09 reply. | 11b613e | Three failure reproductions and one passing follow-up control in 37.97s. | `MODEL_MODE=fake`, B2 lane test DB. |
 | 2026-11-21 13:54 | Scoped catalog prefetch, tool results and totals to the active request. Retained unambiguous English/Thai follow-ups, 990-baht negotiation and quantity totals. | B0 independently confirmed the unknown and Thai same-product cases. | c9ef4ea | Scoped local 8/8, independent F10/core suite 101/101 and independent gate pair 2/2. | `MODEL_MODE=fake`, B2 lane and isolated cloud test DBs. |
 | 2026-11-21 13:56 | Excluded F10-traced staff-held messages from later AI pricing without changing the superseded-turn backlog. | The UI verifier flagged a separate handback pricing regression. | 6e53dca | `npm test -- ai-agent -t 'F10 catalog reference scope|G1 uses|G17 supersedes'` passed 10/10 in 66.71s. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 14:00 | Released current-subject catalog pricing and post-handback suppression. | B0 reran the exact PR head in the shared cloud. | 41ce65e | Exact head 991da28 passed independent F10/core 102/102 and hosted CI. The UI verifier separately confirmed 99 baht after returning the chat to AI. | `MODEL_MODE=fake`, cloud and synthetic UI. |
+| 2026-11-21 14:11 | Persisted the expected F11 assignment version before apply and reconciled the exact receipt before a later takeover gate. | F11 owner published the additive contract in #68. | 74dc80f | `npm test -- ai-agent -t 'F10 F11 receipt recovery'` passed 5/5 in 43.15s. Applied migration `003_handoff_intent.sql`. One committed handoff, one system note, one sent ACK and one staff notification survived simulated worker loss. Stale claim, handback/requeue and AI-off produced no ACK. | `MODEL_MODE=fake`, B2 lane test DB. |
 
 S1 serializes direct and queued turns with a short `ai.turn:<conversationId>` transaction lock and a fenced lease. The tests exercise a stale holder, a duplicate inbound, overlapping direct and queued turns, and four queued conversations with the default five-connection pool. The focused expired-lease test on the F35 base passed and verified exactly one AI save and one delivery enqueue call after a replacement holder finished.
 
@@ -33,9 +35,11 @@ After the reply is saved, the shop subscription receives `ai.turn` with `data.tu
 
 The S2 tests cover G2, G3, G4, G5, G13, G14 and G16. They use scripted OpenAI responses and the F07 and F08 application services. The dev S1 observations are recorded separately. [B0 gate evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058026663)
 
-The trace list, metrics and `/ai-settings` remain in S5. S3 covers explicit Thai and English requests, shop-hours-aware acknowledgement, the fallback wait, intent classification, staff offers and consent, and handoff after model failure. LINE is the external customer channel. Demo Chat is an internal test surface. Production evidence and the cross-feature F11 restart receipt remain pending.
+The trace list, metrics and `/ai-settings` remain in S5. S3 covers explicit Thai and English requests, shop-hours-aware acknowledgement, the fallback wait, intent classification, staff offers and consent, and handoff after model failure. LINE is the external customer channel. Demo Chat is an internal test surface. Production verification remains pending.
 
 F10 saves a version marker only after a successful F11 assignment and reuses the same saved acknowledgement on delivery retry. Tests cover AI-off before save, a manual takeover race, and suppression after a later staff claim or handback to AI. [Core delivery guard](https://github.com/tanagornf/Endless-Hackathon/pull/26)
+
+The expected F11 version is stored before apply. If the worker restarts before the local checkpoint or the apply acknowledgement is lost, F10 recovers only the matching receipt for the current open, unassigned human conversation. A staff claim, handback/requeue or AI-off suppresses the buyer acknowledgement. [F11 owner handoff](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059006190)
 
 After three definite enqueue failures, the generated turn remains complete and keeps the saved reply ID. Its owner trace reports `DELIVERY_ENQUEUE_FAILED` from the scoped F09 delivery state. A committed job with a lost acknowledgement continues to dispatch the same reply. [Independent worker replay](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058708480)
 

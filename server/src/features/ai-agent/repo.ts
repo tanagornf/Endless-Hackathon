@@ -52,6 +52,7 @@ interface TurnRow {
   error_code: string | null;
   reply_message_id: string | null;
   handoff_reason: HandoffReason | null;
+  handoff_expected_version: number | null;
   handoff_assignment_version: number | null;
   escalated: boolean;
   intent: AiIntent | null;
@@ -88,6 +89,11 @@ export async function claimTurn(
       if (existing.waiting || existing.reply_message_id && !delivery) {
         return { status: 'pending', turnId: existing.id, retryAt: existing.retry_after.toISOString() };
       }
+    }
+    // Only the queued delivery path can recover a prepared handoff. A direct
+    // draft request must not close it as takeover before that recovery runs.
+    if (existing && !delivery && existing.handoff_expected_version !== null) {
+      return { status: 'pending', turnId: existing.id, retryAt: new Date(Date.now() + 5000).toISOString() };
     }
     const active = await transaction.maybeOne<{ id: string }>(
       "SELECT id FROM ai_turns WHERE business_id = $1 AND conversation_id = $2 AND state = 'running' AND lease_until > now() LIMIT 1",
@@ -188,6 +194,15 @@ export async function storeDraft(turn: TurnLease, draft: TurnDraft): Promise<boo
     draft.handoffOffered ?? false,
   ]);
   return result.rowCount === 1;
+}
+
+export async function prepareHandoff(turn: TurnLease, reason: HandoffReason, expectedVersion: number): Promise<boolean> {
+  const updated = await db.query(
+    'UPDATE ai_turns SET handoff_expected_version = $5 WHERE ' + owned +
+      ' AND handoff_reason = $6 AND escalated = false AND (handoff_expected_version IS NULL OR handoff_expected_version = $5)',
+    [...leaseParams(turn), expectedVersion, reason],
+  );
+  return updated.rowCount === 1;
 }
 
 export async function recordHandoff(turn: TurnLease, reason: HandoffReason, version: number | null): Promise<boolean> {

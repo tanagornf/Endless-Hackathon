@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { AppError } from './errors';
 
 export function mountSpa(app: Application, dist: string): void {
-  app.get(['/invitations/accept', '/verify-email'], (_req, res, next) => {
+  app.get(['/invitations/accept', '/verify-email', '/reset-password'], (_req, res, next) => {
     res.setHeader('Referrer-Policy', 'no-referrer');
     next();
   });

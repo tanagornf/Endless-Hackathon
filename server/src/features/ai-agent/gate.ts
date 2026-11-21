@@ -26,7 +26,8 @@ export async function isAiAllowed(
     if (!settings.aiEnabled) return { allowed: false, reason: 'ai_off' };
     const takeover = await isHumanTakeover(conversationId);
     const versioned = handoff?.version != null;
-    const ownHandoff = versioned && takeover && conversation.handler === 'human' && conversation.version === handoff.version;
+    const ownHandoff = versioned && takeover && conversation.handler === 'human' &&
+      conversation.assigneeUserId === null && conversation.version === handoff.version;
     if ((takeover || versioned) && !ownHandoff) {
       if (takeover) {
         await db.query(

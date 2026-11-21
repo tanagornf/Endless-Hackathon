@@ -8,7 +8,7 @@ import { config } from './config';
 import { db } from './db';
 import { AppError } from './errors';
 import { requestContext } from './log';
-import type { BusinessContext } from './types';
+import type { BusinessContext, DbExecutor } from './types';
 
 export const SESSION_COOKIE = 'nless_session';
 const cookie = { httpOnly: true, sameSite: 'lax', secure: config.COOKIE_SECURE, path: '/' } as const;
@@ -49,9 +49,14 @@ export async function destroySession(req: Request, res: Response): Promise<void>
   res.clearCookie(SESSION_COOKIE, cookie);
 }
 
-export async function revokeUserSessions(userId: string): Promise<number> {
-  const result = await db.query('UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()', [userId]);
+/** Revoke active sessions on the same executor as the caller's credential update. */
+export async function revokeUserSessionsInTransaction(tx: DbExecutor, userId: string): Promise<number> {
+  const result = await tx.query('UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now()', [userId]);
   return result.rowCount;
+}
+
+export async function revokeUserSessions(userId: string): Promise<number> {
+  return revokeUserSessionsInTransaction(db, userId);
 }
 
 const membershipSql = `
