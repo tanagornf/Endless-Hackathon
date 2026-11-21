@@ -7,8 +7,9 @@ import {
   ConfirmDialog, EmptyState, PageHeader, SectionCard, StatusChip, useApiMutation, useApiQuery, useCan,
   useRealtime, useSession, useToast,
 } from '../../core';
+import type { FolderList } from './FolderManager';
 
-type Fields = Pick<KnowledgeItemDetail, 'kind' | 'title' | 'body'>;
+type Fields = Pick<KnowledgeItemDetail, 'kind' | 'title' | 'body' | 'folderId'>;
 type Draft = Fields & { expectedRevision: number };
 type Expected = { expectedRevision: number };
 type Transition = 'submit' | 'activate' | 'deactivate' | 'reindex';
@@ -21,6 +22,7 @@ function Editor({ id }: { id: string }) {
   const canDelete = useCan('product.delete');
   const path = '/knowledge/items/' + id;
   const query = useApiQuery<KnowledgeItemDetail>(path);
+  const folders = useApiQuery<FolderList>('/knowledge/folders');
   const patch = useApiMutation<Draft, KnowledgeItemDetail>('PATCH', path, { toastOnError: false });
   const submit = useApiMutation<Expected, KnowledgeItemDetail>('POST', path + '/submit', { toastOnError: false });
   const activate = useApiMutation<Expected & { acknowledgeModeration: boolean }, KnowledgeItemDetail>('POST', path + '/activate', { toastOnError: false });
@@ -43,7 +45,7 @@ function Editor({ id }: { id: string }) {
     return () => clearInterval(timer);
   }, [waiting, reload]);
 
-  const dirty = !!(draft && item && (draft.kind !== item.kind || draft.title !== item.title || draft.body !== item.body));
+  const dirty = !!(draft && item && (draft.kind !== item.kind || draft.title !== item.title || draft.body !== item.body || draft.folderId !== item.folderId));
   useEffect(() => {
     if (!dirty) return;
     const onLeave = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -103,7 +105,7 @@ function Editor({ id }: { id: string }) {
   const editable = canWrite && item.mutable;
   const busy = patch.running || submit.running || activate.running || deactivate.running || reindex.running || remove.running;
   function update(change: Partial<Fields>) {
-    setDraft((current) => ({ kind: item!.kind, title: item!.title, body: item!.body,
+    setDraft((current) => ({ kind: item!.kind, title: item!.title, body: item!.body, folderId: item!.folderId,
       expectedRevision: item!.revision, ...current, ...change }));
   }
   const action = item.status === 'draft' ? 'submit' : item.status === 'active' ? 'deactivate' : 'activate';
@@ -147,6 +149,14 @@ function Editor({ id }: { id: string }) {
             helperText={t('form.count', { n: fields.body.length })}
             onChange={(event) => update({ body: event.target.value })}
             slotProps={{ input: { readOnly: !editable || busy }, htmlInput: { maxLength: 20000 } }} />
+
+          <TextField select label={t('filter.folder')} value={fields.folderId ?? ''} disabled={!editable || busy || !!folders.error}
+            onChange={(event) => update({ folderId: event.target.value || null })}>
+            <MenuItem value="">{t('table.unfiled')}</MenuItem>
+            {fields.folderId && !folders.data?.items.some((folder) => folder.id === fields.folderId) &&
+              <MenuItem value={fields.folderId}>{item.folderName ?? t('table.unfiled')}</MenuItem>}
+            {folders.data?.items.map((folder) => <MenuItem key={folder.id} value={folder.id}>{folder.name}</MenuItem>)}
+          </TextField>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             {editable && <>
               <Button variant="contained" disabled={busy || !dirty} onClick={() => void save()}>{t('actions.save')}</Button>
