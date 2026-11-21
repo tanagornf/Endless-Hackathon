@@ -10,6 +10,7 @@ import * as catalogue from '../catalog/service';
 import { getHistory, saveMessage } from '../inbox/service';
 import { createOrderFromProposal, getOrderMetrics, listOrdersByCustomer, setPaymentState } from './service';
 import { registerOrderHook } from './order-repo';
+import * as orderRepo from './order-repo';
 import { orderOutbox } from './outbox';
 const [shopA, shopB] = SEED.businesses;
 const sku = 'F13-' + randomUUID();
@@ -17,6 +18,10 @@ let admin: Awaited<ReturnType<typeof createTestAgent>>;
 let itemId: string;
 beforeAll(async () => {
   admin = await createTestAgent();
+  // Exercise the absent, unavailable and successful payment hooks independently of installed consumers.
+  const listHooks = orderRepo.registeredHooks;
+  const installed = new Set(listHooks('confirmed').map(([hook]) => hook));
+  vi.spyOn(orderRepo, 'registeredHooks').mockImplementation(name => listHooks(name).filter(([hook]) => !installed.has(hook)));
   await loginAs(admin, 'owner.a@example.test');
   const added = await admin.post('/api/v1/businesses/' + shopA.id + '/catalog/items').set('X-Requested-With', 'nless')
     .send({ sku, kind: 'product', name: 'เกมทดสอบ', nameEn: 'Game fixture', priceMinor: 149000, stock: 100, shippable: true });
@@ -66,6 +71,7 @@ async function finishOutbox(orderId: string) {
 afterAll(async () => {
   if (itemId)
     await admin.delete('/api/v1/businesses/' + shopA.id + '/catalog/items/' + itemId).set('X-Requested-With', 'nless');
+  vi.restoreAllMocks();
   await closeDb();
 }, 30000);
 describe('F13 consent, stock and order outbox', { timeout: 90000 }, () => {
