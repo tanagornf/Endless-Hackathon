@@ -262,7 +262,7 @@ export { answerOwnerConsult, isOwnerConsultActionPending, openOwnerConsult } fro
 export { readOwnerConsultAnswer, withOwnerConsultDraftConsent } from './owner-consult-answer';
 export { registerOwnerConsultAnswerConsumer } from './owner-consult-answer-outbox';
 
-export { readActiveShopInstruction } from './shop-instructions-repo';
+export { getShopInstructionReplayTarget, readActiveShopInstruction, recordInstructionReplay } from './shop-instructions-repo';
 export { readShopInstructionAnalysisTarget } from './shop-instructions-staging';
 
 export function stageShopInstructionCandidate(
