@@ -10,7 +10,7 @@ export { getUser, getBusiness, requirePermission, requirePlatformAdmin, createSe
 export { sendToCustomer, registerChannelSender, ChannelSendError } from './channels';
 export { publish } from './realtime';
 export { storage, assertUploadAllowed } from './storage';
-export { audit } from './audit';
+export { audit, auditInTransaction, type AuditInput } from './audit';
 export { defineFeatureRoutes, isFeatureHidden } from './features';
 export { rateLimit, assertRateLimit, rateLimited } from './ratelimit';
 export { encryptSecret, decryptSecret } from './crypto';
