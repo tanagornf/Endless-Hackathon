@@ -170,7 +170,8 @@ it('prevalidates bulk feature flags and records one audit per feature plus the b
     await admin.post(bulk).set('X-Requested-With', 'nless').send({ hide: ['F12', 'F35'] }).expect(400);
     const invalid = await db.query('SELECT feature_id,hidden,reason,updated_by,updated_at FROM feature_flags WHERE feature_id=ANY($1::text[])', [ids]);
     expect(invalid.rows).toEqual(before.rows);
-    const reason = 'ops feature test ' + randomUUID();
+    // Audit intentionally redacts phone-like digit runs. Use a stable marker for this query.
+    const reason = 'ops bulk feature audit fixture';
     const flags = await admin.post(bulk).set('X-Requested-With', 'nless')
       .send({ hide: ['F12', 'F12'], show: ['F13'], reason }).expect(200);
     expect(flags.body.data.items).toEqual(expect.arrayContaining([
@@ -191,7 +192,7 @@ it.each(['F18', 'F21'])('rejects a mixed bulk batch that tries to show %s withou
   const ids = ['F12', 'F13', restricted];
   const flagQuery = 'SELECT * FROM feature_flags WHERE feature_id=ANY($1::text[]) ORDER BY feature_id';
   const before = await db.query(flagQuery, [ids]);
-  const reason = 'ops release scope test ' + randomUUID();
+  const reason = 'ops restricted feature audit fixture ' + restricted;
 
   const denied = await admin.post(base + '/features/bulk').set('X-Requested-With', 'nless')
     .send({ hide: ['F12'], show: ['F13', restricted], reason }).expect(422);
