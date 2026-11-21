@@ -1,10 +1,14 @@
 import { db, log } from '../../core';
 import type { ScheduleDefinition } from '../../core';
 import type { OwnerConsultActionKey } from '@nless/shared/features/business-settings/types';
-import { notify } from '../notifications/service';
+import * as notifications from '../notifications/service';
 import { isOwnerConsultActionPending } from './owner-consult';
 
 type ClaimedNotice = OwnerConsultActionKey & { language: 'th' | 'en'; attempts: number };
+type ReceiptLookup = (key: { businessId: string; dedupKey: string }) => Promise<boolean>;
+
+// The receipt export lands independently in F31. Until then an unconfirmed row stays retryable.
+const notificationPort: typeof notifications & { hasNotificationReceipt?: ReceiptLookup } = notifications;
 
 function claimNotice(): Promise<ClaimedNotice | null> {
   return db.maybeOne<ClaimedNotice>(
@@ -26,17 +30,19 @@ export async function flushOwnerConsultOutbox(signal?: AbortSignal): Promise<voi
     const { businessId, caseId, actionStepId, language, attempts } = notice;
     try {
       if (!await isOwnerConsultActionPending({ businessId, caseId, actionStepId })) continue;
-      const result = await notify({
+      const dedupKey = 'ai-owner-review:' + businessId + ':' + caseId + ':' + actionStepId;
+      const result = await notificationPort.notify({
         businessId,
         type: 'system',
         to: { role: 'owners' },
         title: language === 'th' ? 'ผู้ช่วยมีคำถามถึงเจ้าของร้าน' : 'The assistant has a question for the owner',
         body: language === 'th' ? 'เปิดการตั้งค่าผู้ช่วยเพื่อตอบคำถาม' : 'Open bot settings to answer the question.',
         link: '/bot-settings?consult=' + caseId,
-        dedupKey: 'ai-owner-review:' + businessId + ':' + caseId + ':' + actionStepId,
+        dedupKey,
       });
-      // The current F31 port may return no receipt. The leased row remains eligible for recovery.
-      if (result.mode !== 'real' || !result.notificationIds.length) continue;
+      // A retry can receive no new bell IDs even after a previous attempt committed.
+      const received = result.mode === 'real' && result.notificationIds.length > 0;
+      if (!received && !(attempts > 1 && await notificationPort.hasNotificationReceipt?.({ businessId, dedupKey }))) continue;
       await db.query(
         'UPDATE owner_consult_outbox SET delivered_at=now() WHERE business_id=$1 AND case_id=$2 AND action_step_id=$3 ' +
         'AND attempts=$4 AND delivered_at IS NULL',

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { AppError, auditInTransaction, db } from '../../core';
 import type { DbExecutor } from '../../core';
+import { getConversation } from '../inbox/service';
 import type { AuthScope } from '@nless/shared/core/types';
 import type {
   AnswerOwnerConsultInput, OpenOwnerConsultInput, OpenOwnerConsultResult, OwnerConsultActionKey,
@@ -74,30 +75,39 @@ export async function openOwnerConsult(input: OpenOwnerConsultInput): Promise<Op
   });
 }
 
+async function conversationIsActionable(businessId: string, conversationId: string): Promise<boolean> {
+  const conversation = await getConversation(conversationId, { businessId });
+  return conversation?.channel === 'line' && conversation.status === 'open' && conversation.handler === 'ai';
+}
+
 export async function isOwnerConsultActionPending(key: OwnerConsultActionKey): Promise<boolean> {
   if (!keyInput.safeParse(key).success) return false;
-  const { pending } = await db.one<{ pending: boolean }>(
-    'SELECT EXISTS(SELECT 1 FROM owner_consult_steps s JOIN businesses b ON b.id=s.business_id ' +
+  const row = await db.maybeOne<{ conversationId: string }>(
+    'SELECT c.conversation_id AS "conversationId" FROM owner_consult_steps s ' +
+    'JOIN owner_consult_cases c ON (c.business_id,c.id)=(s.business_id,s.case_id) JOIN businesses b ON b.id=s.business_id ' +
     "JOIN accounts a ON a.id=b.account_id WHERE s.business_id=$1 AND s.case_id=$2 AND s.action_step_id=$3 " +
-    "AND s.state='pending' AND b.status='active' AND a.status='active') AS pending",
+    "AND s.state='pending' AND b.status='active' AND a.status='active'",
     [key.businessId, key.caseId, key.actionStepId],
   );
-  return pending;
+  return row ? conversationIsActionable(key.businessId, row.conversationId) : false;
 }
 
 export async function getOwnerConsult(scope: AuthScope, caseId: string): Promise<OwnerConsultView> {
   if (!id.safeParse(caseId).success) notFound();
-  return db.tx(async (tx) => {
+  const { businessId, conversationId, ...view } = await db.tx(async (tx) => {
     const businessId = await requireCurrentOwner(tx, scope);
-    const row = await tx.maybeOne<OwnerConsultView>(
-      'SELECT c.id AS "caseId",s.action_step_id AS "actionStepId",s.version,s.state,c.language,s.question,s.answer,s.reuse ' +
+    const row = await tx.maybeOne<OwnerConsultView & { conversationId: string }>(
+      'SELECT c.id AS "caseId",c.conversation_id AS "conversationId",s.action_step_id AS "actionStepId",' +
+      's.version,s.state,c.language,s.question,s.answer,s.reuse ' +
       'FROM owner_consult_cases c JOIN owner_consult_steps s ON (s.business_id,s.case_id)=(c.business_id,c.id) ' +
       "WHERE c.business_id=$1 AND c.id=$2 ORDER BY (s.state='pending') DESC,s.created_at DESC,s.action_step_id LIMIT 1",
       [businessId, caseId],
     );
     if (!row) notFound();
-    return row;
+    return { ...row, businessId };
   });
+  if (view.state === 'pending' && !await conversationIsActionable(businessId, conversationId)) notFound();
+  return view;
 }
 
 type LockedStep = {

@@ -4,11 +4,12 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { db, createSession } from '../../core';
 import { createTestAgent, loginAs } from '../../core/test-utils';
 import { saveMessage } from '../inbox/service';
+import { takeoverConversation } from '../team/service';
 import { isOwnerConsultActionPending, openOwnerConsult } from './service';
 import { flushOwnerConsultOutbox } from './owner-consult-outbox';
 
 const mocks = vi.hoisted(() => ({ notify: vi.fn() }));
-vi.mock('../notifications/service', () => ({ notify: mocks.notify }));
+vi.mock('../notifications/service', () => ({ notify: mocks.notify, hasNotificationReceipt: async () => false }));
 
 const ownerFixture = SEED.users.find(({ alias }) => alias === 'owner_a')!;
 const foreignFixture = SEED.users.find(({ alias }) => alias === 'owner_b')!;
@@ -65,14 +66,14 @@ async function fixture() {
   });
   const question = 'Does the shop replace missing pieces for opened board games?';
   return {
-    businessId, staffCookie, conversationId: inbound.conversation.id, triggerMessageId: inbound.message.id, question, language: 'en' as const,
+    businessId, staffCookie, staffId, conversationId: inbound.conversation.id, triggerMessageId: inbound.message.id, question, language: 'en' as const,
   };
 }
 
 describe('F04 owner consultation', { timeout: 20_000 }, () => {
   it('opens one scoped action for duplicate inbound, dispatches once, and denies foreign and non-owner reads', async () => {
     mocks.notify.mockResolvedValue({ notificationIds: [randomUUID()], mode: 'real' });
-    const { staffCookie, ...input } = await fixture();
+    const { staffCookie, staffId: _staffId, ...input } = await fixture();
     const [opened, replay] = await Promise.all([openOwnerConsult(input), openOwnerConsult(input)]);
     expect([opened.created, replay.created].sort()).toEqual([false, true]);
     expect(opened).toMatchObject({ caseId: replay.caseId, actionStepId: 'initial', version: 1 });
@@ -99,7 +100,7 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
   });
 
   it('records one case-only receipt and rejects a stale answer or a changed replay', async () => {
-    const { staffCookie, ...input } = await fixture();
+    const { staffCookie, staffId: _staffId, ...input } = await fixture();
     const opened = await openOwnerConsult(input);
     const url = root(input.businessId) + opened.caseId;
     const body = {
@@ -126,10 +127,43 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
     expect(mocks.notify).not.toHaveBeenCalled();
   });
 
+  it.each(['claimed', 'closed'])('suppresses notification and its tap after the conversation is %s', async (state) => {
+    const { staffCookie: _cookie, staffId, ...input } = await fixture();
+    const opened = await openOwnerConsult(input);
+    const key = { businessId: input.businessId, caseId: opened.caseId, actionStepId: opened.actionStepId };
+    expect(await isOwnerConsultActionPending(key)).toBe(true);
+    if (state === 'claimed') {
+      await takeoverConversation(input.conversationId, staffId, { businessId: input.businessId, force: false });
+    } else {
+      // F11's close service is still a stub on this base, so close only this synthetic fixture.
+      await db.query("UPDATE conversations SET status='closed',closed_at=now(),version=version+1 WHERE business_id=$1 AND id=$2",
+        [input.businessId, input.conversationId]);
+    }
+    expect(await isOwnerConsultActionPending(key)).toBe(false);
+    const url = root(input.businessId) + opened.caseId;
+    expect((await owner.get(url)).status).toBe(404);
+    await flushOwnerConsultOutbox();
+    expect(mocks.notify).not.toHaveBeenCalled();
+
+    if (state === 'claimed') {
+      // An owner with a previously opened view can still record a private, case-only answer.
+      const response = await owner.post(url + '/answer').set(...writeHeader).send({
+        actionStepId: opened.actionStepId, expectedVersion: opened.version,
+        clientRequestId: randomUUID(), answer: 'The holder can offer a replacement part.',
+      });
+      expect(response.status).toBe(200);
+      expect(response.body.data).toMatchObject({ state: 'answered', reuse: 'case_only' });
+      expect(await db.one("SELECT handler,assignee_user_id FROM conversations WHERE business_id=$1 AND id=$2",
+        [input.businessId, input.conversationId])).toEqual({ handler: 'human', assignee_user_id: staffId });
+      expect(await db.one("SELECT count(*)::int AS total FROM messages WHERE business_id=$1 AND conversation_id=$2 AND direction='outbound'",
+        [input.businessId, input.conversationId])).toEqual({ total: 0 });
+    }
+  });
+
   it('keeps an unconfirmed send recoverable under the same scoped deduplication key', async () => {
     mocks.notify.mockResolvedValueOnce({ notificationIds: [], mode: 'sandbox' })
       .mockResolvedValueOnce({ notificationIds: [randomUUID()], mode: 'real' });
-    const { staffCookie: _cookie, ...input } = await fixture();
+    const { staffCookie: _cookie, staffId: _staffId, ...input } = await fixture();
     const opened = await openOwnerConsult(input);
     await flushOwnerConsultOutbox();
     const row = await db.one<{ delivered_at: Date | null }>(
