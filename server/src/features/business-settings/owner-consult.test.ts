@@ -5,7 +5,7 @@ import { db, createSession } from '../../core';
 import { createTestAgent, loginAs } from '../../core/test-utils';
 import { saveMessage } from '../inbox/service';
 import { takeoverConversation } from '../team/service';
-import { isOwnerConsultActionPending, openOwnerConsult } from './service';
+import { getBusinessSettings, isOwnerConsultActionPending, openOwnerConsult, readOwnerConsultAnswer } from './service';
 import { flushOwnerConsultOutbox } from './owner-consult-outbox';
 
 const mocks = vi.hoisted(() => ({ notify: vi.fn() }));
@@ -116,12 +116,32 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
     expect(first.body.data).toEqual(second.body.data);
     expect(first.body.data).toMatchObject({ version: 2, state: 'answered', reuse: 'case_only' });
     expect(first.body.data.answerReceiptId).toMatch(/^[a-f0-9-]{36}$/);
+    const answerKey = {
+      businessId: input.businessId, caseId: opened.caseId, actionStepId: opened.actionStepId,
+      answerReceiptId: first.body.data.answerReceiptId,
+    };
+    expect(await readOwnerConsultAnswer(answerKey)).toEqual({
+      ...answerKey, conversationId: input.conversationId, triggerMessageId: input.triggerMessageId,
+      answer: body.answer, language: input.language, reuse: 'case_only', version: 2,
+    });
+    expect(await readOwnerConsultAnswer({ ...answerKey, businessId: foreignShop.id })).toBeNull();
+    expect(await readOwnerConsultAnswer({ ...answerKey, actionStepId: 'stale' })).toBeNull();
+    expect(await readOwnerConsultAnswer({ ...answerKey, answerReceiptId: randomUUID() })).toBeNull();
+    expect(await db.one('SELECT count(*)::int AS total FROM owner_consult_answer_outbox WHERE business_id=$1 AND case_id=$2',
+      [input.businessId, opened.caseId])).toEqual({ total: 1 });
     expect(await db.one("SELECT count(*)::int AS total FROM audit_events WHERE business_id=$1 AND action='business-settings.owner_consult.answer'",
       [input.businessId])).toEqual({ total: 1 });
     expect(await db.one("SELECT count(*)::int AS total FROM messages WHERE business_id=$1 AND conversation_id=$2 AND direction='outbound'",
       [input.businessId, input.conversationId])).toEqual({ total: 0 });
     expect((await recipe().send({ ...body, answer: 'A different answer' })).body.error.code).toBe('IDEMPOTENCY_CONFLICT');
+    expect((await recipe().send({ ...body, reuse: 'propose_draft' })).body.error.code).toBe('IDEMPOTENCY_CONFLICT');
+    expect(await readOwnerConsultAnswer(answerKey)).toMatchObject({ reuse: 'case_only' });
     expect((await recipe().send({ ...body, clientRequestId: randomUUID() })).body.error.code).toBe('VERSION_CONFLICT');
+    await db.query(
+      "INSERT INTO owner_consult_steps(business_id,case_id,action_step_id,question) VALUES($1,$2,'later','Clarify the answer')",
+      [input.businessId, opened.caseId],
+    );
+    expect(await readOwnerConsultAnswer(answerKey)).toBeNull();
     expect(await isOwnerConsultActionPending({ businessId: input.businessId, caseId: opened.caseId, actionStepId: opened.actionStepId })).toBe(false);
     await flushOwnerConsultOutbox();
     expect(mocks.notify).not.toHaveBeenCalled();
@@ -153,11 +173,34 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
       });
       expect(response.status).toBe(200);
       expect(response.body.data).toMatchObject({ state: 'answered', reuse: 'case_only' });
+      expect(await readOwnerConsultAnswer({ ...key, answerReceiptId: response.body.data.answerReceiptId }))
+        .toMatchObject({ answer: 'The holder can offer a replacement part.', conversationId: input.conversationId });
       expect(await db.one("SELECT handler,assignee_user_id FROM conversations WHERE business_id=$1 AND id=$2",
         [input.businessId, input.conversationId])).toEqual({ handler: 'human', assignee_user_id: staffId });
       expect(await db.one("SELECT count(*)::int AS total FROM messages WHERE business_id=$1 AND conversation_id=$2 AND direction='outbound'",
         [input.businessId, input.conversationId])).toEqual({ total: 0 });
     }
+  });
+
+  it('keeps the owner receipt private and queued when the shop turns AI off', async () => {
+    const { staffCookie: _cookie, staffId: _staffId, ...input } = await fixture();
+    const opened = await openOwnerConsult(input);
+    const base = '/api/v1/businesses/' + input.businessId + '/settings';
+    expect((await owner.put(base + '/ai').set(...writeHeader).send({ enabled: false })).status).toBe(200);
+    expect((await getBusinessSettings(input.businessId)).aiEnabled).toBe(false);
+    const response = await owner.post(root(input.businessId) + opened.caseId + '/answer').set(...writeHeader).send({
+      actionStepId: opened.actionStepId, expectedVersion: opened.version, clientRequestId: randomUUID(), answer: 'Keep the answer on this case.',
+    });
+    expect(response.status).toBe(200);
+    const key = {
+      businessId: input.businessId, caseId: opened.caseId, actionStepId: opened.actionStepId,
+      answerReceiptId: response.body.data.answerReceiptId,
+    };
+    expect(await readOwnerConsultAnswer(key)).toMatchObject({ reuse: 'case_only', triggerMessageId: input.triggerMessageId });
+    expect(await db.one('SELECT queued_at FROM owner_consult_answer_outbox WHERE business_id=$1 AND answer_receipt_id=$2',
+      [input.businessId, key.answerReceiptId])).toEqual({ queued_at: null });
+    expect(await db.one("SELECT count(*)::int AS total FROM messages WHERE business_id=$1 AND conversation_id=$2 AND direction='outbound'",
+      [input.businessId, input.conversationId])).toEqual({ total: 0 });
   });
 
   it('keeps an unconfirmed send recoverable under the same scoped deduplication key', async () => {

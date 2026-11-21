@@ -147,6 +147,10 @@ export async function answerOwnerConsult(scope: AuthScope, input: AnswerOwnerCon
       'WHERE business_id=$1 AND case_id=$2 AND action_step_id=$3 RETURNING answer_receipt_id AS "answerReceiptId",version',
       [...key, answer, clientRequestId, scope.userId, reuse],
     );
+    await tx.query(
+      'INSERT INTO owner_consult_answer_outbox(business_id,case_id,action_step_id,answer_receipt_id) VALUES($1,$2,$3,$4)',
+      [...key, receipt.answerReceiptId],
+    );
     await auditInTransaction(tx, [{
       action: 'business-settings.owner_consult.answer', actorUserId: scope.userId,
       businessId, accountId: scope.accountId, targetType: 'owner_consult', targetId: caseId,

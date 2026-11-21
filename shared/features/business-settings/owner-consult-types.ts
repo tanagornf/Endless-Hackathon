@@ -49,3 +49,18 @@ export interface OwnerConsultView {
   answer: string | null;
   reuse: OwnerConsultReuse | null;
 }
+
+export const OWNER_CONSULT_ANSWER_JOB = 'ai.owner_consult.resume';
+
+export interface OwnerConsultAnswerKey extends OwnerConsultActionKey {
+  answerReceiptId: string;
+}
+
+export interface OwnerConsultAnswerForResume extends OwnerConsultAnswerKey {
+  conversationId: string;
+  triggerMessageId: string;
+  language: 'th' | 'en';
+  answer: string;
+  reuse: OwnerConsultReuse;
+  version: number;
+}
