@@ -8,7 +8,7 @@ import {
   C0, C0_XLANG, C1, DEFAULT_MIN_SCORE, FAKE_MIN_SCORE, INDEX_DIMENSIONS, LEX_CANDIDATES, LEXICAL_FALLBACK_MIN_SCORE,
   QUERY_MAX_CHARS, SNIPPET_MAX_CHARS, VEC_CANDIDATES, W_LEX, W_VEC, W_XLANG,
 } from './config';
-import { getActiveKnowledgeItemIds } from '../knowledge/service';
+import { getActiveKnowledgeItemIds, getActiveWebKnowledgeCitations, readWebKnowledgeAnswer } from '../knowledge/service';
 import { scoreChunk } from './score';
 import { termsOf, truncateAtWord } from './text';
 
@@ -148,10 +148,29 @@ export async function searchWorkbench(businessId: string, query: string, opts?: 
   }
 }
 
+async function exactWebHit(businessId: string, question: string, folders: string[]): Promise<KnowledgeHit | null> {
+  const approved = await readWebKnowledgeAnswer(businessId, question);
+  if (!approved || (folders.length && (!approved.folderId || !folders.includes(approved.folderId)))) return null;
+  return {
+    knowledgeItemId: approved.itemId, revision: approved.revision, title: approved.title, folderId: approved.folderId,
+    snippet: truncateAtWord(approved.answer, SNIPPET_MAX_CHARS), score: 1, citations: approved.citations,
+  };
+}
+
 export async function searchKnowledge(businessId: string, query: string, opts?: SearchKnowledgeOptions): Promise<KnowledgeSearchResult> {
+  const folders = folderFilter.safeParse(opts?.folderIds ?? []);
+  if (folders.success && !(Number.isFinite(opts?.topK) && opts!.topK! < 1) && (opts?.minScore ?? 0) <= 1) {
+    // The approved FAQ may have an edited title. Match its immutable public question first.
+    const exact = await exactWebHit(businessId, query, folders.data);
+    if (exact) return { query: query.trim(), strategy: 'lexical', mode: config.MODEL_MODE === 'fake' ? 'fake' : 'real', hits: [exact] };
+  }
   const result = await searchWorkbench(businessId, query, opts);
+  const sources = await getActiveWebKnowledgeCitations(businessId, result.hits.map((hit) => hit.knowledgeItemId));
   return {
     query: result.query, strategy: result.strategy, mode: result.mode,
-    hits: result.hits.map(({ debug: _debug, chunkText: _chunkText, status: _status, ...hit }) => hit),
+    hits: result.hits.map(({ debug: _debug, chunkText: _chunkText, status: _status, ...hit }) => {
+      const citations = sources.get(hit.knowledgeItemId);
+      return citations ? { ...hit, citations } : hit;
+    }),
   };
 }

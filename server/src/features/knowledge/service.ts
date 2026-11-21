@@ -5,11 +5,12 @@ import type { KnowledgeStatus } from '@nless/shared/core/types';
 import type { KnowledgeItemDetail } from '@nless/shared/features/knowledge/types';
 
 export { createKnowledgeDraft } from './drafts';
+export { createWebKnowledgeDraft, findWebKnowledgeDraft, getActiveWebKnowledgeCitations, readWebKnowledgeAnswer } from './web-suggestions';
 export { createFolder, deleteFolder, ensureKnowledgeFolder, listFolders, renameFolder } from './folders';
 
 export {
   createKnowledgeItem, patchKnowledgeItem, submitKnowledgeItem, activateKnowledgeItem,
-  deactivateKnowledgeItem, deleteKnowledgeItem, reindexKnowledgeItem,
+  deactivateKnowledgeItem, deleteKnowledgeItem, reindexKnowledgeItem, rejectWebKnowledgeDraft,
 } from './lifecycle';
 export { findRevision as getKnowledgeRevision, listItems as listKnowledgeItems, listRevisions } from './repo';
 

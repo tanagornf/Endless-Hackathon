@@ -44,12 +44,19 @@ export async function markInflight({ messageId, businessId }: DeliveryKey, attem
   return changed.rowCount ? checkpoint : null;
 }
 
-type DeliveryJob = { id: string; type: string; business_id: string | null; attempts: number };
-export type SettledDeliveryJob = DeliveryJob & { delivery: DeliveryChange | null };
-
-// The caller defines settled_jobs with the job transition. Both updates commit together.
-export const SETTLE_DEAD_DELIVERIES_SQL = `
-  , dead_delivery AS (
+export async function settleTerminalDeliveries(
+  transaction: DbExecutor, jobIds: readonly string[],
+): Promise<DeliveryChange[]> {
+  if (!jobIds.length) return [];
+  // Different jobs can settle the same message. Lock messages in order, then
+  // read sibling state in a new statement so it includes committed changes.
+  const locked = await transaction.query<{ id: string }>(`
+    SELECT m.id FROM jobs j JOIN messages m ON m.business_id=j.business_id AND m.id::text=(j.payload->>'messageId')
+    WHERE j.id=ANY($1::uuid[]) AND j.type='core.deliver' AND j.state IN ('dead','cancelled')
+      AND m.direction='outbound' AND m.delivery_state='pending'
+    ORDER BY m.id FOR UPDATE OF m`, [jobIds]);
+  if (!locked.rowCount) return [];
+  const settled = await transaction.query<DeliveryChange>(`
     UPDATE messages m
     SET delivery_state=CASE WHEN m.delivery_error IS NULL OR (
       m.delivery_error LIKE 'retry:%' AND m.delivery_error !~* '^retry:(UNCERTAIN_|LINE_5[0-9][0-9]|LINE_DELIVERY_UNAVAILABLE)'
@@ -58,26 +65,23 @@ export const SETTLE_DEAD_DELIVERIES_SQL = `
       WHEN m.delivery_error LIKE 'retry:%' AND m.delivery_error !~* '^retry:(UNCERTAIN_|LINE_5[0-9][0-9]|LINE_DELIVERY_UNAVAILABLE)'
         THEN substring(m.delivery_error FROM 7)
       ELSE '${INTERRUPTED_DELIVERY}' END
-    FROM settled_jobs j
-    WHERE j.state IN ('dead','cancelled') AND j.type='core.deliver' AND m.business_id=j.business_id
-      AND m.id::text=(j.payload->>'messageId') AND m.direction='outbound' AND m.delivery_state='pending'
+    FROM jobs j
+    WHERE j.id=ANY($1::uuid[]) AND j.state IN ('dead','cancelled') AND j.type='core.deliver' AND m.business_id=j.business_id
+      AND m.id=ANY($2::uuid[]) AND m.id::text=(j.payload->>'messageId') AND m.direction='outbound' AND m.delivery_state='pending'
       AND NOT EXISTS (
         SELECT 1 FROM jobs active
-        WHERE active.id<>j.id AND active.type='core.deliver' AND active.business_id=j.business_id
-          AND active.payload->>'messageId'=j.payload->>'messageId' AND active.state IN ('queued','running')
+        WHERE active.type='core.deliver' AND active.business_id=j.business_id
+          AND (active.payload->>'messageId')=(j.payload->>'messageId') AND active.state IN ('queued','running')
       )
-    RETURNING j.id AS "jobId", m.id AS "messageId", m.business_id AS "businessId",
-      m.conversation_id AS "conversationId", m.channel, m.delivery_state AS state, m.delivery_mode AS mode, m.delivery_error AS error
-  )
-  SELECT j.id,j.type,j.business_id,j.attempts,to_jsonb(d) AS delivery FROM settled_jobs j
-    LEFT JOIN dead_delivery d ON d."jobId"=j.id
-`;
+    RETURNING m.id AS "messageId", m.business_id AS "businessId", m.conversation_id AS "conversationId",
+      m.channel, m.delivery_state AS state, m.delivery_mode AS mode, m.delivery_error AS error
+  `, [jobIds, locked.rows.map(({ id }) => id)]);
+  return settled.rows;
+}
 
 export async function settleCancelledDelivery(transaction: DbExecutor, jobId: string): Promise<DeliveryChange | null> {
-  const settled = await transaction.maybeOne<SettledDeliveryJob>(`
-    WITH settled_jobs AS (SELECT id,type,business_id,attempts,payload,state FROM jobs WHERE id=$1 AND state='cancelled')
-    ${SETTLE_DEAD_DELIVERIES_SQL}`, [jobId]);
-  return settled?.delivery ?? null;
+  const [change] = await settleTerminalDeliveries(transaction, [jobId]);
+  return change ?? null;
 }
 
 export async function publishDeliveryChange(change: DeliveryChange): Promise<void> {

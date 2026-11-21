@@ -3,7 +3,8 @@ import { AppError, assertRateLimit, defineFeatureRoutes } from '../../core';
 import { ActivateBody, CreateBody, ExpectedRevision, ListQuery, PatchBody, RevisionQuery } from './schema';
 import {
   activateKnowledgeItem, createFolder, createKnowledgeItem, deactivateKnowledgeItem, deleteFolder, deleteKnowledgeItem, getKnowledgeItem,
-  getKnowledgeRevision, listFolders, listKnowledgeItems, listRevisions, patchKnowledgeItem, reindexKnowledgeItem, renameFolder, submitKnowledgeItem,
+  getKnowledgeRevision, listFolders, listKnowledgeItems, listRevisions, patchKnowledgeItem, reindexKnowledgeItem, rejectWebKnowledgeDraft,
+  renameFolder, submitKnowledgeItem,
 } from './service';
 
 const items = '/businesses/:businessId/knowledge/items';
@@ -54,6 +55,8 @@ export default defineFeatureRoutes({
       async ({ business, user, params, body }) => activateKnowledgeItem(business!.id, { userId: user!.id }, params.itemId, body));
     api.post(item + '/deactivate', { ...write, body: ExpectedRevision, summary: 'Deactivate knowledge' },
       async ({ business, user, params, body }) => deactivateKnowledgeItem(business!.id, { userId: user!.id }, params.itemId, body.expectedRevision));
+    api.post(item + '/reject', { ...write, body: ExpectedRevision, summary: 'Reject a pending web knowledge suggestion' },
+      async ({ business, user, params, body }) => rejectWebKnowledgeDraft(business!.id, { userId: user!.id }, params.itemId, body.expectedRevision));
     api.delete(item, { ...remove, summary: 'Delete knowledge' },
       async ({ business, user, params }) => deleteKnowledgeItem(business!.id, { userId: user!.id }, params.itemId));
     api.post(item + '/reindex', { ...write, summary: 'Rebuild knowledge index' },

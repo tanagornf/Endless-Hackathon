@@ -12,7 +12,7 @@ import {
 import FolderManager from './FolderManager';
 import type { FolderList } from './FolderManager';
 
-const statuses = ['all', 'draft', 'reviewed', 'active', 'inactive', 'deleted'] as const;
+const statuses = ['all', 'webSuggestions', 'draft', 'reviewed', 'active', 'inactive', 'deleted'] as const;
 type Filter = typeof statuses[number];
 
 function KnowledgeSlot({ entry, businessId }: { entry: SlotContribution; businessId: string }) {
@@ -29,6 +29,7 @@ function Results({ filter, term, folderId, add }: { filter: Filter; term: string
   if (term) request.set('q', term);
   if (folderId) request.set('folderId', folderId);
   if (filter === 'deleted') request.set('includeDeleted', 'true');
+  else if (filter === 'webSuggestions') request.set('pendingWebSuggestions', 'true');
   else if (filter !== 'all') request.set('status', filter);
   if (cursor) request.set('cursor', cursor);
   const page = useApiQuery<Page<KnowledgeItemRow>>('/knowledge/items?' + request.toString());
@@ -50,14 +51,18 @@ function Results({ filter, term, folderId, add }: { filter: Filter; term: string
     {page.error && <Alert severity="error" action={retry}>{t('error.load')}</Alert>}
     <DataTable rows={rows} loading={page.loading || (!data && !page.error && !rows.length)}
       rowKey={(row) => row.id} onRowClick={(row) => navigate('/knowledge/' + row.id)}
-      empty={<EmptyState title={t('empty.title')} description={filter === 'all' ? t('empty.description') : undefined} action={filter === 'all' ? add : undefined} />}
+      empty={<EmptyState title={t(filter === 'webSuggestions' ? 'web.empty' : 'empty.title')}
+        description={filter === 'all' ? t('empty.description') : undefined} action={filter === 'all' ? add : undefined} />}
       columns={[
         { key: 'title', header: t('table.title'), render: (row) => <Stack sx={{ maxWidth: 360, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
           <Typography>{row.title || t('page.untitled')}</Typography>
           {row.snippet && <Typography color="text.secondary" variant="body2">{row.snippet}</Typography>}
         </Stack> },
         { key: 'kind', header: t('table.kind'), render: (row) => t('kind.' + row.kind) },
-        { key: 'status', header: t('table.status'), render: (row) => <StatusChip status={row.status} /> },
+        { key: 'status', header: t('table.status'), render: (row) => <Stack sx={{ alignItems: 'flex-start' }}>
+          <StatusChip status={row.status} />
+          {row.source === 'web' && <Typography color="text.secondary" variant="caption">{t('web.label')}</Typography>}
+        </Stack> },
         { key: 'indexState', header: t('table.index'), render: (row) => <StatusChip status={row.indexState} /> },
         { key: 'folderName', header: t('table.folder'), render: (row) => row.folderName || t('table.unfiled') },
         { key: 'updatedAt', header: t('table.updated'), render: (row) => formatDateTime(row.updatedAt) },
