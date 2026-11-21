@@ -64,16 +64,22 @@ export async function runDemoReset(actorUserId: string): Promise<DemoResetResult
       await opsAudit(db, { action: 'core.demo.reset.start', actorUserId });
       try {
         if (await step('cancel_jobs', cancelQueuedDemoJobs) && await step('clear_demo_data', clearDemoData)) {
-          const hooks = await step('load_feature_resets', async () => {
-            const modules = (await featureSeeds()).reverse();
-            for (const module of modules) {
+          let modules: Awaited<ReturnType<typeof featureSeeds>> = [];
+          const loaded = await step('load_feature_resets', async () => { modules = await featureSeeds(); });
+          if (loaded) {
+            for (const module of modules.reverse()) {
               const reset = module.resetDemo;
               if (reset) await step('reset:' + module.default.featureId, () => reset(seedContext));
             }
-          });
-          if (hooks) {
             await step('seed', seed);
-            await step('seed_demo', seedDemoData);
+            await step('seed_demo', async () => {
+              const failures: string[] = [];
+              await seedDemoData((featureId, error) => {
+                const message = error instanceof Error ? error.message : 'Demo seed failed';
+                failures.push(featureId + ': ' + redactText(message, 100));
+              });
+              if (failures.length) throw new Error(failures.join(', '));
+            });
           }
         }
       } finally {
