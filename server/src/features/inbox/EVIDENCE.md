@@ -57,3 +57,8 @@
 - The internal test badge and test-link control are labeled in Thai and English. LINE remains the customer messaging channel in this release.
 - The affected F09 suite passed 28/28 with the fake model and the A1 test database. The three client regressions passed together, including the cross-tab case added during the DB run. Full workspace typecheck passed.
 - A release rerun exposed a missed wake when a staff message committed between the first database read and long-poll registration. The original request took 12.213 seconds against a 9-second assertion. The poll now subscribes before the read and releases the watcher on every return. The deterministic interleaving test and the original integration test pass. Final local verification passed 30/30 in 127.51 seconds with the A1 test database and fake model, plus full workspace typecheck.
+
+### Outgoing web citations
+
+- The buyer Demo Chat and staff Inbox turn HTTPS URLs in outgoing text into native links. Source titles, Thai and English text, punctuation, query strings and fragments retain their original display.
+- At `8667730` all nine Inbox web tests passed on the Google runner in 8.59 seconds. Tests exercised both screens, including keyboard focus in the Inbox, two sources in one reply and plain text for unsupported URLs and markup. Full workspace typecheck and the A1 path check passed.
