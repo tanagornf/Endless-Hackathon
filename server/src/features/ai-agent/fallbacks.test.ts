@@ -14,6 +14,16 @@ describe('F10 reply language', () => {
     expect(detectReplyLanguage(['ok'], ['Hi, a question about a board game.'], 'th')).toBe('en');
   });
 
+  it('uses the current reply language even when the older unanswered message is longer', () => {
+    expect(detectReplyLanguage(['รบกวนช่วยตรวจสอบรายละเอียดสินค้าและค่าจัดส่งทั้งหมดให้ด้วยนะคะ', 'How much is A-GAME-01?'], [], 'th')).toBe('en');
+    expect(detectReplyLanguage(['Please check the complete product information and all of the delivery details for me.', 'ราคาเท่าไหร่คะ'], [], 'en')).toBe('th');
+  });
+
+  it.each(['ok', '👍', '42', 'A-GAME-01'])('uses the nearest decisive buyer language for neutral input %s', (text) => {
+    expect(detectReplyLanguage(['รบกวนช่วยตรวจสอบรายละเอียดสินค้าและค่าจัดส่งทั้งหมดให้ด้วยนะคะ', 'How much is it?', text], [], 'th')).toBe('en');
+    expect(detectReplyLanguage(['Please check the complete product information and all of the delivery details for me.', 'ราคาเท่าไหร่คะ', text], [], 'en')).toBe('th');
+  });
+
   it('has both localized forms for every fallback', () => {
     for (const { th, en } of Object.values(fallbacks)) {
       expect(th).toMatch(/\p{Script=Thai}/u);

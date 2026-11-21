@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | 74dc80f | Gate fix #69 passed exact independent 102/102 and hosted CI. F11 receipt recovery 5/5 with the real F11/F09/F35 path. Typecheck and ownership passed. | 2026-11-21 14:11 +07:00 | Production gate retest, receipt CI and trace UI pending. |
+| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | af55437 | Locale gate focus 17/17. Receipt recovery #75 passed exact independent 117/117 and hosted CI. Typecheck and ownership passed. | 2026-11-21 14:20 +07:00 | Coordinated production locale retest and trace UI pending. |
 
 ## Log
 
@@ -28,6 +28,9 @@
 | 2026-11-21 13:56 | Excluded F10-traced staff-held messages from later AI pricing without changing the superseded-turn backlog. | The UI verifier flagged a separate handback pricing regression. | 6e53dca | `npm test -- ai-agent -t 'F10 catalog reference scope|G1 uses|G17 supersedes'` passed 10/10 in 66.71s. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
 | 2026-11-21 14:00 | Released current-subject catalog pricing and post-handback suppression. | B0 reran the exact PR head in the shared cloud. | 41ce65e | Exact head 991da28 passed independent F10/core 102/102 and hosted CI. The UI verifier separately confirmed 99 baht after returning the chat to AI. | `MODEL_MODE=fake`, cloud and synthetic UI. |
 | 2026-11-21 14:11 | Persisted the expected F11 assignment version before apply and reconciled the exact receipt before a later takeover gate. | F11 owner published the additive contract in #68. | 74dc80f | `npm test -- ai-agent -t 'F10 F11 receipt recovery'` passed 5/5 in 43.15s. Applied migration `003_handoff_intent.sql`. One committed handoff, one system note, one sent ACK and one staff notification survived simulated worker loss. Stale claim, handback/requeue and AI-off produced no ACK. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 14:17 | Released the F11 receipt consumer. | B0 verified one scoped handoff recovered without duplicate send or notification. | dedbac2 | Exact independent F10/F11/core suite 117/117 and hosted CI passed on ed45f12. | `MODEL_MODE=fake`, isolated cloud test DB. |
+| 2026-11-21 14:18 | Reproduced the current English question receiving a Thai quote after an older Thai AI-off inbound. | C0 confirmed the production trace selected Thai for that exact English message. | fd65ac3 | The scoped baseline had 7 failures and 7 passing controls in 34.40s, including a separate mixed-script quote and neutral-input cases. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 14:20 | Selected the current buyer language and validated localized monetary prose. | — | af55437 | Scoped 17/17 in 56.80s, including English after Thai AI-off, reverse Thai, neutral input, mixed-script repair, 990-baht negotiation, G14 and G17. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
 
 S1 serializes direct and queued turns with a short `ai.turn:<conversationId>` transaction lock and a fenced lease. The tests exercise a stale holder, a duplicate inbound, overlapping direct and queued turns, and four queued conversations with the default five-connection pool. The focused expired-lease test on the F35 base passed and verified exactly one AI save and one delivery enqueue call after a replacement holder finished.
 
@@ -44,6 +47,8 @@ The expected F11 version is stored before apply. If the worker restarts before t
 After three definite enqueue failures, the generated turn remains complete and keeps the saved reply ID. Its owner trace reports `DELIVERY_ENQUEUE_FAILED` from the scoped F09 delivery state. A committed job with a lost acknowledgement continues to dispatch the same reply. [Independent worker replay](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058708480)
 
 In the earlier production gate, the unknown explicit SKU received the previous known product's price. The fix requires an active product match for price and total tools and limits historical prefetch to explicit or unambiguous follow-ups. It also omits a staff-held request from the first later AI quote after handback while retaining superseded messages in the normal unanswered backlog. [Production owner trace evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058840936)
+
+The subsequent deployed check confirmed the unknown SKU declined without a price. F10 now selects the required reply language from the latest decisive buyer message. A neutral input uses the nearest decisive message. Older unanswered questions stay in model context. [Production visitor evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059123386)
 
 ## S2 OpenAI development acceptance
 
