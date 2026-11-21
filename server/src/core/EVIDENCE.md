@@ -28,3 +28,8 @@
 - The integration test first reproduced a queued AI reply reaching the sender after the business switched AI off.
 - The C1 test database verified live toggle and takeover checks in the worker. Staff and system messages still reached the sender. A code-generated F10 handoff acknowledgement carried the assignment version and could be sent for that version while AI stayed on.
 - Local typecheck and 12 focused tests passed across delivery, core loop, worker and LINE events. This check covers provider calls before dispatch. Production smoke is pending.
+
+### F01 live chat authorization
+
+- An authenticated WebSocket received chat events after its staff member's chat grant was cleared. A real socket regression now verifies fresh authorization for chat events, continued delivery of unrelated events to the active member, and policy close code 1008 following removal of the membership.
+- Local typecheck and focused realtime, auth and core loop tests passed. Production verification is pending.
