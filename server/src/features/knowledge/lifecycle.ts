@@ -9,6 +9,7 @@ import type { ActivateBody, CreateBody, PatchBody } from './schema';
 export type Actor = { userId: string | null };
 type Status = Item['status'];
 const mutableStatuses: Status[] = ['draft', 'reviewed', 'active', 'inactive'];
+const editableWebStatuses: Status[] = ['draft', 'reviewed', 'inactive'];
 
 function policy(reason: string): AppError {
   return new AppError('POLICY_BLOCKED', 'Knowledge transition is unavailable', { details: { reason } });
@@ -84,6 +85,8 @@ export function patchKnowledgeItem(businessId: string, actor: Actor, id: string,
     if (normalizeContent(text) !== normalizeContent(item.body)) changed.add('body');
     if (kind !== item.kind) changed.add('kind');
     const contentChanged = changed.size > 0;
+    const allowed = contentChanged && item.source === 'web' ? editableWebStatuses : mutableStatuses;
+    if (allowed === editableWebStatuses) assertTransition(item, body.expectedRevision, allowed, 'deactivate_web_before_editing');
     if (folderId !== item.folder_id) changed.add('folderId');
     const storedFiles = new Map(item.files.map((file) => [file.fileId, file]));
     const files = body.files?.map((tag) => {
@@ -104,10 +107,10 @@ export function patchKnowledgeItem(businessId: string, actor: Actor, id: string,
         'revision=revision+$7::int,moderation=CASE WHEN $7=1 THEN NULL ELSE moderation END,updated_by=$8,updated_at=now() ' +
         'WHERE business_id=$9 AND id=$10 AND revision=$11 AND status=ANY($12::text[]) RETURNING id',
         [nextTitle, nextBody, kind, folderId, JSON.stringify(files), contentHash(nextTitle, nextBody),
-          Number(contentChanged), actor.userId, businessId, id, body.expectedRevision, mutableStatuses],
+          Number(contentChanged), actor.userId, businessId, id, body.expectedRevision, allowed],
       );
       if (!result) {
-        assertTransition(await requireItem(businessId, id, tx), body.expectedRevision, mutableStatuses, 'not_mutable');
+        assertTransition(await requireItem(businessId, id, tx), body.expectedRevision, allowed, 'not_mutable');
         throw new AppError('VERSION_CONFLICT', 'Knowledge revision changed');
       }
       const updated = await requireItem(businessId, id, tx);
@@ -146,24 +149,33 @@ async function restoreStatus(previous: Item, changed: Item): Promise<void> {
   );
 }
 
-async function updateSearchability(previous: Item, changed: Item, revision: number | null): Promise<void> {
+async function updateSearchability(previous: Item, changed: Item, revision: number | null): Promise<boolean> {
   const input = { businessId: changed.business_id, itemId: changed.id, revision };
   try {
     if (revision === null) await setSearchable(input).catch(() => setSearchable(input));
     else await setSearchable(input);
+    return true;
   } catch (cause) {
+    if (changed.source === 'web' && revision !== null && cause instanceof AppError && cause.code === 'KNOWLEDGE_NOT_READY') {
+      await queueIndex(changed);
+      return false;
+    }
     await restoreStatus(previous, changed);
     log.error({ knowledgeItemId: changed.id, revision: changed.revision }, 'Knowledge searchability update failed');
     throw new AppError('INTERNAL', 'Could not update knowledge searchability', { cause });
   }
 }
 
+function assertContent(item: Item): void {
+  if (!normalizeContent(item.title) || !normalizeContent(item.body)) {
+    throw new AppError('VALIDATION_ERROR', 'Knowledge title and body are required');
+  }
+}
+
 export function submitKnowledgeItem(businessId: string, actor: Actor, id: string, expected: number): Promise<KnowledgeItemDetail> {
   return withItemLock(businessId, id, async (item) => {
     assertTransition(item, expected, ['draft'], 'not_draft');
-    if (!normalizeContent(item.title) || !normalizeContent(item.body)) {
-      throw new AppError('VALIDATION_ERROR', 'Knowledge title and body are required');
-    }
+    assertContent(item);
     const saved = await changeStatus(item, actor, 'reviewed');
     await queueIndex(saved);
     await auditItem('submit', actor, saved);
@@ -173,17 +185,22 @@ export function submitKnowledgeItem(businessId: string, actor: Actor, id: string
 
 export function activateKnowledgeItem(businessId: string, actor: Actor, id: string, body: ActivateBody): Promise<KnowledgeItemDetail> {
   return withItemLock(businessId, id, async (item) => {
-    assertTransition(item, body.expectedRevision, ['reviewed', 'inactive'], item.status === 'draft' ? 'submit_first' : 'not_reviewed');
-    const index = (await getIndexStates(businessId, [id]))[id];
-    if (index?.state !== 'ready' || index.revision !== item.revision) {
-      const state = index?.revision === item.revision ? index.state : 'not_started';
-      throw new AppError('KNOWLEDGE_NOT_READY', 'Knowledge index is not ready', { details: { state } });
+    const webSuggestion = item.source === 'web';
+    assertTransition(item, body.expectedRevision, webSuggestion ? editableWebStatuses : ['reviewed', 'inactive'],
+      item.status === 'draft' ? 'submit_first' : 'not_reviewed');
+    if (webSuggestion) assertContent(item);
+    else {
+      const index = (await getIndexStates(businessId, [id]))[id];
+      if (index?.state !== 'ready' || index.revision !== item.revision) {
+        const state = index?.revision === item.revision ? index.state : 'not_started';
+        throw new AppError('KNOWLEDGE_NOT_READY', 'Knowledge index is not ready', { details: { state } });
+      }
     }
     if (item.moderation?.status === 'flagged' && !body.acknowledgeModeration) throw policy('moderation_flagged');
     const saved = await changeStatus(item, actor, 'active');
-    await updateSearchability(item, saved, item.revision);
+    const ready = await updateSearchability(item, saved, item.revision);
     await auditItem('activate', actor, saved);
-    publish(businessId, { type: 'knowledge.status', knowledgeItemId: id, indexState: 'ready' });
+    if (ready) publish(businessId, { type: 'knowledge.status', knowledgeItemId: id, indexState: 'ready' });
     return itemDetail(saved);
   });
 }
@@ -198,14 +215,26 @@ export function deactivateKnowledgeItem(businessId: string, actor: Actor, id: st
   });
 }
 
-export function deleteKnowledgeItem(businessId: string, actor: Actor, id: string):
-  Promise<{ id: string; status: 'deleted'; deletedAt: string }> {
+type DeletedItem = { id: string; status: 'deleted'; deletedAt: string };
+
+async function deleteItem(item: Item, actor: Actor, action: 'delete' | 'reject'): Promise<DeletedItem> {
+  if (item.status === 'deleted') return { id: item.id, status: 'deleted', deletedAt: item.deleted_at!.toISOString() };
+  const saved = await changeStatus(item, actor, 'deleted');
+  await updateSearchability(item, saved, null);
+  await auditItem(action, actor, saved);
+  if (action === 'reject') publish(item.business_id, { type: 'knowledge.status', knowledgeItemId: item.id, indexState: 'not_started' });
+  return { id: item.id, status: 'deleted', deletedAt: saved.deleted_at!.toISOString() };
+}
+
+export function deleteKnowledgeItem(businessId: string, actor: Actor, id: string): Promise<DeletedItem> {
+  return withItemLock(businessId, id, (item) => deleteItem(item, actor, 'delete'));
+}
+
+export function rejectWebKnowledgeDraft(businessId: string, actor: Actor, id: string, expected: number): Promise<DeletedItem> {
   return withItemLock(businessId, id, async (item) => {
-    if (item.status === 'deleted') return { id, status: 'deleted', deletedAt: item.deleted_at!.toISOString() };
-    const saved = await changeStatus(item, actor, 'deleted');
-    await updateSearchability(item, saved, null);
-    await auditItem('delete', actor, saved);
-    return { id, status: 'deleted', deletedAt: saved.deleted_at!.toISOString() };
+    if (item.source !== 'web') throw policy('not_web_suggestion');
+    if (item.status !== 'deleted') assertTransition(item, expected, ['draft', 'reviewed'], 'not_pending');
+    return deleteItem(item, actor, 'reject');
   });
 }
 
