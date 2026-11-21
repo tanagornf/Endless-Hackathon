@@ -90,6 +90,27 @@ test('a buyer sees a sourced product fact and the next buyer sees the merchant c
   }
 }, 40000);
 
+test('a buyer receives sourced prose when inline provider links make the raw answer longer than 650 characters', async () => {
+  const owner = await ownerSession();
+  const url = 'https://standards.example/specifications/' + 'magnetic-alignment/'.repeat(12) + 'guide';
+  const prose = 'Qi2 uses magnetic alignment for wireless charging.';
+  const citation = '[Standards guide](' + url + ')';
+  const raw = [prose, citation, 'A transmitter and receiver align with each other.', citation,
+    'That alignment helps position the charging coils.', citation].join(' ');
+  expect(raw.length).toBeGreaterThan(650);
+  const search = vi.spyOn(model, 'searchWeb').mockResolvedValue({
+    answer: raw, citations: [{ title: 'Standards guide', url }], usageId: randomUUID(),
+  });
+  const { reply } = await ask('What is Qi2?');
+  expect(search).toHaveBeenCalledTimes(1);
+  expect(textOf(reply)).toContain(prose);
+  expect(reply.parts.some(part => part.type === 'text' && part.text.includes(url))).toBe(true);
+  const list = await owner.get(knowledge).query({ status: 'draft', limit: 200 }).expect(200);
+  const draft = (list.body.data.items as KnowledgeItemRow[]).find(row => row.source === 'web' && row.title.includes('Qi2'));
+  expect(draft).toBeDefined();
+  await owner.delete(knowledge + '/' + draft!.id).set(writeHeader).expect(200);
+}, 20000);
+
 test('an unknown SKU stays on the local catalog path', async () => {
   const search = vi.spyOn(model, 'searchWeb');
   const { reply } = await ask('How much is A-UNKNOWN-73 and how many do you have in stock?');
