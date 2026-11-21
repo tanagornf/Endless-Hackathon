@@ -1,8 +1,10 @@
 # F02 auth
 
-| ID | Status | Target mode | Actual mode |
-|---|---|---|---|
-| F02 | UNIMPLEMENTED | R | U |
+## Status
+
+| feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
+|---|---|---|---|---|---|---|---|---|---|---|
+| F02 | auth | C3 | DOING | R | A | none | 6c4ecafc2bd1f4a797dbf778a271c61da3457b11 | C3 focused suite passed 16 tests in 4 files with fake model mode. CI passed and 3 Playwright smoke cases were discovered. | 2026-11-21 12:48 | Production smoke, dev-login cutover, and later auth slices pending |
 
 ## Log
 
@@ -10,7 +12,7 @@
 
 - Added scrypt verification, email lockout and request limits, CSRF checks, seed-password sync, and password session creation and revocation.
 - Added the Thai and English login form with native input labels, inline errors, and a same-site post-login redirect.
-- Local verification passed for TypeScript, C3 path ownership, and seven database-free assertions. Playwright discovered all three F02 smoke cases.
-- Focused database suite for the C3 owner or CI: `npm test -- server/src/features/auth web/src/features/auth`. Browser smoke after deployment: `npm run e2e -- auth.smoke.spec.ts`.
-- The managed checkout has no assigned test database configuration. Database tests and browser execution are pending. The C3 owner tracks the feature status, merge, and production smoke.
+- The original C3 owner ran `npm test -- server/src/features/auth web/src/features/auth` against `6c4ecafc2bd1f4a797dbf778a271c61da3457b11` in the approved C3 checkout with `MODEL_MODE=fake`. The run started on 2026-11-21 at 12:48:29 Bangkok time and passed all 16 tests across 4 files in 53.55 seconds.
+- TypeScript, C3 path ownership, and all seven database-free tests passed locally. Playwright discovered three smoke cases. The PR's GitHub check also passed. [CI job](https://github.com/tanagornf/Endless-Hackathon/actions/runs/44872642086/job/136750366435)
+- The C3 owner handles the merge and production smoke with `npm run e2e -- auth.smoke.spec.ts`. Production smoke and dev-login cutover are pending.
 - Links to signup and password recovery will accompany their working flows in S2 and S3. Dev login cutover remains under the production owner's control.
