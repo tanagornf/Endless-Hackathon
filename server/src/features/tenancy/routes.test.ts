@@ -14,10 +14,19 @@ const pendingCleanup: string[] = [];
 const businessPath = (id: string) => '/api/v1/businesses/' + id;
 const memberPath = (businessId: string, userId: string) => businessPath(businessId) + '/members/' + userId;
 
-async function login(email: string) {
-  const agent = await createTestAgent();
-  await loginAs(agent, email);
-  return agent;
+type TestSession = Awaited<ReturnType<typeof createTestAgent>>;
+const sessions = new Map<string, Promise<TestSession>>();
+
+function login(email: string): Promise<TestSession> {
+  const existing = sessions.get(email);
+  if (existing) return existing;
+
+  const signedIn = createTestAgent().then(async (agent) => {
+    await loginAs(agent, email);
+    return agent;
+  });
+  sessions.set(email, signedIn);
+  return signedIn;
 }
 
 async function testBusiness(secondOwner = false, useAccountOwner = true) {
@@ -147,5 +156,37 @@ describe('F03 membership routes', () => {
     expect(ownerCount.count).toBe(1);
     const changedMember = replies.find(({ status }) => status === 200)!.body.data as MemberRow;
     expect(changedMember.status).toBe('revoked');
+  });
+
+  it('keeps staff in the tenant with empty grants and denies routes that need a permission', async () => {
+    const businessId = await testBusiness();
+    const [owner, staff] = await Promise.all([login(ownerA.email), login(staffA.email)]);
+    const updated = await owner.put(memberPath(businessId, staffA.id) + '/permissions')
+      .set('X-Requested-With', 'nless').send({ permissions: [] });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.permissions).toEqual([]);
+    expect((await staff.get(businessPath(businessId))).status).toBe(200);
+    const denied = await staff.get(businessPath(businessId) + '/settings');
+    expect(denied.status).toBe(403);
+    expect(denied.body.error.code).toBe('PERMISSION_DENIED');
+    const me = await staff.get('/api/v1/me');
+    const shop = me.body.data.businesses.find((row: { business: { id: string } }) => row.business.id === businessId);
+    expect(shop.permissions).toEqual([]);
+  });
+
+  it('serializes concurrent demotions so only one active owner loses their role', async () => {
+    const businessId = await testBusiness(true, false);
+    const [first, second] = await Promise.all([login(ownerA.email), login(ownerB.email)]);
+    const replies = await Promise.all([
+      first.put(memberPath(businessId, ownerB.id) + '/role').set('X-Requested-With', 'nless').send({ role: 'staff' }),
+      second.put(memberPath(businessId, ownerA.id) + '/role').set('X-Requested-With', 'nless').send({ role: 'staff' }),
+    ]);
+    expect(replies.filter(({ status }) => status === 200)).toHaveLength(1);
+    expect(replies.find(({ status }) => status !== 200)?.status).toBeOneOf([403, 422]);
+    const roles = await db.query<{ role: string }>(
+      "SELECT role FROM memberships WHERE business_id=$1 AND user_id=ANY($2::uuid[]) AND status='active' ORDER BY role",
+      [businessId, [ownerA.id, ownerB.id]],
+    );
+    expect(roles.rows).toEqual([{ role: 'owner' }, { role: 'staff' }]);
   });
 });

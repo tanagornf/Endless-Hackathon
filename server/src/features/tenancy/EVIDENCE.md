@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F03 | tenancy | C3 | DOING | R | A | none | | 12 F03 tests passed, 10 business GET routes and 30 cross-shop requests, typecheck and path check passed, 2 Playwright tests discovered | 2569-11-21 12:17 +07:00 | Production smoke and later tenancy slices pending |
+| F03 | tenancy | C3 | DOING | R | A | none | | 15 F03 tests passed, 10/15 distinct business GET routes and 30 cross-shop requests, typecheck and path check passed, 2 Playwright tests discovered | 2569-11-21 12:21 +07:00 | Production smoke and later tenancy slices pending |
 
 ## Log
 
@@ -12,3 +12,4 @@
 - Owner A sees only shop A in the session. The registry test covered every currently registered business GET endpoint: ten distinct routes and 30 requests by callers outside the corresponding tenant. Future registrations are included automatically. The target of 15 distinct routes depends on the remaining feature registrations.
 - Role changes serialize per business. Tests verify revoked staff lose access on the same session's next request, platform admins get no implicit tenant access, owner-only permissions cannot be assigned to staff, and concurrent revocations retain one active owner.
 - The two production smoke cases are read-only and do not change seeded users. Playwright discovery passed. Production run, invitations workflow, and business onboarding are pending.
+- Review verification added seeded success controls for knowledge item detail and revisions, empty-grant behavior, and a concurrent demotion race. Each knowledge detail is confirmed readable by its own owner and denied under both foreign shop and foreign resource requests. The member tests reuse the authenticated sessions under the existing dev-login rate limit.
