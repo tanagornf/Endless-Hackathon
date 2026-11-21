@@ -9,6 +9,8 @@ import {
   JOBS_MAX_RESCHEDULES, JOBS_POLL_MS, JOBS_RESULT_MAX_BYTES, JOBS_SHUTDOWN_GRACE_MS,
 } from './jobs-config';
 import { jobContext, log } from './log';
+import { publishDeliveryChange, SETTLE_DEAD_DELIVERIES_SQL } from './outbox';
+import type { SettledDeliveryJob } from './outbox';
 import { redactObject, redactText } from './redact';
 
 interface JobIdentity { id: string; type: string; business_id: string | null; attempts: number }
@@ -48,13 +50,17 @@ async function onDead(job: JobIdentity, lastError: string) {
   }).catch(() => log.warn({ jobId: job.id, type: job.type }, 'Dead job audit could not be written'));
 }
 async function reap(type?: string): Promise<number> {
-  const { rows } = await db.query<JobIdentity>(
-    "UPDATE jobs SET state='dead',dead_at=now(),finished_at=now(),updated_at=now(),claim_token=NULL, " +
-    "locked_until=NULL,locked_by=NULL,last_error=$2 WHERE state='running' AND locked_until<now() " +
-    "AND attempts>=max_attempts AND ($1::text IS NULL OR type=$1) RETURNING id,type,business_id,attempts",
-    [type ?? null, exhausted],
-  );
-  for (const row of rows) await onDead(row, exhausted);
+  const { rows } = await db.query<SettledDeliveryJob>(`
+    WITH settled_jobs AS (
+      UPDATE jobs SET state='dead',dead_at=now(),finished_at=now(),updated_at=now(),claim_token=NULL,
+        locked_until=NULL,locked_by=NULL,last_error=$2 WHERE state='running' AND locked_until<now()
+        AND attempts>=max_attempts AND ($1::text IS NULL OR type=$1)
+      RETURNING id,type,business_id,attempts,payload,state
+    ) ${SETTLE_DEAD_DELIVERIES_SQL}`, [type ?? null, exhausted]);
+  for (const row of rows) {
+    if (row.delivery) await publishDeliveryChange(row.delivery);
+    await onDead(row, exhausted);
+  }
   return rows.length;
 }
 
@@ -101,22 +107,23 @@ interface Settlement {
   payload?: string;
 }
 async function settle(job: JobClaim, outcome: Settlement): Promise<boolean> {
-  const changed = await db.query(
-    "UPDATE jobs SET state=$3::text,claim_token=NULL,locked_until=NULL,locked_by=NULL,updated_at=now()," +
+  const changed = await db.maybeOne<SettledDeliveryJob>(
+    "WITH settled_jobs AS (UPDATE jobs SET state=$3::text,claim_token=NULL,locked_until=NULL,locked_by=NULL,updated_at=now()," +
     "attempts=attempts-CASE WHEN $4::timestamptz IS NULL THEN 0 ELSE 1 END," +
     "reschedules=reschedules+CASE WHEN $4::timestamptz IS NULL THEN 0 ELSE 1 END," +
     "run_at=CASE WHEN $4::timestamptz IS NOT NULL THEN GREATEST($4,now()+interval '1 second') " +
     "WHEN $5::double precision IS NOT NULL THEN now()+make_interval(secs=>$5) ELSE run_at END," +
     "finished_at=CASE WHEN $3::text='queued' THEN NULL ELSE now() END," +
     "dead_at=CASE WHEN $3::text='dead' THEN now() ELSE NULL END,last_error=$6,result=$7::jsonb " +
-    "WHERE id=$1 AND claim_token=$2 AND state='running'",
+    "WHERE id=$1 AND claim_token=$2 AND state='running' RETURNING id,type,business_id,attempts,payload,state)" + SETTLE_DEAD_DELIVERIES_SQL,
     [job.id, job.claim_token, outcome.state, outcome.rescheduleAt ?? null, outcome.backoffSeconds ?? null,
       outcome.error ?? null, outcome.payload ?? null],
   );
-  if (!changed.rowCount) {
+  if (!changed) {
     log.debug('Discarded result for an inactive job claim');
     return false;
   }
+  if (changed.delivery) await publishDeliveryChange(changed.delivery);
   if (outcome.state === 'dead') await onDead(job, outcome.error ?? 'job failed');
   else publishJob(job, outcome.state);
   return outcome.state === 'dead';
