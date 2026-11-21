@@ -1,5 +1,6 @@
 import { assertRateLimit, defineFeatureRoutes } from '../../core';
 import { createRetrievalCase, deleteRetrievalCase, listRetrievalCases, listRetrievalRuns, runRetrievalEvaluation } from './eval';
+import { FIXTURE_JOB, fixtureJobHandler, queueDemoFixture, removeDemoFixture } from './fixture-job';
 import { indexJobHandler } from './index-job';
 import { INDEX_JOB } from './indexing';
 import { CaseBody, EvalRunBody, RunsQuery, SearchBody } from './schema';
@@ -37,6 +38,12 @@ export default defineFeatureRoutes({
       await deleteRetrievalCase(business!.id, user!.id, params.caseId);
       return { kind: 'no_content' };
     });
+    api.post(root + '/fixture/load', { ...write, summary: 'Queue the demo retrieval fixture' },
+      async ({ business, user }) => ({
+        kind: 'json', status: 202, data: await queueDemoFixture(business!.id, user!.id),
+      }));
+    api.post(root + '/fixture/remove', { ...write, summary: 'Remove the demo retrieval fixture' },
+      ({ business, user }) => removeDemoFixture(business!.id, user!.id));
   },
-  jobs: { [INDEX_JOB]: indexJobHandler },
+  jobs: { [INDEX_JOB]: indexJobHandler, [FIXTURE_JOB]: fixtureJobHandler },
 });

@@ -3,12 +3,15 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { SEED } from '@nless/shared/core/fixtures';
 import type { IndexStatus, KnowledgeHit, SourceView, WorkbenchSearchOptions, WorkbenchSearchResult } from '@nless/shared/features/knowledge-search/types';
-import { DataTable, EmptyState, PageHeader, SectionCard, useApiMutation, useApiQuery, useSession } from '../../core';
+import { DataTable, EmptyState, PageHeader, SectionCard, useApiMutation, useApiQuery, useCan, useRealtime, useSession } from '../../core';
+import DemoFixturePanel from './DemoFixturePanel';
 import RetrievalEvaluationPanel from './RetrievalEvaluationPanel';
 import SavedRetrievalCases from './SavedRetrievalCases';
 
 const root = '/knowledge-search';
+const demoBusiness = SEED.businesses.find(({ alias }) => alias === 'biz_demo_a')!.id;
 const counts = ['ready', 'indexing', 'failed', 'not_started'] as const;
 const strategies = ['auto', 'lexical', 'vector', 'hybrid'] as const;
 type Strategy = (typeof strategies)[number];
@@ -17,6 +20,7 @@ type Source = Pick<KnowledgeHit, 'knowledgeItemId' | 'revision'>;
 function IndexPanel() {
   const { t } = useTranslation('knowledge-search');
   const status = useApiQuery<IndexStatus>(root + '/status');
+  useRealtime('knowledge.status', () => status.reload());
   return <SectionCard title={t('index.title')}>
     {status.error ? <Alert severity="error" action={<Button onClick={status.reload}>{t('common:actions.retry')}</Button>}>
       {t('index.error')}
@@ -62,7 +66,7 @@ function SourceDrawer({ source, onClose }: { source: Source | null; onClose: () 
   </Drawer>;
 }
 
-function Workbench() {
+function Workbench({ showFixture }: { showFixture: boolean }) {
   const { t } = useTranslation('knowledge-search');
   const [query, setQuery] = useState('');
   const [strategy, setStrategy] = useState<Strategy>('auto');
@@ -144,6 +148,7 @@ function Workbench() {
     </SectionCard>
     <RetrievalEvaluationPanel strategy={strategy === 'auto' ? 'hybrid' : strategy} minScore={minimum} valid={validMinimum} />
     <SavedRetrievalCases query={query.trim()} />
+    {showFixture && <DemoFixturePanel />}
     {source && <SourceDrawer key={source.knowledgeItemId + ':' + source.revision}
       source={source} onClose={() => setSource(null)} />}
   </Stack>;
@@ -151,5 +156,6 @@ function Workbench() {
 
 export default function KnowledgeSearchPage() {
   const businessId = useSession().currentBusiness?.id;
-  return businessId ? <Workbench key={businessId} /> : null;
+  const canWrite = useCan('product.write');
+  return businessId ? <Workbench key={businessId} showFixture={canWrite && businessId === demoBusiness} /> : null;
 }
