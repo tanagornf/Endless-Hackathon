@@ -6,6 +6,7 @@ import type { DbExecutor } from '../../core';
 import { assertSameOriginRequest } from './csrf';
 import { hashPassword, PASSWORD_MAX, validatePassword, verifyPassword } from './password';
 import { revokeAllSessions } from './sessions-port';
+import { authTokenSchema } from './tokens';
 
 export interface RecoveryPorts {
   issueToken(userId: string, purpose: 'reset_password', tx: DbExecutor): Promise<string>;
@@ -18,7 +19,7 @@ export interface RecoveryPorts {
 
 const ForgotBody = z.object({ email: z.string().trim().toLowerCase().email().max(200) }).strict();
 const ResetBody = z.object({
-  token: z.string().regex(/^[A-Za-z0-9_-]{40,64}$/), newPassword: z.string().max(PASSWORD_MAX),
+  token: authTokenSchema, newPassword: z.string().max(PASSWORD_MAX),
 }).strict();
 const ChangeBody = z.object({
   currentPassword: z.string().min(1).max(PASSWORD_MAX), newPassword: z.string().max(PASSWORD_MAX),

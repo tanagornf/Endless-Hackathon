@@ -1,20 +1,27 @@
-import type { AuthStatus } from '@nless/shared/features/auth/types';
-import { audit, db, defineFeatureRoutes, destroySession, log } from '../../core';
+import { audit, defineFeatureRoutes, destroySession, log } from '../../core';
 import { acceptInvitation, completeInvitationAcceptance, provisionAccountForUser } from '../tenancy/service';
 import { assertSameOriginRequest } from './csrf';
 import { resendVerification, verifyEmail } from './email-verification';
 import { login } from './login';
+import { insertSandboxMail } from './mail';
+import { listMailbox, MailboxQuery } from './mailbox';
+import { outboxPurge } from './outbox-purge';
 import { PASSWORD_MIN } from './password';
+import { changePassword, forgotPassword, resetPassword } from './password-recovery';
+import { readAuthStatus, updateProfile } from './profile';
 import { syncSeedPasswords } from './seed-passwords';
 import { revokeAllSessions } from './sessions-port';
 import { signup } from './signup';
+import { consumeToken, issueToken } from './tokens';
 
 let bootSync: Promise<void> | undefined;
 const signupTenancy = { acceptInvitation, completeInvitationAcceptance, provisionAccountForUser };
+const recovery = { consumeToken, issueToken, insertSandboxMail };
 
 export default defineFeatureRoutes({
   featureId: 'F02',
   slug: 'auth',
+  schedules: [outboxPurge],
   register(api) {
     bootSync ??= syncSeedPasswords().catch(() => {
       log.warn('Seed password sync failed');
@@ -35,6 +42,17 @@ export default defineFeatureRoutes({
       ({ req, body }) => verifyEmail(req, body));
     api.post('/auth/email/resend', { auth: 'user', summary: 'Queue a new email confirmation link' },
       ({ req, user }) => resendVerification(req, user!.id));
+    api.post('/auth/password/forgot', { auth: 'none', summary: 'Request a password reset in the sandbox' },
+      ({ req, body }) => forgotPassword(req, body, recovery));
+    api.post('/auth/password/reset', { auth: 'none', summary: 'Reset a password with a one-time link' },
+      ({ req, body }) => resetPassword(req, body, recovery));
+    api.post('/auth/password/change', { auth: 'user', summary: 'Change the current user password and rotate sessions' },
+      ({ req, res, user, body }) => changePassword(req, res, user!.id, body));
+    api.get('/auth/mailbox', { auth: 'user', query: MailboxQuery, summary: 'Read authorized sandbox email' },
+      async ({ query, res, user }) => {
+        res.setHeader('Cache-Control', 'private, no-store');
+        return listMailbox(user!, query.scope);
+      });
     api.post('/auth/logout', { auth: 'user', summary: 'Revoke the current session' }, async ({ req, res, user }) => {
       assertSameOriginRequest(req);
       await destroySession(req, res);
@@ -49,12 +67,8 @@ export default defineFeatureRoutes({
       return { ok: true, revoked };
     });
     api.get('/auth/status', { auth: 'user', summary: 'Read the current user and email verification status' },
-      async ({ user }): Promise<AuthStatus> => {
-        const { id, email, displayName, locale, isPlatformAdmin } = user!;
-        const { verified } = await db.one<{ verified: boolean }>(
-          'SELECT email_verified_at IS NOT NULL AS verified FROM users WHERE id = $1', [id],
-        );
-        return { userId: id, email, displayName, locale, isPlatformAdmin, emailVerified: verified };
-      });
+      ({ user }) => readAuthStatus(user!.id));
+    api.patch('/auth/profile', { auth: 'user', summary: 'Update the current user display name and language' },
+      ({ req, user, body }) => updateProfile(req, user!.id, body));
   },
 });

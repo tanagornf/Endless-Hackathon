@@ -12,6 +12,7 @@
     "submit": "Sign in",
     "toggle": "Show or hide characters",
     "noAccount": "No account yet? Sign up",
+    "forgot": "Forgot your password?",
     "error": {
       "invalid": "Wrong email or password",
       "locked": "Too many attempts. Try again in {{minutes}} minutes",
@@ -53,5 +54,80 @@
     "done": "Email confirmed.",
     "error": "This link cannot be used. It may be expired or already used.",
     "continue": "Continue to Endless"
+  },
+  "recovery": {
+    "limited": "Too many attempts. Try again later.",
+    "unavailable": "The request could not be completed. Try again."
+  },
+  "forgot": {
+    "title": "Forgot password",
+    "submit": "Request a reset link",
+    "done": "If this email has an account, a reset link has been created.",
+    "sandbox": "Email is in test mode and stays in the sandbox. An admin can open the reset link from the sandbox mailbox.",
+    "error": {
+      "email": "Enter a valid email address."
+    }
+  },
+  "reset": {
+    "title": "Set a new password",
+    "new": "New password",
+    "confirm": "Confirm new password",
+    "submit": "Save new password",
+    "done": "Password updated. Sign in with the new one.",
+    "requestLink": "Request a new link",
+    "error": {
+      "expired": "This link has expired. Request a new link.",
+      "used": "This link was already used.",
+      "notFound": "Link not found.",
+      "mismatch": "The passwords do not match."
+    }
+  },
+  "account": {
+    "tab": "My account",
+    "profile": "Profile",
+    "displayName": "Display name",
+    "locale": "Interface language",
+    "loading": "Loading account",
+    "language": {
+      "th": "ไทย",
+      "en": "English"
+    },
+    "save": "Save profile",
+    "saved": "Profile saved.",
+    "emailStatus": "Email status",
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "resend": "Queue another confirmation link",
+    "verificationQueued": "The confirmation link is available in the sandbox mailbox.",
+    "changePassword": "Change password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "passwordChanged": "Password changed. Other devices were signed out.",
+    "logoutAll": "Sign out everywhere",
+    "logoutAllMessage": "Every device, including this one, must sign in again.",
+    "error": {
+      "wrong_current_password": "The current password is wrong.",
+      "profile": "Check the display name and try again.",
+      "load": "The account could not be loaded."
+    }
+  },
+  "mailbox": {
+    "title": "Sandbox mailbox",
+    "note": "Messages stay in this test mailbox. Open links from here.",
+    "empty": "No mail for your address yet",
+    "emptyAll": "There are no sandbox messages yet",
+    "error": "The mailbox could not be loaded.",
+    "open": "Open link",
+    "all": "Show all mailboxes (admin)",
+    "to": "Recipient",
+    "subject": "Message",
+    "created": "Created",
+    "action": "Action"
+  },
+  "chip": {
+    "unverified": "Email not confirmed"
+  },
+  "common": {
+    "retry": "Retry"
   }
 }

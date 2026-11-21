@@ -26,3 +26,11 @@
 - The integrated Auth commit `5ef52b13dbb3f1dec9a1a886d2856094e2ad2f20` passed GitHub CI, including Auth S2 route tests. [CI job](https://github.com/tanagornf/Endless-Hackathon/actions/runs/44876140199/job/136761138667)
 - The public merge is gated on C1 serving the initial `/verify-email` document with `Referrer-Policy: no-referrer`. The S2 browser smoke checks that header and verifies that the address bar no longer carries the token.
 - CI or the approved C3 checkout can run `npm test -- server/src/features/auth web/src/features/auth`. Production smoke, sandbox mailbox UI, password recovery, and dev-login cutover are pending.
+
+### 2026-11-21 Bangkok · S3 password recovery and account management
+
+- Added generic forgot responses, single-use password reset, password change, session revocation, and per-address or per-user rate limits. Password reset changes the credential and consumes its token in the same transaction.
+- Added the account section, profile and locale updates, verification status, sign-out everywhere, and the encrypted sandbox mailbox. Ordinary users can read their own mailbox. Administrators can explicitly request all mailboxes.
+- Added hourly expiry cleanup and tests for reset retries, session rotation, mailbox permissions, and secret-free logs.
+- Twenty isolated Auth tests passed locally, and Playwright discovered eight Auth smoke cases. Database checks run in isolated GitHub CI or in the C3 owner's approved checkout with `MODEL_MODE=fake` using `npm test -- server/src/features/auth web/src/features/auth`.
+- Public merge requires the C1 `Referrer-Policy: no-referrer` header on the initial `/reset-password` document. The recovery smoke checks the header and verifies that the page removes the token from the URL. Production smoke and the owner-controlled dev-login cutover are pending.
