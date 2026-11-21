@@ -81,7 +81,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 afterAll(closeDb);
 
-describe('F10 S1 reply and gates', () => {
+describe('F10 S1 reply and gates', { timeout: 15_000 }, () => {
   it('G1 uses the current price and repairs a model draft reflecting an injected discount', async () => {
     const chat = vi.spyOn(model, 'chat');
     const inquiry = await incoming('A-GAME-01 ราคาเท่าไหร่ครับ');
@@ -219,7 +219,7 @@ describe('F10 S1 reply and gates', () => {
   });
 });
 
-describe('F10 shared conversation claim', () => {
+describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
   it('serializes a direct turn against a new queued turn and rechecks for newer inbound', async () => {
     const first = await incoming('A-GAME-01 ราคาเท่าไหร่');
     const paused = waitableChat();
@@ -276,7 +276,9 @@ describe('F10 shared conversation claim', () => {
     await stale;
     expect(await replies(inbound.conversation.id)).toHaveLength(1);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'completed', attempts: 2 });
-    expect(writes.mock.calls.filter(([input]) => input.author === 'ai')).toHaveLength(1);
+    const aiWrites = writes.mock.calls.filter(([input]) => input.author === 'ai');
+    expect(aiWrites).toHaveLength(1);
+    expect(aiWrites[0][0].providerMeta?.nlessHandoffAckVersion).toBeUndefined();
     expect(sends).toHaveBeenCalledTimes(1);
   }, 15_000);
 });

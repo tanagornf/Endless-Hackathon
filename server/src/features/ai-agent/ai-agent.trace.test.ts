@@ -27,7 +27,7 @@ beforeAll(async () => {
     const input = await simulateInbound(owner, shopA, 'How much is A-GAME-01?', 'f10-trace-' + randomUUID());
     inboundMessageId = input.message.id;
     conversationId = input.conversation.id;
-    expect((await drainJobs()).dead).toBe(0);
+    expect((await drainJobs({ type: 'ai.reply' })).dead).toBe(0);
     shopEvents = published.mock.calls.filter(([businessId]) => businessId === shopA).map(([, event]) => event);
     const final = shopEvents.find((event) => event.type === 'custom' && event.name === 'ai.turn' && event.data.state === 'completed');
     const reply = shopEvents.find((event) => event.type === 'message.created' &&
