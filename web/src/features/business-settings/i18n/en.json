@@ -1,8 +1,29 @@
 {
   "menu": {
-    "title": "Business"
+    "title": "Business",
+    "bot": "Bot settings"
   },
   "page": {
     "title": "Business"
+  },
+  "bot": {
+    "title": "Bot settings"
+  },
+  "ai": {
+    "title": "Let AI answer customers",
+    "on": "The bot is answering",
+    "off": "The bot is silent. Incoming messages are still saved",
+    "confirmOffTitle": "Turn AI off?",
+    "confirmOffMessage": "The bot will stay silent on every channel until you turn it on again. Incoming messages are still saved.",
+    "blocked": {
+      "business_inactive": "The shop is inactive, so the bot stays silent.",
+      "account_inactive": "The account is inactive, so the bot stays silent."
+    }
+  },
+  "settings": {
+    "saved": "Saved",
+    "readOnly": "You do not have permission to edit this page",
+    "retry": "Retry",
+    "error": "Business settings could not be loaded"
   }
 }

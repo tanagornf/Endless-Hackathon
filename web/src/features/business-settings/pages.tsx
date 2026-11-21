@@ -1,13 +1,25 @@
 import { defineFeaturePages } from '../../core';
 
 export default defineFeaturePages({
-  featureId: "F04",
-  slug: "business-settings",
+  featureId: 'F04',
+  slug: 'business-settings',
   routes: [
-    { path: "/business", permission: "business.read", load: () => import("./Placeholder") },
-    { path: "/bot-settings", permission: "business.read", load: () => import("./Placeholder") },
+    {
+      path: '/bot-settings',
+      permission: 'business.read',
+      titleKey: 'business-settings:bot.title',
+      load: () => import('./BotSettingsPage'),
+    },
   ],
   menu: [
-    { path: "/business", group: "settings", labelKey: "business-settings:menu.title", icon: "StorefrontOutlined", order: 20, permission: "business.read" },
+    {
+      path: '/bot-settings',
+      group: 'settings',
+      labelKey: 'business-settings:menu.bot',
+      icon: 'SmartToyOutlined',
+      order: 20,
+      permission: 'business.read',
+      searchTerms: ['บอท', 'AI', 'ปิด AI', 'นโยบาย', 'bot', 'policy'],
+    },
   ],
 });
