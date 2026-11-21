@@ -33,6 +33,20 @@ All six deterministic results were correct and made zero model requests. The ser
 | `en-mention` | `QUESTION` | .99 | No |
 | `en-status` | `STATUS_CHECK` | 1.00 | No |
 
+## Decisions API result
+
+C1 ran ten serial app-dev calls to `POST /v1/decisions` using `gpt-6-luna` without retries. The input carried the same latest message, previous shop message, and pending staff offer in structured JSON. The runner asked whether the customer wanted human staff to join or take over and used the predeclared probability threshold. The recorded case IDs, labels, probability, latency and metering were checked against the frozen fixture and the F10 result. [Per-case timing, usage and provenance](./decisions-app-dev-2026-11-21.json)
+
+| Language | Correct | Expected handoffs | Missed | Unnecessary | Errors / timeouts / refusals or unscored | SDK call p50 / p95 (ms) |
+|---|---:|---:|---:|---:|---:|---:|
+| Thai | 5/5 | 2 | 0 | 0 | 0 / 0 / 0 | 345 / 1460 |
+| English | 5/5 | 2 | 0 | 0 | 0 / 0 / 0 | 307 / 323 |
+| Total | 10/10 | 4 | 0 | 0 | 0 / 0 / 0 | 313 / 1460 |
+
+The serial Decisions run took 4.339 seconds. Provider responses recorded 2,623 input tokens and zero output tokens, cache reads, or cache writes. At the published uncached input rate of USD 0.10 per million tokens, the estimated total was USD 0.0002623. [OpenAI Decisions pricing](https://developers.openai.com/api/docs/guides/decisions#pricing-and-availability)
+
+Both scorers matched all ten labels. Decisions was faster in this run than the measured F10 provider path. The Decisions timing covers the SDK call and result handling. The F10 provider timing includes core request preparation, and its wall timing also includes database metering. Models, prompts, and input encoding differ. The ten synthetic cases measure this routing predicate and provide no estimate of the production error rate.
+
 ## Reproduce the current F10 side
 
 Run `node --import tsx server/src/features/ai-agent/bench/current-f10.ts` from the worktree root to confirm the path of all 16 samples without provider calls. To run the ten paid calls, load the private B2 app-dev configuration in the benchmark process and pass `--baseline`. The runner checks the official API origin, development mode, B2 lane, and B2 database name before invoking the existing classifier. The core writes usage rows without a tenant or conversation association. The script does not send messages or create businesses or conversations.
