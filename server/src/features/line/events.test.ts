@@ -5,10 +5,11 @@ import { lineEventJob, type LineEventJobPayload } from './events';
 const mocks = vi.hoisted(() => ({
   connection: vi.fn(), finish: vi.fn(), upsert: vi.fn(), contact: vi.fn(), profile: vi.fn(),
   save: vi.fn(), settings: vi.fn(), takeover: vi.fn(), request: vi.fn(), notify: vi.fn(),
+  createVoice: vi.fn(), verifyVoice: vi.fn(), voiceHidden: vi.fn(),
   hasInbound: vi.fn(), claimNotice: vi.fn(), releaseNotice: vi.fn(), attachment: vi.fn(), postback: vi.fn(), send: vi.fn(),
 }));
 vi.mock('../../core', () => ({
-  config: { LINE_MODE: 'real' },
+  config: { LINE_MODE: 'real', PUBLIC_BASE_URL: 'https://synthetic.example.test' }, isFeatureHidden: mocks.voiceHidden,
   decryptSecret: (value: string) => value, sendToCustomer: mocks.send,
   log: { warn: vi.fn(), debug: vi.fn() },
 }));
@@ -21,6 +22,9 @@ vi.mock('./lineApi', () => ({ lineRequest: mocks.request }));
 vi.mock('./connection', () => ({ getAccessToken: vi.fn().mockResolvedValue('test-access-token') }));
 vi.mock('../inbox/service', () => ({ saveMessage: mocks.save, getCustomerLanguage: async () => 'en' }));
 vi.mock('./inboundMedia', () => ({ inboundAttachment: mocks.attachment, lineAttachmentTypes: new Set(['image', 'audio']) }));
+vi.mock('../voice/service', () => ({
+  createVoiceInvite: mocks.createVoice, verifyLineVoiceChallenge: mocks.verifyVoice, voiceCommandPrefix: 'ENDLESS-VOICE:',
+}));
 vi.mock('./actions', () => ({ consumeLinePostback: mocks.postback }));
 vi.mock('../team/service', () => ({ isHumanTakeover: mocks.takeover }));
 vi.mock('../business-settings/service', () => ({ getBusinessSettings: mocks.settings }));
@@ -53,6 +57,7 @@ describe('LINE inbound job', () => {
     mocks.hasInbound.mockResolvedValue(false);
     mocks.attachment.mockResolvedValue({ parts: [{ type: 'image', fileId: 'attachment', alt: 'Picture from customer' }], triggerAi: true });
     mocks.postback.mockResolvedValue(null);
+    mocks.voiceHidden.mockResolvedValue(false);
     mocks.save.mockResolvedValue({ created: true, aiJobId: 'ai-job', conversation: { id: 'conversation' } });
   });
 
@@ -80,6 +85,27 @@ describe('LINE inbound job', () => {
     mocks.takeover.mockResolvedValueOnce(true);
     await lineEventJob(job());
     expect(mocks.request).not.toHaveBeenCalled();
+  });
+
+  it('routes an explicit signed direct voice request before AI or staff classification', async () => {
+    mocks.createVoice.mockResolvedValue({ url: 'https://synthetic.example.test/call#invite=fixture' });
+    await lineEventJob(job({ message: { id: '1234567', type: 'text', text: 'Can I call you?' } }));
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ triggerAi: false, externalId: '1234567' }));
+    expect(mocks.createVoice).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'business', lineUser: 'Utest', lineBot: 'Ubot', conversationId: 'conversation', language: 'en',
+    }));
+    expect(mocks.send).toHaveBeenCalledWith('conversation', [expect.objectContaining({ type: 'action_buttons' })],
+      expect.objectContaining({ clientRequestId: 'line-voice-invite:event-1' }));
+    expect(mocks.request).not.toHaveBeenCalled();
+    expect(mocks.takeover).not.toHaveBeenCalled();
+  });
+
+  it('verifies the exact LINE sender challenge without storing or echoing it', async () => {
+    const command = 'ENDLESS-VOICE:abcdefghijklmnop';
+    await lineEventJob(job({ message: { id: '1234567', type: 'text', text: command } }));
+    expect(mocks.verifyVoice).toHaveBeenCalledWith({ businessId: 'business', lineUser: 'Utest', lineBot: 'Ubot', command });
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalled();
   });
 
   it('ignores stale and non-user events, and updates follow status without a message', async () => {
