@@ -44,6 +44,8 @@ export interface FormDialogProps {
   open: boolean;
   title: string;
   submitLabel?: string;
+  /** Disables submit while keeping the dialog dismissible. */
+  submitDisabled?: boolean;
   submitting?: boolean;
   error?: string | null;
   onSubmit: () => void | Promise<void>;
