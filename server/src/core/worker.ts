@@ -27,7 +27,9 @@ interface ActiveClaim {
   controller: AbortController;
   result: Promise<boolean>;
 }
-interface Worker {
+type StuckHandlerObserver = (event: { jobId: string; type: string; attempts: number }) => void;
+interface WorkerOptions { onStuckHandler?: StuckHandlerObserver }
+interface Worker extends WorkerOptions {
   active: Map<string, ActiveClaim>;
   polling: Promise<void>;
   stop?: Promise<void>;
@@ -41,6 +43,7 @@ const shuttingDown = new DOMException('Worker is shutting down', 'AbortError');
 const ownershipLost = new DOMException('Job ownership was lost', 'AbortError');
 const handlerTimeout = new DOMException('Job handler timed out', 'TimeoutError');
 const exhausted = 'lease expired, attempts exhausted';
+const HANDLER_ABORT_GRACE_MS = 5_000;
 
 async function onDead(job: JobIdentity, lastError: string) {
   log.error({ jobId: job.id, type: job.type, attempts: job.attempts, lastError }, 'Job is dead');
@@ -152,7 +155,36 @@ function fromFailure(job: JobClaim, error: unknown, timedOut = false): Settlemen
   return { state: 'dead', error: message };
 }
 
-async function runHandler(job: JobClaim, controller: AbortController): Promise<boolean> {
+async function watchHandler<T>(
+  job: JobIdentity,
+  signal: AbortSignal,
+  onStuckHandler: StuckHandlerObserver | undefined,
+  invoke: () => Promise<T>,
+): Promise<T> {
+  let reportTimer: ReturnType<typeof setTimeout> | undefined;
+  const reportAfterAbort = () => {
+    reportTimer = setTimeout(() => {
+      const event = { jobId: job.id, type: job.type, attempts: job.attempts };
+      log.error(event, 'Job handler still running after abort');
+      if (onStuckHandler) {
+        void Promise.resolve().then(() => onStuckHandler(event))
+          .catch(() => log.warn(event, 'Job handler stall observer failed'));
+      }
+    }, HANDLER_ABORT_GRACE_MS);
+    reportTimer.unref();
+  };
+
+  signal.throwIfAborted();
+  signal.addEventListener('abort', reportAfterAbort, { once: true });
+  try {
+    return await invoke();
+  } finally {
+    signal.removeEventListener('abort', reportAfterAbort);
+    clearTimeout(reportTimer);
+  }
+}
+
+async function runHandler(job: JobClaim, controller: AbortController, onStuckHandler?: StuckHandlerObserver): Promise<boolean> {
   const { signal } = controller;
   let renewInFlight = false;
   let renewedAt = Date.now();
@@ -178,7 +210,7 @@ async function runHandler(job: JobClaim, controller: AbortController): Promise<b
     let lastProgressAt = -Infinity;
     let outcome: Settlement;
     try {
-      const result = await handler({
+      const result = await watchHandler(job, signal, onStuckHandler, () => handler({
         id: job.id, type: job.type, businessId: job.business_id, payload: job.payload,
         attempt: job.attempts, maxAttempts: job.max_attempts, signal,
         async progress(done, total) {
@@ -198,7 +230,7 @@ async function runHandler(job: JobClaim, controller: AbortController): Promise<b
             publishJob(job, 'running', counts);
           }
         },
-      });
+      }));
       signal.throwIfAborted();
       if (result && 'retryAt' in result) {
         const at = new Date(result.retryAt);
@@ -226,7 +258,7 @@ async function runHandler(job: JobClaim, controller: AbortController): Promise<b
   }
 }
 
-async function perform(job: JobClaim, controller: AbortController): Promise<boolean> {
+async function perform(job: JobClaim, controller: AbortController, onStuckHandler?: StuckHandlerObserver): Promise<boolean> {
   const client = job.lock_key ? await dbPool().connect() : null;
   let locked = false;
   let destroy = false;
@@ -250,7 +282,7 @@ async function perform(job: JobClaim, controller: AbortController): Promise<bool
       await releaseClaims([job]);
       return false;
     }
-    return await runHandler(job, controller);
+    return await runHandler(job, controller, onStuckHandler);
   } finally {
     if (client) {
       if (locked && !destroy) await client.query('SELECT pg_advisory_unlock(hashtext($1))', [job.lock_key]).catch(() => { destroy = true; });
@@ -260,10 +292,10 @@ async function perform(job: JobClaim, controller: AbortController): Promise<bool
   }
 }
 
-function activate(job: JobClaim): ActiveClaim {
+function activate(job: JobClaim, onStuckHandler?: StuckHandlerObserver): ActiveClaim {
   const controller = new AbortController();
   const result = jobContext.run({ jobId: job.id, type: job.type }, async () => {
-    try { return await perform(job, controller); }
+    try { return await perform(job, controller, onStuckHandler); }
     catch {
       log.warn('Job execution could not be recorded; the lease will recover it');
       return false;
@@ -280,7 +312,7 @@ async function waitFor<T>(promise: Promise<T>, milliseconds: number): Promise<T 
   } finally { clearTimeout(timer); }
 }
 
-export async function drainJobs(opts?: { type?: string; maxMs?: number }): Promise<{ ran: number; dead: number }> {
+export async function drainJobs(opts?: WorkerOptions & { type?: string; maxMs?: number }): Promise<{ ran: number; dead: number }> {
   if (config.NODE_ENV === 'production' || (config.NODE_ENV !== 'test' && config.MODEL_MODE !== 'fake')) {
     throw new AppError('POLICY_BLOCKED', 'Jobs can only be drained in tests or fake development mode');
   }
@@ -291,7 +323,7 @@ export async function drainJobs(opts?: { type?: string; maxMs?: number }): Promi
     const job = await claimOne(opts?.type);
     if (!job) break;
     ran++;
-    const active = activate(job);
+    const active = activate(job, opts?.onStuckHandler);
     const result = await waitFor(active.result, end - Date.now());
     if (result === null) {
       active.controller.abort(shuttingDown);
@@ -326,7 +358,7 @@ async function poll(current: Worker): Promise<void> {
             await releaseClaims([job]);
             break;
           }
-          const active = activate(job);
+          const active = activate(job, current.onStuckHandler);
           current.active.set(job.claim_token, active);
           void active.result.then(() => {
             current.active.delete(job.claim_token);
@@ -343,9 +375,9 @@ async function poll(current: Worker): Promise<void> {
   } finally { unsubscribe(); }
 }
 
-export function startWorker(): void {
+export function startWorker({ onStuckHandler }: WorkerOptions = {}): void {
   if (worker) return;
-  const current: Worker = { active: new Map(), polling: Promise.resolve(), stopping: false, lastPollAt: null };
+  const current: Worker = { active: new Map(), polling: Promise.resolve(), stopping: false, lastPollAt: null, onStuckHandler };
   worker = current;
   current.polling = poll(current);
 }

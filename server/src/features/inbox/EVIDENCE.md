@@ -62,3 +62,11 @@
 
 - The buyer Demo Chat and staff Inbox turn HTTPS URLs in outgoing text into native links. Source titles, Thai and English text, punctuation, query strings and fragments retain their original display.
 - At `8667730` all nine Inbox web tests passed on the Google runner in 8.59 seconds. Tests exercised both screens, including keyboard focus in the Inbox, two sources in one reply and plain text for unsupported URLs and markup. Full workspace typecheck and the A1 path check passed.
+
+### Permanent phone and staff inbox smoke
+
+The permanent Playwright suite exercises a synthetic visitor at 390 × 844, Thai catalog replies after reload, selection of the corresponding staff inbox row by its returned conversation ID, the English suggested question and language preference after reload, client-side length validation, tenant isolation and the internal tester settings. The combined Thai visitor/staff case searches the server-confirmed synthetic display name and then selects the exact conversation ID. A full run uses two synthetic customer turns. The stable row attribute has no visible text.
+
+Playwright discovered five cases. The nine local inbox UI tests, full workspace typecheck and A1 path ownership passed. The shared production gate previously passed 5/5. Current production verification uses C0's coordinated operator window; no new live visitor or message was created during this local check.
+
+The final implementation at 83c9660392d1b4469c62b089f322ee512a56bea4 passed all 32 F09 tests in 146.77 seconds on the exclusive A1 test database with the fake model.

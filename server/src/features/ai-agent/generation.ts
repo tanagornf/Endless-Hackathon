@@ -15,11 +15,17 @@ import { codeFallback, inspectReply, isPriceQuestion, mentionsProduct, receiptTe
 import { canRequestHandoff } from './handoff';
 import { explicitlyRequestsStaff, replyToStaffOffer } from './intents';
 import { runModelLoop } from './loop';
+import type { LoopState } from './loop';
 import { arabicDigits, maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
+import { explicitOrderMethod, prepareOrder, safeUnreviewedOrderText, soldOutOrderText, typedOrderDecision } from './orderProposal';
+import { currentAvailabilityReply, currentPhotoRequest, getReplyProductImages } from './productMedia';
 import { repairPrompt } from './prompt';
 import { customerInboundsHeldByStaff, priorSavedReply } from './repo';
 import type { TurnDraft } from './repo';
+import { staffConsentCopy } from './staffConsent';
+import type { StaffConsentDecision, StaffConsentKind } from './staffConsent';
+import { productFactQuestion, replyWithProductFact } from './product-facts';
 
 type Generation =
   | { state: 'completed' | 'handoff'; draft: TurnDraft }
@@ -54,9 +60,20 @@ function appendHandoffOffer(draft: TurnDraft): void {
     draft.parts.push({ type: 'text', text: offer });
   }
   draft.handoffOffered = true;
+  draft.staffConsentKind = 'staff_offer';
 }
 
-function summarizeUsage(calls: readonly ModelChatResult[]): AiTurnUsage | null {
+const explicitVoiceRequest = /(?:\b(?:voice call|(?:can|could|may) i call|i(?:'d| would) like to call|call the (?:shop|store)|phone call)\b|ขอ(?:โทร|คุยทางโทรศัพท์)|โทรคุย|โทรหาร้าน)/iu;
+
+function staffPrompt(draft: TurnDraft, score: IntentScore, kind: StaffConsentKind): Generation {
+  rememberIntent(draft, score);
+  draft.staffConsentKind = kind;
+  draft.handoffOffered = true;
+  draft.parts = [{ type: 'text', text: staffConsentCopy(draft.language, kind) }];
+  return { state: 'completed', draft };
+}
+
+function summarizeUsage(calls: readonly Pick<ModelChatResult, 'usage'>[]): AiTurnUsage | null {
   if (!calls.length) return null;
   const total = (key: 'inputTokens' | 'outputTokens' | 'cachedInputTokens' | 'costUsdMicros') => {
     const values = calls.map((call) => call.usage?.[key] ?? null);
@@ -131,12 +148,13 @@ export async function generateDraft(
   settings: BusinessSettings,
   cancellation: AbortSignal,
   mode: 'reply' | 'suggest',
+  consent?: StaffConsentDecision,
 ): Promise<Generation> {
   const started = performance.now();
   const signal = AbortSignal.any([cancellation, AbortSignal.timeout(config.MODEL_TIMEOUT_MS)]);
   const language = turnLanguage(inboxHistory, inbound, settings.language);
   const draft = emptyDraft(language);
-  const calls: ModelChatResult[] = [];
+  const calls: Pick<ModelChatResult, 'usage'>[] = [];
   const modelMs: number[] = [];
   let context: ReplyContext | undefined;
   try {
@@ -150,21 +168,35 @@ export async function generateDraft(
     const prior = mode === 'reply' ? await withinDeadline(priorSavedReply(conversation, inbound), signal) : null;
     const previousAnswer = history.findLast((message) => message.seq < inbound.seq && message.direction === 'outbound' &&
       (message.author === 'ai' || message.author === 'staff'));
+    if (mode === 'reply' && previousAnswer?.author === 'ai' && previousAnswer.parts.some(({ type }) => type === 'order_review')) {
+      const typed = typedOrderDecision(unanswered.at(-1) ?? '', language);
+      if (typed) {
+        draft.parts = shapeReply(typed);
+        return { state: 'completed', draft };
+      }
+    }
     const matchingPrior = previousAnswer && previousAnswer.id === prior?.replyMessageId && previousAnswer.delivery.state !== 'failed'
       ? prior : null;
     const offerPending = matchingPrior?.offeredHandoff === true;
-    const offerReply = offerPending && unanswered.length === 1 ? replyToStaffOffer(unanswered[0]) : null;
-    if (mode === 'reply' && (explicitlyRequestsStaff(unanswered.join('\n')) || offerReply === 'accepted') &&
+    const currentText = inbound.parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('\n');
+    const decision = { label: 'ESCALATION', source: 'regex', confidence: 1 } as const;
+    const offerReply = consent?.status === 'declined' ? 'declined'
+      : offerPending && unanswered.length === 1 ? replyToStaffOffer(unanswered[0]) : null;
+    if (mode === 'reply' && (consent?.status === 'confirmed' || explicitlyRequestsStaff(currentText) || explicitVoiceRequest.test(currentText)) &&
         await withinDeadline(canRequestHandoff(conversation.businessId), signal)) {
-      const opening = await withinDeadline(getBusinessOpenState(conversation.businessId).catch(() => null), signal);
-      return staffAcknowledgement(draft, { label: 'ESCALATION', source: 'regex', confidence: 1 }, opening?.open ?? null);
+      if (consent?.status === 'confirmed') {
+        const opening = await withinDeadline(getBusinessOpenState(conversation.businessId).catch(() => null), signal);
+        return staffAcknowledgement(draft, decision, opening?.open ?? null);
+      }
+      return staffPrompt(draft, decision, explicitVoiceRequest.test(currentText) ? 'voice_unavailable' : 'customer_request');
     }
     const casual = casualIntent(unanswered);
     if (mode === 'reply' && !unanswered.length && prior?.recentlySentNonTextNotice) {
       return { state: 'skipped', draft, reason: 'non_text_repeat' };
     }
+    const factQuestion = casual ? null : productFactQuestion(unanswered);
     context = await withinDeadline(buildReplyContext(conversation, history, inbound, settings, language, signal, {
-      skipLookups: Boolean(casual) || !unanswered.length, offerPending,
+      skipLookups: Boolean(casual) || !unanswered.length || Boolean(factQuestion), offerPending,
       previousProductSkus: matchingPrior?.productRefs.map(({ sku }) => sku),
     }), signal);
     draft.timings.contextMs = elapsed(started);
@@ -175,6 +207,19 @@ export async function generateDraft(
       draft.timings.nonTextNotice = 1;
       draft.parts = shapeReply(fallbacks[inbound.parts.some(({ type }) => type === 'image') ? 'image_only' : 'text_only'][language]);
       if (canEscalate && !offerPending) appendHandoffOffer(draft);
+      return { state: 'completed', draft };
+    }
+    const fact = factQuestion && await withinDeadline(replyWithProductFact({
+      question: factQuestion, context, signal, deadline: started + config.MODEL_TIMEOUT_MS, suggestDraft: mode === 'reply',
+      usage: { businessId: conversation.businessId, conversationId: conversation.id, turnId, featureId: 'F10', purpose: 'product_fact' },
+      noteUsage: (result) => { calls.push(result); modelMs.push(result.latencyMs); },
+    }), signal);
+    if (fact) {
+      rememberIntent(draft, { label: 'QUESTION', source: 'regex', confidence: 1 });
+      draft.parts = fact.parts;
+      draft.productRefs = fact.productRefs;
+      draft.evidenceIds = fact.evidenceIds;
+      if (fact.offerStaff && canEscalate && !offerPending) appendHandoffOffer(draft);
       return { state: 'completed', draft };
     }
     const draftContext = context;
@@ -204,8 +249,16 @@ export async function generateDraft(
         modelMs.push(elapsed(requestedAt));
       }
     };
-    const loop = { messages: [...context.messages], executedCalls: 0 };
-    const toolOptions = { tools: !casual, handoff: canEscalate };
+    const loop: LoopState = { messages: [...context.messages], executedCalls: 0 };
+    const orderText = inbound.parts.flatMap((part) => part.type === 'text' ? [maskCardNumbers(part.text)] : []).join('\n');
+    const isPurchase = mode === 'reply' && context.rules.orders && context.rules.price === 'always' && explicitOrderMethod(orderText);
+    const purchaseIntent: IntentScore | null = isPurchase ? { label: 'REQUEST', source: 'regex', confidence: 1 } : null;
+    const toolOptions = {
+      tools: !casual, handoff: canEscalate,
+      preparePurchase: mode === 'reply' ? (args: Parameters<typeof prepareOrder>[0]['args']) => purchaseIntent
+        ? prepareOrder({ args, text: orderText, businessId: conversation.businessId, language })
+        : Promise.resolve({ error: 'NOT_A_PURCHASE_REQUEST' }) : undefined,
+    };
     const firstReply = runModelLoop(loop, context, conversation.businessId, call('reply'), started, modelSignal, toolOptions)
       .then((response) => ({ response } as const), (error: unknown) => ({ error } as const));
     const priceText = context.catalogRequest.linkedSameProduct
@@ -213,8 +266,8 @@ export async function generateDraft(
       : context.catalogRequest.text;
     const price = catalogPriceIntent(priceText, context.prices.map(({ quote }) => quote));
     const classifierTimeout = Math.min(8000, config.MODEL_TIMEOUT_MS - elapsed(started) - 1500);
-    let score = casual ?? price ?? unknownIntent;
-    if (!casual && !price && classifierTimeout > 0) {
+    let score = casual ?? purchaseIntent ?? price ?? unknownIntent;
+    if (!casual && !purchaseIntent && !price && classifierTimeout > 0) {
       const classifyStarted = performance.now();
       const classifierSignal = AbortSignal.any([signal, AbortSignal.timeout(classifierTimeout)]);
       score = await withinDeadline(classifyIntent({
@@ -229,10 +282,20 @@ export async function generateDraft(
       modelAbort.abort();
       await firstReply;
       draft.tools = [];
-      return staffAcknowledgement(draft, score, context.shopOpen);
+      return staffPrompt(draft, score, 'staff_offer');
     }
     const first = await firstReply;
     if ('error' in first) throw first.error;
+    if (loop.order && score.label === 'REQUEST') {
+      const quotes = loop.order.evidence;
+      draft.order = loop.order.draft;
+      draft.evidenceIds = [...new Set(quotes.map(({ id }) => id))];
+      draft.productRefs = quotes.map(({ quote, name }) => ({ itemId: quote.itemId, sku: quote.sku, name }));
+      // Keep the staged draft available on worker recovery. The final F10 gate
+      // and F13 replace this text with the canonical review and its prompt.
+      draft.parts = shapeReply(fallbacks.no_answer[language]);
+      return { state: 'completed', draft };
+    }
     let raw = draftText(first.response);
     const guardStart = performance.now();
     let checked = inspectReply(raw, context);
@@ -276,6 +339,14 @@ export async function generateDraft(
     )) {
       text = fallbacks.product_not_found[language];
     }
+    if (purchaseIntent && context.tools.some(({ name, error }) => name === 'propose_order' && error === 'SOLD_OUT')) {
+      text = soldOutOrderText(language);
+    }
+    text = safeUnreviewedOrderText(text, language);
+    const oneCatalogQuestion = context.unanswered.length === 1 && !isPriceQuestion(context) &&
+      !/\b(?:and|also)\b|และ|อีกอย่าง/iu.test(context.unanswered[0]);
+    const availability = currentAvailabilityReply(context);
+    if (availability && (oneCatalogQuestion || text === fallbacks.no_answer[language])) text = availability;
     const receipt = receiptText(context, text);
     Object.assign(draft, usedEvidence(text, context, receipt));
     draft.parts = shapeReply(text);
@@ -287,6 +358,30 @@ export async function generateDraft(
       appendHandoffOffer(draft);
     }
     draft.timings.guardMs = elapsed(guardStart);
+    const photo = mode === 'reply' ? currentPhotoRequest(context) : null;
+    const directPhoto = photo && oneCatalogQuestion && !availability;
+    if (mode === 'reply' && (draft.productRefs.length || photo)) {
+      const photoRef = photo && { itemId: photo.quote.itemId, sku: photo.quote.sku, name: photo.name };
+      const mediaSignal = AbortSignal.any([signal, AbortSignal.timeout(1200)]);
+      const images = await withinDeadline(getReplyProductImages(conversation.businessId, context, {
+        productRefs: photoRef ? [photoRef] : draft.productRefs,
+        parts: directPhoto ? [] : draft.parts,
+      }, mediaSignal), mediaSignal)
+        .catch(() => []);
+      if (directPhoto && photo && photoRef) {
+        const caption = language === 'th'
+          ? images.length ? 'นี่คือ ' + photo.name + ' ค่ะ' : 'ยังไม่พบรูปสินค้าของ ' + photo.name + ' ค่ะ'
+          : images.length ? 'This is ' + photo.name + '.' : 'I could not find a shop photo for ' + photo.name + '.';
+        draft.parts = shapeReply(caption);
+        draft.evidenceIds = [photo.id];
+        draft.productRefs = [photoRef];
+        draft.handoffOffered = false;
+      } else if (images.length && photo && photoRef && !draft.productRefs.some(({ itemId }) => itemId === photoRef.itemId)) {
+        draft.evidenceIds = [...new Set([...draft.evidenceIds, photo.id])];
+        draft.productRefs.push(photoRef);
+      }
+      draft.parts.push(...images);
+    }
     return { state: 'completed', draft };
   } catch (error) {
     const timedOut = signal.aborted && !cancellation.aborted;

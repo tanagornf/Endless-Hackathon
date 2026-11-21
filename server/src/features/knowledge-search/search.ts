@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AppError, config, db, model } from '../../core';
+import { AppError, config, db } from '../../core';
 import type {
   KnowledgeHit, KnowledgeSearchResult, RetrievalConfig, RetrievalStrategy, SearchKnowledgeOptions,
   WorkbenchHit, WorkbenchSearchOptions, WorkbenchSearchResult,
@@ -9,6 +9,7 @@ import {
   QUERY_MAX_CHARS, SNIPPET_MAX_CHARS, VEC_CANDIDATES, W_LEX, W_VEC, W_XLANG,
 } from './config';
 import { getActiveKnowledgeItemIds, getActiveWebKnowledgeCitations, readWebKnowledgeAnswer } from '../knowledge/service';
+import { queryEmbedding } from './embed-cache';
 import { scoreChunk } from './score';
 import { termsOf, truncateAtWord } from './text';
 
@@ -25,19 +26,6 @@ interface Candidate {
   semantic_match: boolean;
   population: number;
   document_frequency: Record<string, number>;
-}
-
-async function queryVector(businessId: string, query: string): Promise<{ values: number[]; model: string } | null> {
-  if (config.MODEL_MODE === 'fake') return null;
-  try {
-    const result = await model.embed({ usage: { featureId: 'F07', purpose: 'embed-query', businessId }, texts: [query], purpose: 'query' });
-    const vector = result.vectors[0];
-    return result.mode === 'openai' && result.dim === INDEX_DIMENSIONS && vector?.length === INDEX_DIMENSIONS &&
-      vector.every((value) => Number.isFinite(value)) ? { values: vector, model: result.model } : null;
-  } catch (error) {
-    if (error instanceof AppError && (error.code.startsWith('PROVIDER_') || error.code === 'RATE_LIMITED')) return null;
-    throw error;
-  }
 }
 
 async function candidates(businessId: string, allTerms: string[], folders: string[] | null,
@@ -110,7 +98,8 @@ export async function searchWorkbench(businessId: string, query: string, opts?: 
   const markers = terms.skus.filter((sku) => /^tenant_[a-z]+_only_[a-z]+_\d+$/.test(sku));
   try {
     const embedStart = performance.now();
-    const vector = opts?.strategy === 'lexical' ? null : await queryVector(businessId, text);
+    const { vector, cacheHit } = opts?.strategy === 'lexical'
+      ? { vector: null, cacheHit: false } : await queryEmbedding(businessId, text);
     const sqlStart = performance.now();
     const rows = await candidates(businessId, allTerms, folders.data.length ? folders.data : null, vector);
     const sqlMs = Math.round(performance.now() - sqlStart);
@@ -140,7 +129,7 @@ export async function searchWorkbench(businessId: string, query: string, opts?: 
       }
     }
     return {
-      query: text, strategy, mode, hits, config: settings, belowThreshold, cacheHit: false,
+      query: text, strategy, mode, hits, config: settings, belowThreshold, cacheHit,
       timings: { embedMs: Math.round(sqlStart - embedStart), sqlMs, rerankMs: null, totalMs: Math.round(performance.now() - start) },
     };
   } catch (cause) {

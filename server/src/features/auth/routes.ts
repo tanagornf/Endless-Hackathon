@@ -1,7 +1,6 @@
 import { audit, defineFeatureRoutes, destroySession, log } from '../../core';
 import { acceptInvitation, completeInvitationAcceptance, provisionAccountForUser } from '../tenancy/service';
 import { assertSameOriginRequest } from './csrf';
-import { resendVerification, verifyEmail } from './email-verification';
 import { login } from './login';
 import { insertSandboxMail } from './mail';
 import { listMailbox, MailboxQuery } from './mailbox';
@@ -38,10 +37,6 @@ export default defineFeatureRoutes({
         status: 201 as const,
         data: await signup(req, res, body, signupTenancy),
       }));
-    api.post('/auth/email/verify', { auth: 'none', summary: 'Confirm an email address from a one-time link' },
-      ({ req, body }) => verifyEmail(req, body));
-    api.post('/auth/email/resend', { auth: 'user', summary: 'Queue a new email confirmation link' },
-      ({ req, user }) => resendVerification(req, user!.id));
     api.post('/auth/password/forgot', { auth: 'none', summary: 'Request a password reset in the sandbox' },
       ({ req, body }) => forgotPassword(req, body, recovery));
     api.post('/auth/password/reset', { auth: 'none', summary: 'Reset a password with a one-time link' },
@@ -66,7 +61,7 @@ export default defineFeatureRoutes({
       await audit({ action: 'auth.logout-all', actorUserId: user!.id, details: { revoked } });
       return { ok: true, revoked };
     });
-    api.get('/auth/status', { auth: 'user', summary: 'Read the current user and email verification status' },
+    api.get('/auth/status', { auth: 'user', summary: 'Read the current user account' },
       ({ user }) => readAuthStatus(user!.id));
     api.patch('/auth/profile', { auth: 'user', summary: 'Update the current user display name and language' },
       ({ req, user, body }) => updateProfile(req, user!.id, body));

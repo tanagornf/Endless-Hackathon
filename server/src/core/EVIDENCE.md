@@ -57,3 +57,15 @@
 - Dead worker deliveries, lease reaping and operator cancellation reconcile a shared pending message in their job transition transaction. Message row locks serialize sibling transitions before a fresh read of active siblings.
 - Added a synthetic integration case with a reaper and an operator independently settling the last two delivery jobs. It checks one shared message reaches its final status and the sender receives no calls.
 - Demo reset and operations API tests use scoped fixtures. Local integration and production evidence are tracked separately on the pull request.
+
+### F01 public product web search
+
+- Eleven focused tests passed for keyword validation, completed search detection, HTTPS and mixed-output citation filtering, and fake usage attribution. Typecheck and lane path checks passed.
+- A real `app-dev` OpenAI request through `model.searchWeb` returned one cited result for a public headphone specification query in 8.78 seconds. The usage write was captured in memory and estimated $0.031556 in model and tool charges.
+- After citation hardening, a real `app-dev` Responses request for `Qi2` completed the native search and returned two validated HTTPS citations in 6.13 seconds through the core request and response mapping.
+- Native C1 review and the F10 integration and production smoke are pending.
+
+### F04 shop correction model handoff
+
+- The C1 model entry point validates the scoped F04 case and uses the peer-reviewed strict draft builder. It records requested and observed service tier independently, as well as high reasoning, tenant, purpose, tokens and latency. An unconfirmed tier or missing configured rate leaves cost unknown. Fake mode returns a deterministic no-change draft and contacts no provider.
+- The independent helper passed 10 isolated tests. Its app-dev Astra/high/ultrafast probes returned the expected tier. The application wrapper and accounting migration remain restricted to branch validation. C3 owns durable approval, draft review, and production activation.

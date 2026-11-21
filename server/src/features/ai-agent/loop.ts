@@ -2,6 +2,7 @@ import type { ModelChatInput, ModelChatResult, ModelMessage } from '../../core';
 import { quoteMatchesCatalogRequest } from './context';
 import type { ReplyContext } from './context';
 import { maskCardNumbers } from './mask';
+import type { OrderDraft, PurchaseArguments, prepareOrder } from './orderProposal';
 import { availableTools, declinedTool, runTool, TOOL_BUDGET } from './tools';
 import type { ExecutedTool } from './tools';
 
@@ -12,6 +13,7 @@ export interface LoopState {
   messages: ModelMessage[];
   providerState?: unknown;
   executedCalls: number;
+  order?: { draft: OrderDraft; evidence: NonNullable<ExecutedTool['prices']> };
 }
 
 export async function runModelLoop(
@@ -21,9 +23,9 @@ export async function runModelLoop(
   call: Call,
   started: number,
   signal: AbortSignal,
-  options: { tools: boolean; handoff: boolean },
+  options: { tools: boolean; handoff: boolean; preparePurchase?: (args: PurchaseArguments) => ReturnType<typeof prepareOrder> },
 ): Promise<ModelChatResult> {
-  const tools = options.tools ? availableTools(context.rules, options.handoff) : [];
+  const tools = options.tools ? availableTools(context.rules, options.handoff, Boolean(options.preparePurchase)) : [];
   const canCall = () => options.tools && state.executedCalls < TOOL_BUDGET && performance.now() - started < 12000;
   const callModel = (allowTools: boolean) => call({
     messages: [...state.messages], tools,
@@ -41,6 +43,7 @@ export async function runModelLoop(
       if (index >= allowance) return declinedTool(tool);
       const result = await runTool({
         businessId, language: context.language, rules: context.rules, allowHandoff: options.handoff,
+        preparePurchase: options.preparePurchase,
       }, tool, signal);
       if (result.prices?.some((price) => !quoteMatchesCatalogRequest(price, context))) {
         const error = 'UNRELATED_PRODUCT';
@@ -66,6 +69,7 @@ export async function runModelLoop(
         }
       }
       if (result.total) context.totals.push(result.total);
+      if (result.order && result.prices) state.order ??= { draft: result.order, evidence: result.prices };
       if (result.offerHandoff) context.offeredByTool = true;
     }
     if (!allowance) break;

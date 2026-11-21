@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | af55437 | Locale gate focus 17/17. Receipt recovery #75 passed exact independent 117/117 and hosted CI. Typecheck and ownership passed. | 2026-11-21 14:20 +07:00 | Coordinated production locale retest and trace UI pending. |
+| F10 | ai-agent | B2 | DOING | R | A | Production core-loop 5/5 | 638e150 | C0 matched the English known SKU and follow-up to canonical v2 and the Thai unknown SKU to a price-free fallback. Three real OpenAI turns completed under 20 seconds. | 2026-11-21 14:32 +07:00 | S5 trace UI and its production smoke pending. |
 
 ## Log
 
@@ -31,6 +31,7 @@
 | 2026-11-21 14:17 | Released the F11 receipt consumer. | B0 verified one scoped handoff recovered without duplicate send or notification. | dedbac2 | Exact independent F10/F11/core suite 117/117 and hosted CI passed on ed45f12. | `MODEL_MODE=fake`, isolated cloud test DB. |
 | 2026-11-21 14:18 | Reproduced the current English question receiving a Thai quote after an older Thai AI-off inbound. | C0 confirmed the production trace selected Thai for that exact English message. | fd65ac3 | The scoped baseline had 7 failures and 7 passing controls in 34.40s, including a separate mixed-script quote and neutral-input cases. | `MODEL_MODE=fake`, B2 lane test DB. |
 | 2026-11-21 14:20 | Selected the current buyer language and validated localized monetary prose. | — | af55437 | Scoped 17/17 in 56.80s, including English after Thai AI-off, reverse Thai, neutral input, mixed-script repair, 990-baht negotiation, G14 and G17. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 14:32 | Closed core-loop gate step 3 on the confirmed production build. | C0 matched the exact visitor/F09 pairs to authenticated owner traces and called the gate 5/5. | 638e150 | English SKU and same-product follow-up quoted Ticket to Ride: USA at 1,490 baht from A-GAME-01 v2. The Thai unknown SKU had no price or catalog evidence. | Real OpenAI on production. |
 
 S1 serializes direct and queued turns with a short `ai.turn:<conversationId>` transaction lock and a fenced lease. The tests exercise a stale holder, a duplicate inbound, overlapping direct and queued turns, and four queued conversations with the default five-connection pool. The focused expired-lease test on the F35 base passed and verified exactly one AI save and one delivery enqueue call after a replacement holder finished.
 
@@ -38,7 +39,7 @@ After the reply is saved, the shop subscription receives `ai.turn` with `data.tu
 
 The S2 tests cover G2, G3, G4, G5, G13, G14 and G16. They use scripted OpenAI responses and the F07 and F08 application services. The dev S1 observations are recorded separately. [B0 gate evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058026663)
 
-The trace list, metrics and `/ai-settings` remain in S5. S3 covers explicit Thai and English requests, shop-hours-aware acknowledgement, the fallback wait, intent classification, staff offers and consent, and handoff after model failure. LINE is the external customer channel. Demo Chat is an internal test surface. Production verification remains pending.
+The trace list, metrics and `/ai-settings` remain in S5. S3 covers explicit Thai and English requests, shop-hours-aware acknowledgement, the fallback wait, intent classification, staff offers and consent, and handoff after model failure. LINE is the external customer channel. Demo Chat is an internal test surface.
 
 F10 saves a version marker only after a successful F11 assignment and reuses the same saved acknowledgement on delivery retry. Tests cover AI-off before save, a manual takeover race, and suppression after a later staff claim or handback to AI. [Core delivery guard](https://github.com/tanagornf/Endless-Hackathon/pull/26)
 
@@ -46,9 +47,25 @@ The expected F11 version is stored before apply. If the worker restarts before t
 
 After three definite enqueue failures, the generated turn remains complete and keeps the saved reply ID. Its owner trace reports `DELIVERY_ENQUEUE_FAILED` from the scoped F09 delivery state. A committed job with a lost acknowledgement continues to dispatch the same reply. [Independent worker replay](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058708480)
 
+The F30 server read adapter uses the verified shop, customer and open conversation, current F04 policy and existing tool argument schemas. It supports knowledge lookup, exact catalog pricing and localized totals. B2 scoped reads passed 3/3 locally and 65/65 with the complete F10 reply suite in Google. C2 owns private call history and recall.
+
 In the earlier production gate, the unknown explicit SKU received the previous known product's price. The fix requires an active product match for price and total tools and limits historical prefetch to explicit or unambiguous follow-ups. It also omits a staff-held request from the first later AI quote after handback while retaining superseded messages in the normal unanswered backlog. [Production owner trace evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058840936)
 
 The subsequent deployed check confirmed the unknown SKU declined without a price. F10 now selects the required reply language from the latest decisive buyer message. A neutral input uses the nearest decisive message. Older unanswered questions stay in model context. [Production visitor evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059123386)
+
+## P1 product photos
+
+The reply uses the current catalog quote to find the exact product in the same shop. It saves the photo reference with the guarded reply and reuses both on delivery retry. The isolated media suite passed two cases covering two shops with the same SKU, exact variant matching and a missing or unreadable upload. The enqueue replay case checks the persisted parts as well as the delivery message ID. LINE OA and public Demo Chat verification are pending.
+
+## Production core-loop gate
+
+C0 matched the three new messages to their sent replies and scoped traces on build `638e150`. All three turns completed in under 20 seconds. The visitor observed approximate persisted-to-visible intervals of 4, 3 and 8 seconds. [Official gate verdict](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059326357) · [Visitor correlation](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059314964)
+
+| OpenAI turn | Reply language | Turn latency (ms) | Context (ms) | Model stages (ms) | Guard (ms) | Persist (ms) | Enqueue (ms) |
+|---|---|---:|---:|---|---:|---:|---:|
+| A-GAME-01 | en | 2,427 | 425 | 1,937 | 6 | 12 | 13 |
+| Same product | en | 1,883 | 288 | 1,544 | 1 | 12 | 12 |
+| Unknown SKU | th | 7,434 | 237 | 2,706 / 2,028 / 2,399 | 2 | 10 | 11 |
 
 ## S2 OpenAI development acceptance
 
@@ -65,3 +82,24 @@ B2 used `generateReply` with synthetic web conversations and indexed demo knowle
 | G13 English name and catalog price | 28e03daf-f587-4d7c-a339-a68e870fc220 | en | 2 | 5362 | 2609 | 53 | 7671 | 4732 |
 | G14 switch back to Thai opening hours | eda5a2ea-09d0-4406-b70c-a26d026c18e0 | th | 1 | 2650 | 2596 | 22 | 613 | 3025 |
 | G16 English return policy | f1d4f7a4-9f88-4f5b-8670-776f834cc3c5 | en | 1 | 2564 | 0 | 14 | 6549 | 2992 |
+
+## S5 owner trace and metrics
+
+The authenticated `/ai-settings` page shows the seven-day summary, paginated histories and selected turn details in Thai and English. The two added APIs require `chat.read` and scope all queries to the authenticated business. Buyer and reply text stay in the inbox. The list cursor preserves PostgreSQL timestamp precision with a UUID tie-breaker. Metrics combine skipped and superseded replies and compute the median over eligible response states. The exported topic reader only includes saved reply turns in the requested time range. Local PostgreSQL trace and reporting tests passed 8/8. Production owner smoke is pending.
+
+Queued buyer replies on LINE and internal Demo Chat now ask for explicit staff consent. Only the immediately preceding delivered prompt can be confirmed. Declines, new questions, expiry and voice-only assent keep the conversation with the bot, and preview does not consume consent. LINE forwards the two confirmed origins to F11's assignment receipt. The same turn can recover the receipt without creating another assignment. Storage helper independently passed 33/33; the paired native and actual device checks are tracked separately.
+
+## F10 P1 cited public product facts
+
+- The real turn checks an exact, active F05 suggestion, then the tenant's catalog description and approved knowledge. A web lookup requires an eligible product specification or standards question and the shop's general-knowledge setting.
+- C1's Responses adapter receives a canonical product or a recognized public term with a controlled topic. Hosted search has up to 12 seconds and reserves two seconds of the turn budget for follow-up work.
+- Public citations appear in the reply and the review-only F05 suggestion. Later visitors receive the merchant-edited active FAQ and its sources. Draft and deleted suggestions stay out of replies.
+- The initial 63 focused tests covered the real generation entry point with stubbed services, Thai and English, catalog and approved knowledge hits, cited web fallback, spend exhaustion, an 8.78-second search, timeout, and reuse after merchant approval.
+- Owner review narrowed web lookup to explicitly recognized public standards and models. Catalog labels and shop SKUs can resolve local information, while only a recognized public reference can go to the hosted tool.
+- Google integration reproduced a real Qi2 answer with 861 raw characters, 553 characters after stripping inline link markup, and one HTTPS citation. F10 now cleans inline links before applying the display limit, keeps complete safe sentences, and records separate reasons for empty citations, invalid citation URLs and unusable prose.
+- 73 focused tests passed after the owner fixes. The added cases verify internal-label privacy, Thai and English transactional claims, neutral hostnames for unsafe source titles, and long inline citations.
+- Google aggregate 14304517779e039c65871b56683bb9e6b02b8faa passed 8/8 public-route scenarios and full typecheck. The corrected synthetic app-dev Qi2 turn displayed the answer with two source links in 16.938 seconds. The second buyer received the merchant-edited FAQ with no second web call in the usage ledger. See https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059478675.
+
+## S4 order proposal
+
+F10 accepts explicit Thai or English purchase requests for catalog items with a confirmed quantity and delivery method. The guarded stage only calls F13 `propose` after the final conversation and policy check, and keeps one stable request ID through delivery or a lost acknowledgement. The review and all totals come from F13. A typed approval points to the card. F13/F14 handle confirmation and payment. Local 10/10 and independent Google 145/145 passed on the S4 candidate before the web rebase. Production order confirmation and smoke remain pending.

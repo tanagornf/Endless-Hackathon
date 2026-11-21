@@ -8,7 +8,7 @@ import * as settings from '../business-settings/service';
 import { saveMessage } from '../inbox/service';
 import * as notifications from '../notifications/service';
 import { retryDueAiHandoffNotifications } from './aiHandoff';
-import { applyAiHandoff, assignConversation, getAiHandoffReceipt, requestHumanHandoff } from './service';
+import { applyAiHandoff, assignConversation, getAiHandoffReceipt, getExplicitStaffRequestForNotification, requestHumanHandoff } from './service';
 
 const businessId = seedId('biz_demo_a');
 const otherBusiness = seedId('biz_demo_b');
@@ -18,10 +18,10 @@ vi.setConfig({ testTimeout: 30000 });
 afterEach(() => vi.restoreAllMocks());
 afterAll(closeDb);
 
-async function newIntent(): Promise<AiHandoffIntent> {
+async function newIntent(channel: 'line' | 'web' = 'web'): Promise<AiHandoffIntent> {
   const { conversation } = await saveMessage({
     businessId,
-    customer: { channel: 'web', externalId: 'receipt-' + randomUUID(), displayName: 'Fixture visitor' },
+    customer: { channel, externalId: 'receipt-' + randomUUID(), displayName: 'Fixture visitor' },
     direction: 'inbound', author: 'customer', parts: [{ type: 'text', text: 'Synthetic handoff' }],
     externalId: randomUUID(), triggerAi: false,
   });
@@ -47,10 +47,30 @@ test('same intent serializes to one assignment, receipt, note, audit and Thai no
   expect(await applyAiHandoff(intent)).toEqual(expected);
   expect(await getAiHandoffReceipt(intent)).toEqual(expected);
   expect(await counts(intent)).toEqual({ notes: 1, receipts: 1, audits: 1 });
-  expect(published).toHaveBeenCalledTimes(1);
+  expect(published.mock.calls.filter(([, event]) => event.type === 'conversation.updated')).toEqual([
+    [businessId, { type: 'conversation.updated', conversationId: intent.conversationId,
+      handler: 'human', assigneeUserId: null, status: 'open', version: expected.committedVersion }],
+  ]);
   expect(notified).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
     title: 'ลูกค้าต้องการคุยกับพนักงาน', dedupKey: 'handoff:' + intent.conversationId + ':v' + expected.committedVersion,
   }));
+  const delivery = await notified.mock.results[0].value;
+  if (delivery.mode === 'real') {
+    // Redelivering the same logical notice must create neither another row nor another event.
+    const replay = await notifications.notify(notified.mock.calls[0][0]);
+    expect(replay).toEqual({ mode: 'real', notificationIds: [] });
+  }
+  const recipients: string[] = [];
+  const ids: string[] = [];
+  for (const [shop, event, scope] of published.mock.calls) {
+    if (event.type !== 'notification.created') continue;
+    expect(shop).toBe(businessId);
+    expect(scope).toEqual({ userIds: [event.userId] });
+    recipients.push(event.userId);
+    ids.push(event.notificationId);
+  }
+  expect(recipients.sort()).toEqual(delivery.mode === 'real' ? [seedId('owner_a'), staff].sort() : []);
+  expect(ids.sort()).toEqual([...delivery.notificationIds].sort());
 });
 
 test('current proof requires the exact tuple and current unassigned human queue version', async () => {
@@ -225,4 +245,89 @@ test('an expired worker cannot complete a receipt held by the replacement worker
   expect(await result()).toEqual({ notification_result: 'sandbox' });
   expect(notified).toHaveBeenCalledTimes(2);
   expect(notified.mock.calls[0][0].dedupKey).toBe(notified.mock.calls[1][0].dedupKey);
+});
+
+test.each(['customer_asked', 'accepted_staff_offer'] as const)(
+  'returns current committed customer confirmation evidence for %s only in its owning shop',
+  async (explicitRequestEvidence) => {
+    const intent = { ...await newIntent('line'), explicitRequestEvidence };
+    const notified = vi.spyOn(notifications, 'notify');
+    const committedVersion = intent.expectedVersion + 1;
+    const key = 'handoff:' + intent.conversationId + ':v' + committedVersion;
+    const proof = { conversationId: intent.conversationId, committedVersion, explicitRequestEvidence };
+    expect(await getExplicitStaffRequestForNotification(businessId, key)).toBeNull();
+    expect(await applyAiHandoff(intent)).toEqual({ ...intent, committedVersion });
+    expect(await applyAiHandoff(intent)).toEqual({ ...intent, committedVersion });
+    expect(await getAiHandoffReceipt(intent)).toEqual({ ...intent, committedVersion });
+    const trustedKey = 'staff-offer-accepted:' + businessId + ':' + intent.conversationId + ':v' + committedVersion;
+    expect(notified).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      businessId, to: { permission: 'chat.takeover' }, type: 'chat.handoff', dedupKey: trustedKey,
+    }));
+    const delivery = await notified.mock.results[0].value;
+    if (delivery.mode === 'real') {
+      expect(delivery.notificationIds).toHaveLength(2);
+      const input = notified.mock.calls[0][0];
+      expect(await notifications.notify({ ...input, dedupKey: key })).toEqual({ notificationIds: [], mode: 'real' });
+    }
+    expect(await getExplicitStaffRequestForNotification(businessId, trustedKey)).toBeNull();
+    expect(await getExplicitStaffRequestForNotification(businessId, key)).toEqual(proof);
+    expect(await getExplicitStaffRequestForNotification(otherBusiness, key)).toBeNull();
+    for (const invalid of [key + '0', key + '\n', key.replace(':v', ':v0'), 'handoff:' + intent.turnId]) {
+      expect(await getExplicitStaffRequestForNotification(businessId, invalid)).toBeNull();
+    }
+    const otherEvidence = explicitRequestEvidence === 'customer_asked' ? 'accepted_staff_offer' : 'customer_asked';
+    expect(await applyAiHandoff({ ...intent, explicitRequestEvidence: otherEvidence })).toBeNull();
+    await assignConversation(intent.conversationId, staff, { businessId });
+    expect(await getExplicitStaffRequestForNotification(businessId, key)).toBeNull();
+    const released = await assignConversation(intent.conversationId, null, { businessId });
+    await applyAiHandoff({ ...intent, turnId: randomUUID(), expectedVersion: released.version });
+    expect(await getExplicitStaffRequestForNotification(businessId, key)).toBeNull();
+  },
+);
+
+test('a confirmed internal Demo Chat keeps its receipt and sends only the ordinary bell', async () => {
+  const intent = { ...await newIntent('web'), explicitRequestEvidence: 'customer_asked' as const };
+  const notified = vi.spyOn(notifications, 'notify');
+  const receipt = await applyAiHandoff(intent);
+  expect(receipt).toEqual({ ...intent, committedVersion: intent.expectedVersion + 1 });
+  const key = 'handoff:' + intent.conversationId + ':v' + receipt!.committedVersion;
+  expect(notified).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ dedupKey: key }));
+  expect(await getExplicitStaffRequestForNotification(businessId, key)).toBeNull();
+});
+
+test('a confirmed LINE notification with an uncertain write recovers from its canonical bell receipt', async () => {
+  const intent = { ...await newIntent('line'), explicitRequestEvidence: 'customer_asked' as const };
+  const send = notifications.notify;
+  const notified = vi.spyOn(notifications, 'notify').mockResolvedValueOnce({ mode: 'real', notificationIds: [] });
+  const checkReceipt = vi.spyOn(notifications, 'hasNotificationReceipt');
+  const receipt = await applyAiHandoff(intent);
+  const key = 'handoff:' + intent.conversationId + ':v' + receipt!.committedVersion;
+  expect(checkReceipt).toHaveBeenCalledExactlyOnceWith({ businessId, dedupKey: key });
+  const params = [businessId, intent.conversationId, intent.turnId];
+  const state = () => core.db.one(`SELECT notification_result FROM team_ai_handoff_receipts
+    WHERE business_id=$1 AND conversation_id=$2 AND turn_id=$3`, params);
+  expect(await state()).toEqual({ notification_result: null });
+  await core.db.query(`UPDATE team_ai_handoff_receipts SET notification_due_at=now()
+    WHERE business_id=$1 AND conversation_id=$2 AND turn_id=$3`, params);
+  notified.mockRestore();
+  vi.spyOn(notifications, 'notify').mockImplementationOnce(async (input) => {
+    const delivered = await send(input);
+    expect(delivered.notificationIds).toHaveLength(2);
+    return { mode: 'real', notificationIds: [] };
+  });
+  await retryDueAiHandoffNotifications();
+  expect(await state()).toEqual({ notification_result: 'real' });
+  expect(checkReceipt).toHaveBeenLastCalledWith({ businessId, dedupKey: key });
+});
+
+test('initial, model-only, legacy and fallback reasons cannot be promoted to an explicit confirmed handoff', async () => {
+  const intent = await newIntent();
+  expect(await applyAiHandoff({ ...intent, reason: 'ai_failed', explicitRequestEvidence: 'customer_asked' })).toBeNull();
+  const receipt = await applyAiHandoff(intent);
+  expect(receipt).toEqual({ ...intent, committedVersion: intent.expectedVersion + 1 });
+  expect(await applyAiHandoff({ ...intent, explicitRequestEvidence: 'customer_asked' })).toBeNull();
+  expect(await getAiHandoffReceipt({ ...intent, explicitRequestEvidence: 'accepted_staff_offer' })).toBeNull();
+  expect(await getExplicitStaffRequestForNotification(businessId, 'handoff:' + intent.conversationId + ':v' + receipt!.committedVersion)).toBeNull();
+  expect(await getExplicitStaffRequestForNotification(businessId, 'handoff:' + intent.turnId)).toBeNull();
+  expect(await counts(intent)).toEqual({ notes: 1, receipts: 1, audits: 1 });
 });

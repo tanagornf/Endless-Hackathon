@@ -19,7 +19,11 @@
 
 - The Flex delivery tests cover Thai and English cards, surrogate-pair-safe text, confirmation tokens encrypted in PostgreSQL, stable action IDs across replay, batch size, and refusing to reuse a Push retry key when the recipient, OA, or formatted body changes. The combined scoped suite passed 59/59 before release.
 
+The product photo delivery tests run the real LINE JSON serializer with intercepted HTTP. An image and its accompanying text keep the same body and retry key after a retryable Push response. An acknowledged batch cannot send again. Missing tenant-scoped media or an HTTP media base preserves the customer text and adds a localized image notice. The isolated outbound, sender, Flex and media suites passed 28/28.
+
 ## Production verification
+
+Native read receipts use the webhook's durable enqueue deduplication, the shop's existing credential resolver, and a single bounded receipt request. The focused, database-free suite passed 47/47 mocked read-receipt, webhook, event, and sender tests, including a stateless credential and a changed bot identity. On-device verification remains pending a coordinated synthetic operator test with the OA Chat setting enabled.
 
 | Check | Result |
 |---|---|

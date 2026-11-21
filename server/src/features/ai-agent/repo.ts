@@ -1,9 +1,11 @@
-import type { MessagePart } from '@nless/shared/core/types';
+import type { MessagePart, ProposalSummary } from '@nless/shared/core/types';
 import type { AiGuardAction, AiIntent, AiToolTrace, AiTurnStateName, AiTurnTopic, AiTurnTrace, AiTurnUsage } from '@nless/shared/features/ai-agent/types';
 import type { ConversationRecord, MessageRecord } from '@nless/shared/features/inbox/types';
 import type { CustomerLanguage } from '@nless/shared/core/language';
 import { db } from '../../core';
 import type { SkipReason } from './gate';
+import type { OrderDraft } from './orderProposal';
+import type { StaffConsentKind } from './staffConsent';
 
 export const MAX_ATTEMPTS = 3;
 export const LEASE_RENEW_MS = 20_000;
@@ -30,6 +32,8 @@ export interface TurnDraft {
   intentSource?: AiTurnTrace['intentSource'];
   intentConfidence?: number | null;
   handoffOffered?: boolean;
+  order?: OrderDraft | ProposalSummary | null;
+  staffConsentKind?: StaffConsentKind | null;
 }
 
 interface TurnRow {
@@ -59,6 +63,8 @@ interface TurnRow {
   intent_source: AiTurnTrace['intentSource'];
   intent_confidence: string | null;
   handoff_offered: boolean;
+  proposal: TurnDraft['order'];
+  staff_consent_kind: StaffConsentKind | null;
 }
 
 export type TurnLease = Pick<TurnRow, 'id' | 'business_id' | 'conversation_id' | 'attempts' | 'mode'>;
@@ -79,7 +85,7 @@ export async function claimTurn(
       "SELECT *, retry_after > now() AS waiting FROM ai_turns WHERE business_id = $1 AND conversation_id = $2 AND inbound_message_id = $3 AND mode = 'reply'",
       [businessId, conversationId, inbound.id],
     ) : null;
-    const unsent = delivery && existing && (existing.state === 'completed' || existing.state === 'handoff') &&
+    const unsent = delivery && existing && ['completed', 'handoff', 'awaiting_confirmation'].includes(existing.state) &&
       !existing.reply_message_id && Boolean(existing.reply_parts?.length);
     if (existing && !unsent && !['running', 'failed'].includes(existing.state)) {
       return { status: 'finished', turn: existing };
@@ -176,6 +182,8 @@ export function readDraft(turn: TurnRow): TurnDraft | null {
     intentSource: turn.intent_source,
     intentConfidence: turn.intent_confidence === null ? null : Number(turn.intent_confidence),
     handoffOffered: turn.handoff_offered,
+    order: turn.proposal,
+    staffConsentKind: turn.staff_consent_kind,
   };
 }
 
@@ -185,13 +193,13 @@ export async function storeDraft(turn: TurnLease, draft: TurnDraft): Promise<boo
       product_refs = $8::jsonb, tools = $9::jsonb, guard_actions = $10::jsonb, usage_summary = $11::jsonb,
       timings = $12::jsonb, retry_used = $13, error_code = $14, reply_group_id = id,
       handoff_reason = $15, intent = $16, intent_source = $17, intent_confidence = $18,
-      handoff_offered = $19,
+      handoff_offered = $19, proposal = $20::jsonb, staff_consent_kind = $21,
       lease_until = now() + interval '60 seconds'
     WHERE ` + owned, [
     ...leaseParams(turn), draft.language, JSON.stringify(draft.parts), draft.evidenceIds, JSON.stringify(draft.productRefs),
     JSON.stringify(draft.tools), JSON.stringify(draft.guardActions), JSON.stringify(draft.usage), JSON.stringify(draft.timings),
     draft.retryUsed, draft.errorCode, draft.handoffReason ?? null, draft.intent ?? null, draft.intentSource ?? null, draft.intentConfidence ?? null,
-    draft.handoffOffered ?? false,
+    draft.handoffOffered ?? false, JSON.stringify(draft.order ?? null), draft.staffConsentKind ?? null,
   ]);
   return result.rowCount === 1;
 }
@@ -233,6 +241,7 @@ export async function finishTurn(turn: TurnLease, outcome: {
   const result = await db.query(String.raw`
     UPDATE ai_turns SET state = $5, skip_reason = $6, reply_message_id = COALESCE($7, reply_message_id),
       reply_parts = CASE WHEN $5 IN ('skipped', 'superseded') THEN NULL ELSE reply_parts END,
+      proposal = CASE WHEN $5 IN ('skipped', 'superseded') THEN NULL ELSE proposal END,
       retry_after = $8, timings = COALESCE($9::jsonb, timings), error_code = COALESCE(error_code, $10), finished_at = now(),
       latency_ms = CASE WHEN mode = 'reply' THEN GREATEST(0, EXTRACT(epoch FROM now() - started_at) * 1000)::int END
     WHERE ` + owned, [

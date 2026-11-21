@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import { SEED } from '@nless/shared/core/fixtures';
 import type {
   RetrievalCaseResult, RetrievalCaseRow, RetrievalConfig, RetrievalCoverage, RetrievalGroup, RetrievalGroupMetrics,
   RetrievalMetrics, RetrievalRunResult, RetrievalRunSummary, RetrievalStrategy,
 } from '@nless/shared/features/knowledge-search/types';
 import type { KnowledgeItemRow } from '@nless/shared/features/knowledge/types';
-import { AppError, db } from '../../core';
-import { getActiveKnowledgeItemIds } from '../knowledge/service';
-import type { EvalRunBody } from './schema';
+import { AppError, auditInTransaction, db } from '../../core';
+import { getActiveKnowledgeItemIds, getKnowledgeItem } from '../knowledge/service';
+import type { CaseBody, EvalRunBody } from './schema';
 import { retrievalSettings, searchWorkbench } from './search';
 import { mixedQuery, scriptOf } from './text';
 import { listBusinessKnowledge } from './workbench';
@@ -87,10 +88,47 @@ export async function listRetrievalCases(businessId: string): Promise<{ items: R
   const rows = await savedRows(businessId);
   if (!rows.length) return { items: [] };
   const titles = new Map((await listBusinessKnowledge(businessId)).map((item) => [item.id, item.title]));
-  return { items: rows.map((row) => ({
+  return { items: rows.map((row) => caseView(row, titles)) };
+}
+
+function caseView(row: SavedRow, titles: Map<string, string>): RetrievalCaseRow {
+  return {
     id: row.id, query: row.query, expectItemIds: row.expect_item_ids, expectNone: row.expect_none,
     expectTitles: row.expect_item_ids.flatMap((id) => titles.has(id) ? [titles.get(id)!] : []), createdAt: row.created_at.toISOString(),
-  })) };
+  };
+}
+
+export async function createRetrievalCase(businessId: string, userId: string, body: CaseBody): Promise<RetrievalCaseRow> {
+  const ids = [...new Set(body.expectItemIds.map((id) => id.toLowerCase()))];
+  const titles = new Map<string, string>();
+  for (const id of ids) {
+    const item = await getKnowledgeItem(businessId, id);
+    if (!item || item.status === 'deleted') throw new AppError('NOT_FOUND', 'Expected knowledge item not found');
+    titles.set(id, item.title);
+  }
+  return db.tx(async (tx) => {
+    const row = await tx.one<SavedRow>(
+      `INSERT INTO retrieval_cases (business_id, query, expect_item_ids, expect_none, created_by)
+       VALUES ($1,$2,$3,$4,$5) RETURNING id,query,expect_item_ids,expect_none,created_at`,
+      [businessId, body.query, body.expectNone ? [] : ids, body.expectNone, userId],
+    );
+    await auditInTransaction(tx, [{ action: 'knowledge-search.case.create', actorUserId: userId, businessId,
+      targetType: 'business', targetId: businessId, details: { caseId: row.id } }]);
+    return caseView(row, titles);
+  });
+}
+
+export async function deleteRetrievalCase(businessId: string, userId: string, id: string): Promise<void> {
+  const caseId = z.string().uuid().safeParse(id);
+  if (!caseId.success) throw new AppError('NOT_FOUND', 'Saved retrieval case not found');
+  await db.tx(async (tx) => {
+    const removed = await tx.maybeOne<{ id: string }>(
+      'DELETE FROM retrieval_cases WHERE business_id=$1 AND id=$2 RETURNING id', [businessId, caseId.data],
+    );
+    if (!removed) throw new AppError('NOT_FOUND', 'Saved retrieval case not found');
+    await auditInTransaction(tx, [{ action: 'knowledge-search.case.delete', actorUserId: userId, businessId,
+      targetType: 'business', targetId: businessId, details: { caseId: removed.id } }]);
+  });
 }
 
 function metricsFor(rows: RetrievalCaseResult[]): RetrievalGroupMetrics {

@@ -63,6 +63,8 @@ const fields = z.object({
   OPENAI_EMBED_MODEL: z.string().default(''),
   EMBED_DIM: integer(1536),
   OPENAI_MODERATION_MODEL: z.string().default(''),
+  OPENAI_SHOP_CORRECTION_MODEL: z.string().default(''),
+  OPENAI_SHOP_CORRECTION_ULTRAFAST_RATE_MULTIPLIER: z.preprocess(optional, z.coerce.number().finite().positive().optional()),
   OPENAI_REALTIME_MODEL: z.string().default(''),
   OPENAI_REALTIME_VOICE: z.string().default(''),
   OPENAI_REALTIME_TRANSCRIBE_MODEL: z.string().default(''),

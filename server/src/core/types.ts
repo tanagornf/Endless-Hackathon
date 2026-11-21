@@ -4,6 +4,8 @@ import type { FeatureId, FolderSlug, MigrationOwner } from '@nless/shared/core/f
 import type { SeedData } from '@nless/shared/core/fixtures';
 import type { Application, Request, Response } from 'express';
 import type { ZodType } from 'zod';
+import type { ShopCorrectionAnalysisInput } from './shop-correction-analysis';
+export type { ShopCorrectionAnalysisInput } from './shop-correction-analysis';
 
 /** Result of getBusiness(): the business, the verified scope, and the user. */
 export interface BusinessContext {
@@ -224,6 +226,21 @@ export interface ModelEmbedInput {
   purpose: 'document' | 'query';
 }
 
+export interface ModelWebSearchInput {
+  /** Short, caller-approved public product keywords. Exclude customer or merchant-private data. */
+  query: string;
+  language: 'th' | 'en';
+  usage: UsageAttribution;
+  signal?: AbortSignal;
+}
+
+export interface ModelWebSearchResult {
+  /** Empty when no completed, cited search result is available. */
+  answer: string;
+  citations: Array<{ url: string; title: string }>;
+  usageId: string;
+}
+
 export interface ModelEmbedResult {
   /** One vector per input text, length EMBED_DIM (1536), L2-normalized. */
   vectors: number[][];
@@ -333,6 +350,8 @@ export interface ModelApi {
    *   costReason 'fake_mode'. Deterministic, no network.
    */
   chat(input: ModelChatInput): Promise<ModelChatResult>;
+  searchWeb(input: ModelWebSearchInput): Promise<ModelWebSearchResult>;
+  analyzeShopCorrection(input: ShopCorrectionAnalysisInput): Promise<ModelChatResult>;
   /**
    * openai.embeddings.create({ model: OPENAI_EMBED_MODEL, input, dimensions: EMBED_DIM }) in batches of ≤ 256 texts
    * (a text over 8,192 tokens → VALIDATION_ERROR). Vectors are unit length → pgvector cosine distance `<=>`.

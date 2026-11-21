@@ -1,5 +1,5 @@
 import { AppError, config } from '../../core';
-import type { FeatureSeed } from '../../core';
+import type { FeatureSeed, SeedContext } from '../../core';
 import { withKnowledgePublication } from '../knowledge/service';
 import { indexDocument } from './index-job';
 import { writeSearchability } from './indexing';
@@ -54,3 +54,13 @@ export default {
     log('knowledge-search: indexed ' + indexed + ' seed revisions');
   },
 } satisfies FeatureSeed;
+
+export async function resetDemo({ db, id }: SeedContext): Promise<void> {
+  const ids = [id('biz_demo_a'), id('biz_demo_b')];
+  await db.tx(async (tx) => {
+    await tx.query('DELETE FROM knowledge_fixture_requests WHERE business_id=ANY($1::uuid[])', [ids]);
+    await tx.query('DELETE FROM retrieval_runs WHERE business_id=ANY($1::uuid[])', [ids]);
+    await tx.query('DELETE FROM retrieval_cases WHERE business_id=ANY($1::uuid[])', [ids]);
+    await tx.query('DELETE FROM knowledge_query_cache WHERE business_id=ANY($1::uuid[])', [ids]);
+  });
+}
