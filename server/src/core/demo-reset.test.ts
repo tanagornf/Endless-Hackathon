@@ -90,6 +90,15 @@ it('locks, safely resets and re-seeds only the demo businesses, and enforces the
       await client.query("SELECT pg_advisory_unlock(hashtext('nless.demo-reset'))");
       client.release();
     }
+    const running = await db.one<{ id: string }>(`INSERT INTO jobs (business_id,type,state,locked_until)
+      VALUES ($1,'test.ops.reset','running',now() + interval '2 minutes') RETURNING id`, [fixture.id]);
+    const busy = await reset().expect(422);
+    expect(busy.body.error.details.reason).toBe('reset_in_progress');
+    expect(await db.maybeOne('SELECT id FROM customers WHERE id=$1', [synthetic.id])).toBeTruthy();
+    expect(await db.one('SELECT state FROM jobs WHERE id=$1', [running.id])).toEqual({ state: 'running' });
+    expect(await db.one('SELECT state FROM jobs WHERE id=$1', [observed.jobId])).toEqual({ state: 'queued' });
+    await db.query('DELETE FROM jobs WHERE id=$1', [running.id]);
+
     const response = await reset().expect(200);
     expect(response.body.data).toMatchObject({ ok: true, durationMs: expect.any(Number) });
     expect(response.body.data.steps).toEqual(expect.arrayContaining([
@@ -109,15 +118,7 @@ it('locks, safely resets and re-seeds only the demo businesses, and enforces the
     const audit = await db.query<{ action: string; actor_user_id: string }>(`SELECT action,actor_user_id FROM audit_events
       WHERE action IN ('core.demo.reset.start','core.demo.reset') AND actor_user_id=$1 ORDER BY created_at`, [actorUserId]);
     expect(audit.rows.map(({ action }) => action)).toEqual(['core.demo.reset.start', 'core.demo.reset']);
-    const lock = await dbPool().connect();
-    try {
-      await lock.query("SELECT pg_advisory_lock(hashtext('nless.demo-reset'))");
-      await reset().expect(422);
-      await reset().expect(429);
-    } finally {
-      await lock.query("SELECT pg_advisory_unlock(hashtext('nless.demo-reset'))");
-      lock.release();
-    }
+    await reset().expect(429);
   } finally {
     config.DEMO_RESET_ENABLED = previous;
     await db.query('DELETE FROM businesses WHERE id=$1', [outside]);
