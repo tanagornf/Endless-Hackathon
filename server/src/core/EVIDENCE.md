@@ -7,6 +7,8 @@
 
 ## Log
 
+- Three audit unit cases passed for the supplied executor, one-statement batching with request context, failure propagation and ordinary pooled audit.
+
 - C1 lane initialization used the assigned direct PostgreSQL endpoint, API port 3001 and web port 5171. The base migration applied once and the second run reported 0 pending. Two base seeds and two demo seeds exited successfully. The demo count stayed at 8 synthetic customer threads and 12 image aliases. A database query decoded a pgvector value back to its original vector.
 - C1 development HTTP returned 200 for `/healthz`, `/readyz` and `/build-info`. Scripted smoke passed all six checks, including 31 loaded features, 29 flags, cross-tenant 404, a delivered price reply containing `1,490`, and silent AI after takeover.
 - A 1,000,000-byte synthetic LINE POST arrived unchanged at its webhook handler. Invalid JSON could be rejected before parsing.
