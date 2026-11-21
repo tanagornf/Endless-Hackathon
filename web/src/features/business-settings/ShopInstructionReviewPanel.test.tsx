@@ -1,6 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
+import type {
+  ShopInstructionActivation, ShopInstructionReview, ShopInstructionVersion,
+} from '@nless/shared/features/business-settings/shop-instructions-types';
 import ShopInstructionReviewPanel from './ShopInstructionReviewPanel';
 
 const api = vi.hoisted(() => ({ query: vi.fn(), publish: vi.fn(), rollback: vi.fn(), reload: vi.fn(), role: 'owner' }));
@@ -16,7 +19,7 @@ vi.mock('../../core', () => ({
   }),
   useApiQuery: (path: string) => api.query(path),
   useApiMutation: (_method: string, path: string) => ({
-    run: (input: { expectedActiveVersionId: string | null }) =>
+    run: (input: ShopInstructionActivation) =>
       (path.endsWith('/publish') ? api.publish : api.rollback)(path, input),
     running: false,
   }),
@@ -34,12 +37,17 @@ vi.mock('../../core', () => ({
 }));
 
 const createdAt = '2026-11-21T08:00:00Z';
-const active = { id: 'revision-two', parentVersionId: 'revision-one', instruction: 'Use the order number.', createdAt };
-const previous = { id: 'revision-one', parentVersionId: null, instruction: 'ใช้เลขใบเสร็จ', createdAt };
+const previous: ShopInstructionVersion = {
+  id: 'revision-one', parentVersionId: null, restoredFromVersionId: null, candidateId: 'first-candidate',
+  actorUserId: 'owner-a', instruction: 'ใช้เลขใบเสร็จ', createdAt,
+};
+const active: ShopInstructionVersion = {
+  ...previous, id: 'revision-two', parentVersionId: previous.id, candidateId: 'second-candidate', instruction: 'Use the order number.',
+};
 const candidate = { id: 'candidate-one', baseVersionId: active.id, instruction: 'Check the order number first.', reason: 'Owner correction', createdAt };
-const view = { activeVersionId: active.id, candidates: [candidate], versions: [active, previous] };
+const view: ShopInstructionReview = { activeVersionId: active.id, candidates: [candidate], versions: [active, previous] };
 
-function query(data = view) {
+function query(data: ShopInstructionReview = view) {
   api.query.mockReturnValue({ data, loading: false, error: null, reload: api.reload });
 }
 
