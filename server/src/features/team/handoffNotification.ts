@@ -1,6 +1,5 @@
 import type { NotifyInput } from '@nless/shared/features/notifications/types';
 import { db } from '../../core';
-import { getBusinessSettings } from '../business-settings/service';
 import { notify } from '../notifications/service';
 
 interface NotificationTarget {
@@ -18,6 +17,7 @@ const titles: Record<string, { th: string; en: string }> = {
 const defaultTitle = { th: 'แชตรอให้พนักงานรับช่วง', en: 'A conversation needs a team member' };
 
 export async function prepareHandoffNotification(row: NotificationTarget, reason: string): Promise<NotifyInput> {
+  const { getBusinessSettings } = await import('../business-settings/service');
   const [settings, customer] = await Promise.all([
     getBusinessSettings(row.businessId),
     db.maybeOne<{ displayName: string }>(
