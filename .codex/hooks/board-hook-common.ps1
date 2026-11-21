@@ -115,6 +115,7 @@ function Invoke-HookBoard {
     # .team-board relative to the current folder). Returns its stdout lines, or $null after a warning when it failed.
     # The board's own stderr warnings (e.g. "Sites read failed; falling back to GitHub") are folded into ONE line.
     $previous = (Get-Location -PSProvider FileSystem).ProviderPath
+    $originalPath = $env:PATH
     $originalError = [Console]::Error
     $captured = New-Object IO.StringWriter
     $failure = ''
@@ -122,6 +123,13 @@ function Invoke-HookBoard {
     try {
         [Console]::SetError($captured)
         Set-Location -LiteralPath $Ctx.Root
+        # A running desktop app can inherit PATH before the GitHub CLI installer updates it.
+        if ($env:ProgramFiles -and -not (Get-Command gh -CommandType Application -ErrorAction SilentlyContinue)) {
+            $cliDir = Join-Path $env:ProgramFiles 'GitHub CLI'
+            if ([IO.File]::Exists((Join-Path $cliDir 'gh.exe'))) {
+                $env:PATH = $cliDir + [IO.Path]::PathSeparator + $originalPath
+            }
+        }
         $parameters = @{ AgentId = $Ctx.Lane }
         foreach ($key in $Extra.Keys) { $parameters[$key] = $Extra[$key] }
         $lines = @(& $Ctx.Board $Mode @parameters)
@@ -129,6 +137,7 @@ function Invoke-HookBoard {
     }
     catch { $failure = [string]$_.Exception.Message }
     finally {
+        $env:PATH = $originalPath
         [Console]::SetError($originalError)
         try { Set-Location -LiteralPath $previous } catch { }
     }
