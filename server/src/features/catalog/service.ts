@@ -1,5 +1,4 @@
-import { AppError } from '../../core';
-import type { CatalogImportResult, CatalogImportRow, CatalogItem, ProductRef } from '@nless/shared/features/catalog/types';
+import type { CatalogItem, ProductRef } from '@nless/shared/features/catalog/types';
 import { resolveProduct } from './refs';
 import { itemView } from './repo';
 
@@ -7,6 +6,7 @@ export { parsePriceToMinor } from '@nless/shared/features/catalog/money';
 export { getPrice } from './price';
 export { checkSku, getCatalogItemDetails, getHistory, getItemAdmin, listCatalogItems, listCategories, listItems } from './repo';
 export { createItem, deleteItem, patchItem } from './items';
+export { importCatalogItems } from './import';
 
 export async function getProduct(businessId: string, ref: ProductRef): Promise<CatalogItem | null> {
   const row = await resolveProduct(businessId, ref);
@@ -24,18 +24,4 @@ export async function adjustCatalogStock(input: {
   reason: 'order' | 'order_cancel' | 'correction'; refType: string; refId: string; actorUserId: string | null;
 }): Promise<{ stockAfter: number | null; applied: boolean; version: number }> {
   return { stockAfter: null, applied: false, version: 1 };
-}
-
-/** @owner F08 catalog · B1 · consumer: B3 (F06 knowledge-import). Max 500 rows (more → VALIDATION_ERROR).
- *  New SKUs are created as DRAFTS: active = false, source 'import', sourceRef = importId — the shop reviews them in /catalog and turns them on.
- *  Existing SKU: mode 'create_only' (default) → skipped with error code 'sku_exists'; mode 'update_existing' → price / name / stock / unit / nameEn /
- *  description / category / shippable are updated in place (active flag untouched), version bumped, audit catalog.item.update + catalog.price.change.
- *  Validation is the same as POST /items. dryRun: validate and report only, writes nothing. onError 'abort' (default) = all or nothing;
- *  'skip_row' = apply valid rows, report the rest. One transaction. Audit catalog.import (counts only).
- *  @fake validates nothing, writes nothing: { applied: !dryRun, created: rows.length, updated: 0, skipped: 0, errors: [], items: fake ids }. */
-export async function importCatalogItems(input: {
-  businessId: string; actorUserId: string | null; importId: string; rows: CatalogImportRow[];
-  mode?: 'create_only' | 'update_existing'; onError?: 'abort' | 'skip_row'; dryRun?: boolean;
-}): Promise<CatalogImportResult> {
-  throw new AppError("SERVICE_NOT_READY", "importCatalogItems is not implemented");
 }
