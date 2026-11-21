@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { config, db, type OutboundDelivery } from '../../core';
+import { makeLineRequest } from './lineApi';
 import { makeLineSender } from './sender';
 
 const mocks = vi.hoisted(() => ({
@@ -141,19 +142,25 @@ describe('LINE channel sender', () => {
     const load = vi.spyOn(db, 'maybeOne').mockResolvedValue({ original_name: 'case.png', created_at: new Date(now) });
     const text = { type: 'text', text: 'The case costs 490 baht and is sold out.' } as const;
     const input: OutboundDelivery = { ...delivery(51_000), parts: [text, { type: 'image', fileId }] };
-    mocks.request.mockResolvedValueOnce(response(503))
-      .mockResolvedValueOnce(response(409, {}, { 'x-line-accepted-request-id': 'accepted-push' }));
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(new Response('{}', { status: 409, headers: { 'x-line-accepted-request-id': 'accepted-push' } }));
+    mocks.request.mockImplementation(makeLineRequest(fetcher));
     try {
       config.PUBLIC_BASE_URL = 'https://shop.example.test';
       expect(await sender.send(input)).toMatchObject({ state: 'failed', retryable: true });
       expect(await sender.send({ ...input, attempt: 2 })).toMatchObject({ state: 'sent', externalRef: 'accepted-push' });
       mocks.batch.mockResolvedValue({ state: 'accepted', sent_ids: [], request_id: 'accepted-push' });
       expect(await sender.send({ ...input, attempt: 3 })).toMatchObject({ state: 'sent', externalRef: 'accepted-push' });
-      expect(mocks.request).toHaveBeenCalledTimes(2);
-      const [[path, first], [, retry]] = mocks.request.mock.calls;
-      expect(path).toBe('/v2/bot/message/push');
-      expect(retry).toMatchObject({ json: first.json, retryKey: first.retryKey });
-      expect(first.json).toEqual({ to: input.customerExternalId, messages: [text, {
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      const [[url, first], [retryUrl, retry]] = fetcher.mock.calls;
+      expect(url).toBe('https://api.line.me/v2/bot/message/push');
+      expect(retryUrl).toBe(url);
+      expect(retry?.body).toBe(first?.body);
+      const retryKey = new Headers(first?.headers).get('x-line-retry-key');
+      expect(retryKey).toMatch(/^[a-f0-9-]{36}$/);
+      expect(new Headers(retry?.headers).get('x-line-retry-key')).toBe(retryKey);
+      expect(JSON.parse(String(first?.body))).toEqual({ to: input.customerExternalId, messages: [text, {
         type: 'image',
         originalContentUrl: expect.stringMatching(new RegExp('^https://shop\\.example\\.test/api/v1/channel-media/' + fileId + '\\?exp=\\d+&v=original&sig=[A-Za-z0-9_-]+$')),
         previewImageUrl: expect.stringMatching(new RegExp('^https://shop\\.example\\.test/api/v1/channel-media/' + fileId + '\\?exp=\\d+&v=preview&sig=[A-Za-z0-9_-]+$')),
