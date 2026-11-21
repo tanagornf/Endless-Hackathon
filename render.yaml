@@ -1,0 +1,97 @@
+# Blueprint: 1 web service (Docker, Singapore) + 1 Postgres 17 (Singapore)
+# ตรวจชื่อ field กับ https://render.com/docs/blueprint-spec แล้ว (20 พ.ย. 2569): runtime, plan, region, healthCheckPath,
+# preDeployCommand, autoDeployTrigger, disk{name,mountPath,sizeGB}, envVars{key,value|sync|fromDatabase|generateValue},
+# databases{name,plan,region,postgresMajorVersion,diskSizeGB,ipAllowList}
+# sync:false = Render ถามค่าตอน "สร้าง Blueprint ครั้งแรก" เท่านั้น แล้วไม่แตะอีก (เพิ่ม/แก้ภายหลังในหน้า Environment ของ service)
+services:
+  - type: web
+    name: nless-hack          # URL ที่คาด: https://nless-hack.onrender.com  (UNCONFIRMED: ถ้าชื่อซ้ำ Render เติม suffix → ใช้ URL จริงเป็น APP_BASE_URL)
+    runtime: docker
+    plan: 1c-2g               # ID plan ตามเอกสาร blueprint-spec; ราคาจริง UNCONFIRMED (ดู §3)
+    region: singapore
+    branch: main
+    autoDeployTrigger: commit # merge เข้า main = deploy (autoDeploy เดิมเลิกใช้แล้ว)
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    preDeployCommand: npm run db:migrate   # รันก่อนขึ้น release ใหม่ ล้ม = deploy ไม่ขึ้น (ใช้ได้เฉพาะ service แบบจ่ายเงิน)
+    disk:
+      name: uploads
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      # ---- runtime ----
+      - { key: NODE_ENV,            value: production }
+      - { key: LOG_LEVEL,           value: info }
+      - { key: RUN_WORKER,          value: "1" }
+      - { key: RUN_SCHEDULER,       value: "1" }
+      - { key: UPLOAD_DIR,          value: /var/data/uploads }
+      - { key: UPLOAD_MAX_MB,       value: "20" }
+      - { key: DB_POOL_MAX,         value: "12" }
+      - { key: DATABASE_URL,        fromDatabase: { name: nless-db, property: connectionString } }
+      - { key: APP_BASE_URL,        sync: false }    # https://<render-url> ไม่มี / ท้าย
+      - { key: WEB_ORIGIN,          sync: false }    # เท่ากับ APP_BASE_URL
+      - { key: PUBLIC_BASE_URL,     sync: false }    # เท่ากับ APP_BASE_URL (webhook + OAuth redirect)
+      - { key: COOKIE_SECURE,       value: "1" }
+      # ---- secrets ที่ C สร้างเอง (เก็บค่าไว้ใน ..\nless.secrets.env ของ C เพื่อใช้ซ้ำที่ Railway) ----
+      - { key: SESSION_SECRET,      sync: false }
+      - { key: TOKEN_ENCRYPTION_KEY, sync: false }
+      - { key: DEV_LOGIN_TOKEN,     sync: false }
+      - { key: SEED_USER_PASSWORD,  sync: false }
+      # ---- dev login (ชั่วโมงแรก) ----
+      - { key: DEV_LOGIN,           value: "1" }
+      - { key: DEV_LOGIN_ENABLED,   value: "true" }   # → "false" เมื่อ F02 merge (docs/specs/F02-auth.md §5.9)
+      # ---- AI ----
+      - { key: MODEL_MODE,          value: openai }
+      - { key: OPENAI_API_KEY,      sync: false }      # key ของ project app-prod (hard limit US$60)
+      - { key: OPENAI_CHAT_MODEL,        value: gpt-6.2-sol }
+      - { key: OPENAI_CHAT_MODEL_FAST,   value: gpt-6.2-sol }
+      - { key: OPENAI_CHAT_MODEL_STRONG, value: gpt-6.2-sol }
+      - { key: OPENAI_EMBED_MODEL,       value: text-embedding-3-large }
+      - { key: EMBED_DIM,                value: "1536" }
+      - { key: OPENAI_MODERATION_MODEL,  value: omni-moderation-latest }
+      - { key: OPENAI_REALTIME_MODEL,    value: gpt-realtime-2.1 }
+      - { key: OPENAI_REALTIME_VOICE,    value: marin }
+      - { key: OPENAI_REALTIME_TRANSCRIBE_MODEL, value: gpt-live-transcribe }
+      - { key: OPENAI_TRANSCRIBE_MODEL,  value: gpt-transcribe }
+      # MODEL_PRICE_TABLE: ไม่ใส่ที่นี่ (ยาวและมี default ใน config.ts ตาม .env.example) · ถ้า core ไม่มี default ให้ใส่ค่าจาก .env.example ทั้งบรรทัดใน dashboard
+      # ---- demo / ต้นทุน ----
+      - { key: DEMO_RESET_ENABLED,        value: "1" }
+      - { key: DEMO_CHAT_DAILY_TURN_CAP,  value: "300" }
+      - { key: VOICE_MAX_SECONDS,         value: "120" }
+      - { key: VOICE_DAILY_SECONDS,       value: "900" }
+      - { key: EVAL_MAX_COST_USD,         value: "1.5" }
+      - { key: MCP_ENABLED,               value: "1" }
+      - { key: HIDDEN_FEATURES,           value: "" }   # ปรับที่หน้า /ops (PUT /api/v1/ops/features/:id) ไม่ต้อง redeploy
+      - { key: EMAIL_MODE,                value: sandbox }
+      - { key: SESSION_TTL_HOURS,         value: "12" }
+      # ---- ช่องทาง (เพิ่มค่าจริงตามชั่วโมง; ก่อนถึงเวลาปล่อยโหมดเป็น sandbox) ----
+      - { key: LINE_MODE,                 value: sandbox }   # → real ตอน 12:00
+      - { key: LINE_CHANNEL_ID,           sync: false }
+      - { key: LINE_CHANNEL_SECRET,       sync: false }
+      - { key: LINE_CHANNEL_ACCESS_TOKEN, sync: false }
+      - { key: META_MODE,                 value: sandbox }   # → real เมื่อ F18 deploy
+      - { key: META_APP_ID,               sync: false }
+      - { key: META_APP_SECRET,           sync: false }
+      - { key: META_VERIFY_TOKEN,         sync: false }
+      - { key: META_GRAPH_VERSION,        value: v25.0 }
+      - { key: META_TEST_PAGE_ID,         sync: false }
+      - { key: META_TEST_IG_ACCOUNT_ID,   sync: false }
+      - { key: GOOGLE_MODE,               value: sandbox }   # → real เมื่อ F16 deploy
+      - { key: GOOGLE_CLIENT_ID,          sync: false }
+      - { key: GOOGLE_CLIENT_SECRET,      sync: false }
+      - { key: GOOGLE_TEST_CALENDAR_ID,   sync: false }
+      - { key: PAYMENT_MODE,              value: sandbox }   # ตลอดงาน (ไม่รับเงินจริง · ไม่มี Omise)
+      - { key: SLIP_VERIFY_MODE,          value: vision }
+      - { key: PROMPTPAY_TEST_ID,         sync: false }
+      - { key: VAPID_PUBLIC_KEY,          sync: false }
+      - { key: VAPID_PRIVATE_KEY,         sync: false }
+      - { key: VAPID_SUBJECT,             value: "mailto:team@example.test" }   # แก้เป็นอีเมลทีมจริงของ C
+
+databases:
+  - name: nless-db
+    plan: 0.1c-256mb
+    region: singapore
+    postgresMajorVersion: "17"
+    diskSizeGB: 1
+    # ไม่ตั้ง ipAllowList = ทุก IP เชื่อมจากภายนอกได้ (ต้องใช้รหัสผ่าน) เพื่อให้ pg_dump จาก WSL ตอน 16:45 ได้ · ตั้งเป็นปิดหลัง dump ถ้าต้องการ
