@@ -23,6 +23,14 @@ export function dbPool(): pg.Pool {
     connectionTimeoutMillis: 10000,
     statement_timeout: config.DB_STATEMENT_TIMEOUT_MS,
     max: config.DB_POOL_MAX,
+    async onConnect(client) {
+      try {
+        await pgvector.registerTypes(client);
+      } catch (error) {
+        // A fresh database can open a connection before 001_core installs vector.
+        if (!(error instanceof Error) || error.message !== 'vector type not found in the database') throw error;
+      }
+    },
   });
   pool.on('error', () => log.warn('Idle database connection closed'));
   return pool;
@@ -85,6 +93,6 @@ export const db: DbClient = {
   },
   toVector(values) {
     if (values.some((value) => !Number.isFinite(value))) throw new AppError('VALIDATION_ERROR', 'Vector values must be finite');
-    return pgvector.toSql([...values]);
+    return pgvector.toSql([...values])!;
   },
 };

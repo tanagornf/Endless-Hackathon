@@ -1,0 +1,117 @@
+{
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "close": "Close",
+    "retry": "Retry",
+    "logout": "Sign out",
+    "login": "Sign in",
+    "open": "Open"
+  },
+  "table": {
+    "empty": "No data yet"
+  },
+  "toast": {
+    "saved": "Saved"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "VALIDATION_ERROR": "Check the information you entered.",
+    "AUTH_REQUIRED": "Sign in to continue.",
+    "PERMISSION_DENIED": "You don’t have permission to do this.",
+    "BUSINESS_INACTIVE": "This shop is inactive.",
+    "ACCOUNT_DISABLED": "This account has been disabled.",
+    "NOT_FOUND": "The item cannot be found.",
+    "VERSION_CONFLICT": "The item changed. Reload to continue.",
+    "IDEMPOTENCY_CONFLICT": "This request was already submitted.",
+    "SLOT_FULL": "This time slot is full.",
+    "SOLD_OUT": "This item is sold out.",
+    "CHANNEL_NOT_CONNECTED": "This channel is disconnected.",
+    "PROPOSAL_EXPIRED": "This proposal has expired.",
+    "POLICY_BLOCKED": "The shop’s policy prevents this action.",
+    "KNOWLEDGE_NOT_READY": "Knowledge is still being prepared.",
+    "RATE_LIMITED": "Wait a moment and try again.",
+    "INTERNAL": "Something went wrong on the server.",
+    "PROVIDER_UNAVAILABLE": "The provider is currently unavailable.",
+    "PROVIDER_BUDGET_EXHAUSTED": "The provider’s budget has been reached.",
+    "SERVICE_NOT_READY": "The service is currently unavailable."
+  },
+  "language": {
+    "th": "Thai",
+    "en": "English",
+    "switch": "Change language"
+  },
+  "status": {
+    "feature": {
+      "R": "Real (R)",
+      "S": "Sandbox (S)",
+      "A": "Adapter (A)",
+      "U": "Unimplemented (U)"
+    },
+    "order": {
+      "awaiting_payment": "Awaiting payment",
+      "paid": "Paid",
+      "preparing": "Preparing",
+      "shipped": "Shipped",
+      "delivered": "Delivered",
+      "cancelled": "Cancelled"
+    },
+    "payment": {
+      "unpaid": "Unpaid",
+      "pending_verification": "Pending slip check",
+      "paid": "Paid",
+      "refunded": "Refunded"
+    },
+    "conversation": {
+      "open": "Open",
+      "closed": "Closed",
+      "ai": "AI replies",
+      "human": "Staff replies"
+    },
+    "generic": {
+      "active": "Active",
+      "ready": "Ready",
+      "sent": "Sent",
+      "succeeded": "Succeeded",
+      "completed": "Completed",
+      "running": "Running",
+      "indexing": "Indexing",
+      "reviewed": "Reviewed",
+      "booked": "Booked",
+      "draft": "Draft",
+      "pending": "Pending",
+      "queued": "Queued",
+      "not_started": "Not started",
+      "unknown": "Unknown",
+      "no_show": "No show",
+      "failed": "Failed",
+      "dead": "Permanently failed",
+      "inactive": "Inactive",
+      "deleted": "Deleted",
+      "cancelled": "Cancelled",
+      "not_required": "Not required"
+    }
+  },
+  "pages": {
+    "home": "Home",
+    "welcome": "Welcome to Endless",
+    "loading": "Loading",
+    "notFound": "Page not found",
+    "forbidden": "You don’t have access to this page",
+    "noBusiness": "Select a shop to continue",
+    "account": "Account",
+    "jobs": "Jobs",
+    "features": "Feature visibility",
+    "menu": "Main navigation",
+    "shop": "Select a shop",
+    "placeholder": "Feature {{id}} · Lane {{lane}}",
+    "outOfService": "Sign-in is disabled"
+  },
+  "dev": {
+    "title": "DEV LOGIN",
+    "token": "Development sign-in token",
+    "choose": "Choose a test user"
+  }
+}

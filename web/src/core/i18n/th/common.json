@@ -1,0 +1,117 @@
+{
+  "actions": {
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "confirm": "ยืนยัน",
+    "delete": "ลบ",
+    "close": "ปิด",
+    "retry": "ลองใหม่",
+    "logout": "ออกจากระบบ",
+    "login": "เข้าสู่ระบบ",
+    "open": "เปิด"
+  },
+  "table": {
+    "empty": "ยังไม่มีข้อมูล"
+  },
+  "toast": {
+    "saved": "บันทึกแล้ว"
+  },
+  "errors": {
+    "generic": "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง",
+    "VALIDATION_ERROR": "ข้อมูลไม่ถูกต้อง",
+    "AUTH_REQUIRED": "โปรดเข้าสู่ระบบ",
+    "PERMISSION_DENIED": "คุณไม่มีสิทธิ์ทำรายการนี้",
+    "BUSINESS_INACTIVE": "ร้านนี้ไม่ได้เปิดใช้งาน",
+    "ACCOUNT_DISABLED": "บัญชีถูกปิดใช้งาน",
+    "NOT_FOUND": "ไม่พบรายการ",
+    "VERSION_CONFLICT": "รายการถูกแก้ไขแล้ว โปรดโหลดใหม่",
+    "IDEMPOTENCY_CONFLICT": "รายการนี้เคยส่งแล้ว",
+    "SLOT_FULL": "ช่วงเวลานี้เต็มแล้ว",
+    "SOLD_OUT": "สินค้าหมดแล้ว",
+    "CHANNEL_NOT_CONNECTED": "ยังไม่ได้เชื่อมต่อช่องทาง",
+    "PROPOSAL_EXPIRED": "ข้อเสนอหมดอายุแล้ว",
+    "POLICY_BLOCKED": "รายการนี้ไม่อยู่ในเงื่อนไขร้าน",
+    "KNOWLEDGE_NOT_READY": "คลังความรู้ยังไม่พร้อม",
+    "RATE_LIMITED": "โปรดรอสักครู่แล้วลองใหม่",
+    "INTERNAL": "เกิดข้อผิดพลาดภายในระบบ",
+    "PROVIDER_UNAVAILABLE": "ผู้ให้บริการไม่พร้อมใช้งาน",
+    "PROVIDER_BUDGET_EXHAUSTED": "ผู้ให้บริการถึงขีดจำกัดแล้ว",
+    "SERVICE_NOT_READY": "บริการยังไม่พร้อมใช้งาน"
+  },
+  "language": {
+    "th": "ไทย",
+    "en": "English",
+    "switch": "เปลี่ยนภาษา"
+  },
+  "status": {
+    "feature": {
+      "R": "จริง (R)",
+      "S": "Sandbox (S)",
+      "A": "Adapter (A)",
+      "U": "ยังไม่ทำ (U)"
+    },
+    "order": {
+      "awaiting_payment": "รอชำระเงิน",
+      "paid": "ชำระแล้ว",
+      "preparing": "กำลังเตรียม",
+      "shipped": "จัดส่งแล้ว",
+      "delivered": "ส่งถึงแล้ว",
+      "cancelled": "ยกเลิก"
+    },
+    "payment": {
+      "unpaid": "ยังไม่ชำระ",
+      "pending_verification": "รอตรวจสลิป",
+      "paid": "ชำระแล้ว",
+      "refunded": "คืนเงินแล้ว"
+    },
+    "conversation": {
+      "open": "เปิดอยู่",
+      "closed": "ปิดแล้ว",
+      "ai": "AI ตอบ",
+      "human": "พนักงานตอบ"
+    },
+    "generic": {
+      "active": "ใช้งาน",
+      "ready": "พร้อม",
+      "sent": "ส่งแล้ว",
+      "succeeded": "สำเร็จ",
+      "completed": "เสร็จแล้ว",
+      "running": "กำลังทำ",
+      "indexing": "กำลังทำดัชนี",
+      "reviewed": "ตรวจแล้ว",
+      "booked": "จองแล้ว",
+      "draft": "ร่าง",
+      "pending": "รอดำเนินการ",
+      "queued": "รอคิว",
+      "not_started": "ยังไม่เริ่ม",
+      "unknown": "ไม่ทราบผล",
+      "no_show": "ไม่มาตามนัด",
+      "failed": "ล้มเหลว",
+      "dead": "ล้มเหลวถาวร",
+      "inactive": "ปิดใช้งาน",
+      "deleted": "ลบแล้ว",
+      "cancelled": "ยกเลิก",
+      "not_required": "ไม่ต้องส่ง"
+    }
+  },
+  "pages": {
+    "home": "หน้าหลัก",
+    "welcome": "ยินดีต้อนรับสู่ Endless",
+    "loading": "กำลังโหลด",
+    "notFound": "ไม่พบหน้า",
+    "forbidden": "คุณไม่มีสิทธิ์เปิดหน้านี้",
+    "noBusiness": "ยังไม่ได้เลือกร้าน",
+    "account": "บัญชี",
+    "jobs": "งานเบื้องหลัง",
+    "features": "การเปิดใช้งานฟีเจอร์",
+    "menu": "เมนูหลัก",
+    "shop": "เลือกร้าน",
+    "placeholder": "ฟีเจอร์ {{id}} · ทีม {{lane}}",
+    "outOfService": "ปิดใช้งานแล้ว"
+  },
+  "dev": {
+    "title": "DEV LOGIN",
+    "token": "โทเค็นสำหรับเข้าสู่ระบบ",
+    "choose": "เลือกผู้ใช้ทดสอบ"
+  }
+}

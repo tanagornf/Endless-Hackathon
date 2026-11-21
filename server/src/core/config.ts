@@ -146,7 +146,7 @@ export const config = loadConfig();
 
 export function providerMode(provider: 'line' | 'meta' | 'google' | 'payment'): 'sandbox' | 'real' {
   switch (provider) {
-    case 'line': return config.LINE_MODE === 'real' && config.LINE_CHANNEL_SECRET && config.LINE_CHANNEL_ACCESS_TOKEN ? 'real' : 'sandbox';
+    case 'line': return config.LINE_MODE === 'real' && config.LINE_CHANNEL_SECRET && (config.LINE_CHANNEL_ID || config.LINE_CHANNEL_ACCESS_TOKEN) ? 'real' : 'sandbox';
     case 'meta': return config.META_MODE === 'real' && config.META_APP_ID && config.META_APP_SECRET && config.META_VERIFY_TOKEN ? 'real' : 'sandbox';
     case 'google': return config.GOOGLE_MODE === 'real' && config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET ? 'real' : 'sandbox';
     case 'payment': return config.PAYMENT_MODE === 'real' && config.PROMPTPAY_TEST_ID ? 'real' : 'sandbox';
