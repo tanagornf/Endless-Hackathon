@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F04 | business-settings | C3 | DOING | R | A | none | | 28 F04 tests passed and 32 with tenancy isolation, typecheck and ownership passed, three Playwright smoke cases discovered | 2569-11-21 12:33 +07:00 | Production smoke and remaining F04 slices pending |
+| F04 | business-settings | C3 | DOING | R | A | none | | 28 F04 tests passed and 32 with tenancy isolation, typecheck and ownership passed, three Playwright smoke cases discovered | 2026-11-21 12:33 +07:00 | Production smoke and remaining F04 slices pending |
 
 ## Log
 
