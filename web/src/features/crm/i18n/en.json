@@ -1,6 +1,17 @@
 {
   "total": "{{count}} customers",
   "phone": "Phone",
+  "email": "Email",
+  "note": "Staff note",
+  "contactDetails": "Contact details",
+  "invalid": {
+    "phone": "Enter a phone number with 8 to 15 digits.",
+    "email": "Enter a valid email address.",
+    "note": "Keep the note within 2,000 characters."
+  },
+  "saveFailed": "Couldn’t save this field.",
+  "profileConflict": "This profile changed. Review the latest details before editing again.",
+  "saving": "Saving…",
   "seen": "Last seen",
   "ruleCount": "Rules",
   "menu": {
