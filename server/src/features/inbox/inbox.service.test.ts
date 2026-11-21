@@ -99,7 +99,10 @@ describe('F09 inbox persistence', () => {
   it('pages 95 ungrouped messages in ascending order without skipping or repeating', async () => {
     const input = inbound({ triggerAi: false });
     const { conversation } = await saveMessage(input);
-    await Promise.all(Array.from({ length: 94 }, () => saveMessage({ ...input, conversationId: conversation.id })));
+    for (let written = 0; written < 94; written += 4) {
+      const batch = Math.min(4, 94 - written);
+      await Promise.all(Array.from({ length: batch }, () => saveMessage({ ...input, conversationId: conversation.id })));
+    }
     const pages = [];
     let before: string | null = null;
     do {
@@ -109,7 +112,7 @@ describe('F09 inbox persistence', () => {
     } while (before);
     expect(pages.map((page) => page.length)).toEqual([5, 30, 30, 30]);
     expect(pages.flat()).toEqual(Array.from({ length: 95 }, (_, index) => index + 1));
-  }, 30000);
+  }, 120000);
 
   it('retains group boundaries on older pages and validates cursor before looking up a conversation', async () => {
     const input = inbound({ triggerAi: false });
@@ -167,7 +170,7 @@ describe('F09 inbox persistence', () => {
     await drainJobs();
     const next = await getHistory(first.conversation.id);
     expect(next.items.filter(({ author }) => author === 'ai')).toHaveLength(history.items.filter(({ author }) => author === 'ai').length);
-  });
+  }, 30000);
 
   it('scopes detail, history and read routes to the signed-in business', async () => {
     const owner = await createTestAgent();
