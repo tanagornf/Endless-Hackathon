@@ -2,7 +2,8 @@ import type { AiHandoffIntent, AiHandoffReceipt } from '@nless/shared/features/t
 import { z } from 'zod';
 import { auditInTransaction, db, log, publish } from '../../core';
 import type { DbExecutor } from '../../core';
-import { notifyHandoff } from './handoffNotification';
+import { notify } from '../notifications/service';
+import { prepareHandoffNotification } from './handoffNotification';
 import { uuid } from './validation';
 
 const intentSchema = z.object({
@@ -81,18 +82,27 @@ export async function applyAiHandoff(intent: AiHandoffIntent): Promise<AiHandoff
 
 async function dispatchHandoffNotification(key: ReceiptKey): Promise<void> {
   try {
-    // The lease survives worker death. F31's version key handles a crash after delivery but before completion.
+    // The exact database timestamp is the lease token. Each claim is made after expiry
+    // and moves the deadline forward, including when a crashed worker is replaced.
     const target = await db.maybeOne<ReceiptKey & {
-      customerId: string; version: number; reason: string; active: boolean;
-    }>(`UPDATE team_ai_handoff_receipts r SET notification_due_at = now() + interval '2 minutes'
+      customerId: string; version: number; reason: string; lease: string; active: boolean;
+    }>(`UPDATE team_ai_handoff_receipts r SET notification_due_at = clock_timestamp() + interval '2 minutes'
       FROM conversations c WHERE ${joinConversation} AND ${receiptKey}
-      AND r.notification_result IS NULL AND r.notification_due_at <= now()
+      AND r.notification_result IS NULL AND r.notification_due_at <= clock_timestamp()
       RETURNING ${receiptColumns}, c.customer_id AS "customerId", r.committed_version AS version,
-        (${stillQueued}) AS active`, keyParams(key));
+        r.notification_due_at::text AS lease, (${stillQueued}) AS active`, keyParams(key));
     if (!target) return;
-    const mode = target.active ? (await notifyHandoff(target, target.reason)).mode : 'obsolete';
-    await db.query(`UPDATE team_ai_handoff_receipts r SET notification_result = $4
-      WHERE ${receiptKey} AND r.notification_result IS NULL`, [...keyParams(key), mode]);
+    const params = [...keyParams(key), target.lease];
+    const ownsLease = 'r.notification_result IS NULL AND r.notification_due_at = $4::timestamptz AND r.notification_due_at > clock_timestamp()';
+    const input = target.active ? await prepareHandoffNotification(target, target.reason) : null;
+    // Refresh assignment and ownership after the potentially slow preparation, immediately before invoking F31.
+    const current = await db.maybeOne<{ active: boolean }>(`SELECT (${stillQueued}) AS active
+      FROM team_ai_handoff_receipts r JOIN conversations c ON ${joinConversation}
+      WHERE ${receiptKey} AND ${ownsLease}`, params);
+    if (!current) return;
+    const mode = current.active && input ? (await notify(input)).mode : 'obsolete';
+    await db.query(`UPDATE team_ai_handoff_receipts r SET notification_result = $5
+      WHERE ${receiptKey} AND ${ownsLease}`, [...params, mode]);
   } catch {
     log.warn({ businessId: key.businessId, turnId: key.turnId }, 'Handoff notification pending retry');
   }

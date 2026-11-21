@@ -1,3 +1,4 @@
+import type { NotifyInput } from '@nless/shared/features/notifications/types';
 import { db } from '../../core';
 import { getBusinessSettings } from '../business-settings/service';
 import { notify } from '../notifications/service';
@@ -16,7 +17,7 @@ const titles: Record<string, { th: string; en: string }> = {
 };
 const defaultTitle = { th: 'แชตรอให้พนักงานรับช่วง', en: 'A conversation needs a team member' };
 
-export async function notifyHandoff(row: NotificationTarget, reason: string) {
+export async function prepareHandoffNotification(row: NotificationTarget, reason: string): Promise<NotifyInput> {
   const [settings, customer] = await Promise.all([
     getBusinessSettings(row.businessId),
     db.maybeOne<{ displayName: string }>(
@@ -24,7 +25,7 @@ export async function notifyHandoff(row: NotificationTarget, reason: string) {
       [row.customerId, row.businessId],
     ),
   ]);
-  return notify({
+  return {
     businessId: row.businessId,
     to: { permission: 'chat.takeover' },
     type: 'chat.handoff',
@@ -32,5 +33,9 @@ export async function notifyHandoff(row: NotificationTarget, reason: string) {
     body: customer?.displayName || undefined,
     link: '/chat?c=' + row.conversationId,
     dedupKey: 'handoff:' + row.conversationId + ':v' + row.version,
-  });
+  };
+}
+
+export async function notifyHandoff(row: NotificationTarget, reason: string) {
+  return notify(await prepareHandoffNotification(row, reason));
 }
