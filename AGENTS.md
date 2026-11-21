@@ -16,7 +16,7 @@
 - อ่านไฟล์ `.lane` ที่ root ของ worktree (git-ignored) มีค่าเดียว: worker `A1`…`C3` หรือ orchestrator `A0` `B0` `C0`
 - ไม่มี `.lane` หรือค่าไม่อยู่ในตารางข้อ 2: หยุด แล้วถามคนก่อนแก้ไฟล์ใด ๆ
 - **Worker** สร้างฟีเจอร์ของ lane ตัวเองตาม spec แล้ว merge เองเมื่อ CI เขียว · **Orchestrator** (หนึ่งตัวต่อคน) ไม่มีฟีเจอร์ของตัวเอง ทำตามข้อ 8
-- คง **31 ID** ตาม `FEATURES` ใน `contracts.ts` รุ่นนี้มี **LINE เป็นช่องทางภายนอกช่องทางเดียว** และใช้ `web` สำหรับตรวจสอบและสาธิต Demo Chat · F18/F21/F22 เป็น U-deferred คง ID, tier และแถวรายงานไว้ ห้ามเริ่มเมื่อเปิด tier และไม่ใส่ในเมนูหรือเดโม · ฟีเจอร์ที่ตัดออกเดิม (แพ็กเกจ/โควตา/billing, legal/PDPA, platform admin, help/support, ฟอร์ม, ประวัติ LINE และช่องทางอื่นนอกแผน) ไม่ทำ ไม่สร้างโฟลเดอร์ · ใช้ได้ไม่จำกัด ไม่มีการเช็กแพ็กเกจหรือโควตาก่อนทำงาน
+- คง **31 ID** ตาม `FEATURES` ใน `contracts.ts` รุ่นนี้มี **LINE เป็นช่องทางภายนอกช่องทางเดียว** และใช้ `web` สำหรับตรวจสอบภายในผ่าน Demo Chat · F18/F21 เป็น U-deferred คง ID, tier และแถวรายงานไว้ ห้ามเริ่มเมื่อเปิด tier และไม่ใส่ในเมนูหรือเดโม · F22 ยังเป็น U เริ่มได้หลังเปิด P2 เฉพาะรหัสสินค้าที่พิมพ์ในแชต LINE → ตะกร้า → ยืนยันผ่าน F13 ส่วนรับคอมเมนต์ผ่าน Meta เลื่อนออก ซ่อนเมนูและงดสาธิต F22 จนผ่าน production bar · ฟีเจอร์ที่ตัดออกเดิม (แพ็กเกจ/โควตา/billing, legal/PDPA, platform admin, help/support, ฟอร์ม, ประวัติ LINE และช่องทางอื่นนอกแผน) ไม่ทำ ไม่สร้างโฟลเดอร์ · ใช้ได้ไม่จำกัด ไม่มีการเช็กแพ็กเกจหรือโควตาก่อนทำงาน
 - ทำฟีเจอร์ตามลำดับใน lane ถ้าตัวถัดไปยังรอตารางของ lane อื่น ให้ทำตัวถัดไปที่พร้อมก่อน (ใน tier ที่เปิดแล้ว) แล้วโพสต์ `NEED`
 - ฟีเจอร์ใน MVP golden path (F01 F35 F03 F04 F05 F07 F08 F09 F10 F17 + Demo Chat ของ A1 + ส่วน takeover ของ F11) มาก่อนเสมอ ส่วนที่ gate ใช้ต้องเป็นของจริงบน production ทัน CORE-LOOP GATE 13:00
 - **Tier:** ทุกฟีเจอร์มี tier P0–P3 (`tier` ใน `FEATURES`) P0 เริ่มได้หลัง `SETUP READY` ส่วน P1/P2/P3 เริ่มได้เมื่อหัวหน้าโพสต์ `LEAD: OPEN <tier>` แล้วเท่านั้น
@@ -38,7 +38,7 @@
 | B2 | F10 `ai-agent` (P0) → F38 `follow-ups` (P2) → F30 `voice` (P3) | — |
 | B3 | F06 `knowledge-import` (P1) → F26 `insights` (P2) → F27 `analytics` (P2) | — |
 | A1 | F09 `inbox` (P0) → F11 `team` (P0) → F12 `message-templates` (P2) → F23 `broadcast` (P2) | หน้า Demo Chat (ช่องทาง `web`) อยู่ในฟีเจอร์ `inbox` |
-| A2 | F13 `orders` (P1) → F14 `payments` (P1) · F22 `live-commerce` (P2) เป็น U-deferred | — |
+| A2 | F13 `orders` (P1) → F14 `payments` (P1) → F22 `live-commerce` (P2, รหัสสินค้าจากแชต LINE, สถานะปัจจุบัน U) | — |
 | A3 | F24 `crm` (P1) → F15 `booking` (P2) → F16 `calendar` (P2) | — |
 | A0 B0 C0 | ไม่มีฟีเจอร์ | เฉพาะ branch `fix/<lane เจ้าของ>/<slug>` ตามข้อ 8 (path ของ lane เจ้าของ) |
 

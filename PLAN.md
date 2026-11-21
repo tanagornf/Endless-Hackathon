@@ -9,10 +9,10 @@
 ## สรุปในหนึ่งนาที
 
 - **ผลิตภัณฑ์ที่ต้องได้ตอนจบ:** [docs/PRODUCT.md](docs/PRODUCT.md) อธิบาย Endless ฉบับเต็ม (ใครใช้ ลูกค้าและร้านเห็นอะไร AI ต้องทำตัวอย่างไร อะไรเรียกว่าดี) · Codex ทุก session อ่านไฟล์นี้ก่อนเริ่มงาน
-- **เป้าหมาย:** เว็บ **production ที่ใช้ได้จริง** บน URL สาธารณะ: ฟีเจอร์ที่โชว์ต้องทำงานจริงตั้งแต่หน้าจอถึง API ถึง DB ถึง provider ไม่มีปุ่มหลอก ([production bar](#production-bar-ของจริงเท่านั้น)) · ทะเบียนคง **31 ID** และรายงาน R/S/A/U ตามจริง (28 ฟีเจอร์อยู่ในแผนรุ่นนี้ อีก 3 เป็น U-deferred) และ **MVP golden path ต้องเป็น R บน production ภายใน 13:00** ([gate](#mvp-golden-path-และ-core-loop-gate))
+- **เป้าหมาย:** เว็บ **production ที่ใช้ได้จริง** บน URL สาธารณะ: ฟีเจอร์ที่โชว์ต้องทำงานจริงตั้งแต่หน้าจอถึง API ถึง DB ถึง provider ไม่มีปุ่มหลอก ([production bar](#production-bar-ของจริงเท่านั้น)) · ทะเบียนคง **31 ID** และรายงาน R/S/A/U ตามจริง (29 ฟีเจอร์อยู่ในแผนรุ่นนี้ อีก 2 เป็น U-deferred) และ **MVP golden path ต้องเป็น R บน production ภายใน 13:00** ([gate](#mvp-golden-path-และ-core-loop-gate))
 - **สร้างจาก spec ของเราเอง** ([docs/specs/](docs/specs/README.md) 31 ไฟล์) จาก repo ว่าง **ไม่เปิดโค้ด Papi** เว้นแต่ผู้จัดยืนยันเป็นลายลักษณ์อักษร ([ที่มาของโค้ด](#ที่มาของโค้ด-สร้างจาก-spec-ไม่เปิดโค้ด-papi))
-- **scope:** 28 ฟีเจอร์เดิม + 3 ฟีเจอร์ใหม่ที่ตรงเกณฑ์กรรมการ (F37 AI evals, F38 follow-up nudges, F39 ChatGPT-ready catalog) + ส่วนเสริมใน F14 (QR ต่อออเดอร์ + ตรวจสลิปจาก QR) และ F27 (ตัวเลขผลลัพธ์ของร้าน) · ตัดออก 8 ฟีเจอร์ ([รายการ](#ตัดออกจาก-scope)) **ไม่มีแพ็กเกจ ไม่มีโควตา**
-- **ช่องทาง:** **LINE เป็นช่องทางภายนอกช่องทางเดียว** · กรรมการลองผ่าน LINE OA (สแกน QR ที่โต๊ะ) · Demo Chat บนเว็บใช้ตรวจสอบและสาธิต core loop บนมือถือ
+- **scope:** ทะเบียน 31 ID รวม F37 AI evals, F38 follow-up nudges และ F39 ChatGPT-ready catalog + ส่วนเสริมใน F14 (QR ต่อออเดอร์ + ตรวจสลิปจาก QR) และ F27 (ตัวเลขผลลัพธ์ของร้าน) · ตัดออก 8 ฟีเจอร์ ([รายการ](#ตัดออกจาก-scope)) **ไม่มีแพ็กเกจ ไม่มีโควตา**
+- **ช่องทาง:** **LINE เป็นช่องทางภายนอกช่องทางเดียว** · กรรมการสแกน QR ของ LINE OA ที่โต๊ะ · ทีมใช้ Demo Chat บนเว็บตรวจ core loop ภายใน
 - **AI ของแอปใช้ OpenAI API อย่างเดียว:** `gpt-6.2-sol` ทุกงาน text + embeddings, realtime voice, ถอดเสียง, moderation ของ OpenAI ผ่าน `model.*` ของ core ([docs/openai-api.md](docs/openai-api.md))
 - **3 คน × (1 orchestrator + 3 workers) = 12 Codex sessions** ในแอป ChatGPT บน Windows แต่ละ session อยู่ใน worktree ของตัวเอง · worker สร้างฟีเจอร์ · orchestrator มอบงาน ตรวจงาน ทดสอบรวม แก้บั๊กข้าม lane และรายงาน stage ทุก 30 นาที ([แบ่งคนและ lanes](#แบ่งคนและ-lanes))
 - **งานแบ่งเท่ากัน:** A 855 · B 892.5 · C 855 นาทีงาน (ค่ากลาง, ต่างจากค่าเฉลี่ยไม่เกิน ±3%) และต้นทุน Codex ต่อคนเท่ากันโดยโครงสร้าง ([ตาราง](#สมดุลงานและต้นทุนต่อคน))
@@ -25,7 +25,7 @@
 
 ## ทำไมถึงทันในวันเดียว
 
-ประมาณการเดิมของ backlog ทั้ง 31 ID คือ **1,560–3,645 นาทีงาน** (ค่ากลาง ~2,600) เทียบกับเวลาสร้างจริง **9 lanes × 280 นาที = 2,520 นาที** (10:50–15:30; C1 มีเพิ่มอีก ~105 นาทีจาก setup และงาน release) จึง **เกือบทันที่ค่ากลาง และไม่ทันถ้าทุกอย่างช้าสุด** รุ่น LINE-only มีงานตาม tier 28 ฟีเจอร์ จึงยังเปิดงานตาม tier และตัดฟีเจอร์ท้าย lane ก่อน ใช้ห้าอย่างนี้พร้อมกัน:
+ประมาณการเดิมของ backlog ทั้ง 31 ID คือ **1,560–3,645 นาทีงาน** (ค่ากลาง ~2,600) เทียบกับเวลาสร้างจริง **9 lanes × 280 นาที = 2,520 นาที** (10:50–15:30; C1 มีเพิ่มอีก ~105 นาทีจาก setup และงาน release) จึง **เกือบทันที่ค่ากลาง และไม่ทันถ้าทุกอย่างช้าสุด** รุ่น LINE-only มีงานตาม tier 29 ฟีเจอร์ จึงยังเปิดงานตาม tier และตัดฟีเจอร์ท้าย lane ก่อน ใช้ห้าอย่างนี้พร้อมกัน:
 
 1. **ทำคู่ขนาน:** worker 9 ตัว แต่ละตัวมี git worktree, port และ database ของตัวเอง
 2. **ไม่ต้องออกแบบในวันงาน:** ทุกฟีเจอร์มี [build spec](docs/specs/README.md) ที่บอกตาราง, endpoint, algorithm, prompt, หน้าจอ, test และลำดับ slice ครบ Codex ทำตามได้ทันที
@@ -75,19 +75,21 @@ Fake มีได้จนกว่าเจ้าของจะแทนด้
 |---|---|---|---|
 | **P0** core loop (11) | F01, F35, F03, F04, F05, F07, F08, F09 + Demo Chat, F11 (ส่วน takeover = slice 1), F10 (ตอบ + บันทึก trace = slice 1–3), F17 | `SETUP READY` (~10:50) | — |
 | **P1** ให้ทีมร้านตรวจคำตอบและจัดการข้อผิดพลาดได้ + ความลึกของ demo (7) | F02, F06, F13, F14, F24, F31 (slice 1: กระดิ่งในแอป), F36 · และ slice สามตัวที่ทำก่อน (ข้อด้านล่าง) | checkpoint 11:30 | checkpoint 1 ผ่าน และ usage ไม่เกิน 20% ต่อคน ไม่งั้นเปิดเมื่อ gate 13:00 ผ่าน |
-| **P2** ส่วนเสริม (9) | F12, F15, F16, F23, F26, F27, **F37, F38, F39** · และส่วนตั้งค่า + web push ของกระดิ่งแจ้งเตือน | gate 13:00 ผ่าน | usage ไม่เกิน 40% ต่อคน ไม่งั้นเช็กใหม่ที่ 14:30 |
+| **P2** ส่วนเสริม (10) | F12, F15, F16, F22 (เฉพาะรหัสสินค้าจากแชต LINE), F23, F26, F27, **F37, F38, F39** · และส่วนตั้งค่า + web push ของกระดิ่งแจ้งเตือน | gate 13:00 ผ่าน | usage ไม่เกิน 40% ต่อคน ไม่งั้นเช็กใหม่ที่ 14:30 |
 | **P3** ของแถม (1) | F30 voice | checkpoint 14:30 | P0 เป็น R, P1 เป็น R/S และ usage ไม่เกิน 55% ต่อคน |
 
 - หัวหน้าเปิด tier ด้วยโพสต์ `LEAD: OPEN P1` (`P2`, `P3`) hook ปลุก lane ที่รออยู่ · lane เริ่มฟีเจอร์ของ tier ที่ยังไม่เปิดไม่ได้ ถ้าว่างให้โพสต์ `NEED TO:<orchestrator> next task` แล้วรอ
 - **ข้อยกเว้นสองข้อ:** C3 ทำ F02 (P1) ต่อจาก F03 ได้เลย · C1 เริ่ม F36 เวลา 15:15 ตามนาฬิกา (F39 ที่ค้างให้พัก)
 - **สาม slice ของ P1 ที่ทำก่อนงาน P1 อื่น** (ลำดับของ [ข้อเสนอ Endless](docs/competition-plan/ENDLESS-PRIORITY-PROPOSAL.md) ที่ทีมรับแล้ว 21 พ.ย.): B2 หน้า trace ของ F10 (slice 5) · A1 สถานะพนักงาน ว่าง/พัก/นอกเวลา + แจกแชตอัตโนมัติของ F11 (slice 2–3) · C3 กระดิ่งในแอปของ F31 (slice 1) · ทั้งสามเริ่มเมื่อ `LEAD: OPEN P1` และ slice ของ gate ใน lane นั้น merge แล้ว · tier ในตารางนี้นับต่อฟีเจอร์ (F10, F11 ยังเป็น P0 · F31 เป็น P1) ส่วนที่แบ่งเป็น slice เขียนไว้ในวงเล็บ
 - **งานเก็บรายละเอียดของ P2 ที่ไม่มี spec** (เลือกทำทีละชิ้นเมื่อเส้นทาง demo เรียบร้อยและหัวหน้าเปิด P2 ไม่นับเป็นฟีเจอร์): responsive polish ข้ามหน้า · กดขยายรูปสินค้า/รูปในแชต · Dark Mode ทั้งแอป · ปัญหาที่กระทบ Demo Chat บนมือถือแก้ใน P0 ไม่รอ P2
-- ลำดับตัดเมื่อไม่ทัน (หัวหน้าตัดสินที่ 14:30): F30 → F16 → F23 → F39 → F12 → F31 ส่วน slice 2–4 (ตั้งค่า + web push) → F26 แต่ **ไม่ตัด F37 และส่วนตัวเลขของ F27** เพราะเป็นหลักฐาน "วัดผลได้" ที่กรรมการถามหา
+- ลำดับตัดเมื่อไม่ทัน (หัวหน้าตัดสินที่ 14:30): F30 → F16 → F23 → F22 → F39 → F12 → F31 ส่วน slice 2–4 (ตั้งค่า + web push) → F26 แต่ **ไม่ตัด F37 และส่วนตัวเลขของ F27** เพราะเป็นหลักฐาน "วัดผลได้" ที่กรรมการถามหา
 - **% usage** = ตัวเลขของแต่ละคนที่หน้า chatgpt.com/codex/settings/usage (ดูวิธีนับใน [งบ](#งบ-token-และ-credits)) หัวหน้าโพสต์ `LEAD: BUDGET A <x>% · B <y>% · C <z>%` ที่ 11:30 / 13:00 / 14:30
 
 ## เลื่อนออกจากรุ่น LINE-only
 
-คง ID, tier เดิม และแถวรายงานครบ 31 รายการ ให้ F18 Messenger/Instagram (P1), F21 คอมเมนต์ (P2) และ F22 live commerce (P2) เป็น **U-deferred** รุ่นนี้ไม่ทำ ไม่เปิดเมนู และไม่สาธิตสามรายการนี้ F22 ยังมีเพียง scaffold กับ service จำลอง หากนำกลับมาพิจารณา ให้จำกัดที่รหัสสินค้าจากแชต LINE ที่พิสูจน์ได้ตั้งแต่รับข้อความถึงตะกร้าและการยืนยันออเดอร์ผ่าน F13
+คง ID, tier เดิม และแถวรายงานครบ 31 รายการ ให้ F18 Messenger/Instagram (P1) และ F21 คอมเมนต์ (P2) เป็น **U-deferred** รุ่นนี้เว้นการพัฒนา ตั้งค่า provider และสาธิตสองฟีเจอร์นี้
+
+F22 live commerce ยังเป็น **U** ตามหลักฐานปัจจุบัน A2 เริ่มส่วนรหัสสินค้าที่พิมพ์ในแชต LINE → ตะกร้า → ยืนยันออเดอร์ผ่าน F13 ได้เมื่อเปิด P2 ซ่อนเมนูและงดสาธิตจนกว่าจะพิสูจน์เส้นทางครบตาม production bar ส่วนรับคอมเมนต์ผ่าน Meta เลื่อนออกจากรุ่นนี้
 
 ## ตัดออกจาก scope
 
@@ -95,7 +97,7 @@ Fake มีได้จนกว่าเจ้าของจะแทนด้
 
 | ID | เดิม | ผลกับระบบที่เหลือ |
 |---|---|---|
-| F19 | WhatsApp | ใช้ `line` สำหรับลูกค้า และ `web` สำหรับ Demo Chat |
+| F19 | WhatsApp | ใช้ `line` สำหรับลูกค้า และ `web` สำหรับตรวจสอบภายในผ่าน Demo Chat |
 | F20 | ประวัติ LINE, OA Manager crawler, session broker | ไม่มี history import ข้อความย้อนหลังไม่มี |
 | F25 | ฟอร์มลูกค้า (intake form) | AI ไม่ส่งการ์ดฟอร์ม |
 | F28 | แพ็กเกจ, subscription, โควตา | **ใช้ได้ไม่จำกัด** ไม่มี `checkQuota()` / `recordUsage()` · core ยังบันทึก `model_usage` ทุก call เพื่อดูต้นทุน (F27) |
@@ -142,7 +144,7 @@ Fake มีได้จนกว่าเจ้าของจะแทนด้
 | Worker lanes (9) | เครื่องของเจ้าของ หนึ่ง worktree ต่อ lane port API 3001–3009 / web 5171–5179 | Neon ของคนนั้น: `nless_hack_<lane>` + `_test` | `app-dev` ของคนนั้น (hard limit US$30) | สร้างและทดสอบฟีเจอร์ |
 | Orchestrator (3) | เครื่องของแต่ละคน worktree `a0`/`b0`/`c0` ตาม `origin/main` port 3000 / 5170 | Neon ของคนนั้น: `nless_hack_<a0\|b0\|c0>` | `app-dev` ของคนนั้น | ตรวจ `main` หลัง merge, แก้ข้าม lane |
 | CI | GitHub Actions + service container `pgvector/pgvector:pg17` | ชั่วคราว | ไม่มี (`MODEL_MODE=fake`) | typecheck, tests, ownership check ทุก PR |
-| **Production** | **Render สิงคโปร์ หนึ่ง web instance deploy เองจาก `main`** | **Render Postgres 17 + pgvector** | **`app-prod` (hard limit US$60)** | กรรมการ, LINE OA ตัว demo, Demo Chat, gate 13:00 |
+| **Production** | **Render สิงคโปร์ หนึ่ง web instance deploy เองจาก `main`** | **Render Postgres 17 + pgvector** | **`app-prod` (hard limit US$60)** | กรรมการผ่าน LINE OA ตัว demo · Demo Chat และ gate 13:00 สำหรับตรวจภายใน |
 | Production สำรอง | Railway สิงคโปร์ (เตรียมคืนนี้) · สุดท้ายจริง ๆ คือเครื่องของ C + Cloudflare tunnel | Railway pgvector | `app-prod` | เฉพาะเมื่อ Render ล่ม |
 
 - **Dev database = Neon free tier (สิงคโปร์) organization ของทีม `Endless` หนึ่ง project ต่อคน** (C สร้างและเชิญ A, B ทุกคนล็อกอินด้วยบัญชีตัวเอง) ต่อผ่าน **direct endpoint** (ไม่ผ่าน pooler) เพื่อให้ advisory lock และ prepared statement ใช้ได้ pool ไม่เกิน 5 ต่อ process · สำรอง: PostgreSQL 16 + pgvector ใน WSL2
@@ -158,7 +160,7 @@ Fake มีได้จนกว่าเจ้าของจะแทนด้
 |---|---|---|---|
 | **Orchestrator** | **C0** + ตรวจ gate 13:00 + ดูแล production | **B0** + คุณภาพคำตอบ AI ทั้งระบบ | **A0** + เส้นทาง demo ที่กรรมการเห็น |
 | **Lane 1** | C1: F01 setup + deploy (P0) → F35 jobs/ops (P0) → F39 ChatGPT-ready catalog (P2) → F36 release (P1, 15:15) | B1: F05 คลังความรู้ (P0) → F07 ค้นหา (P0) → F08 สินค้า (P0) → F37 AI evals (P2) | A1: F09 inbox + Demo Chat (P0) → F11 คนรับช่วง (P0) → F12 template ข้อความ (P2) → F23 broadcast (P2) |
-| **Lane 2** | C2: F17 LINE (P0) · F18/F21 U-deferred | B2: F10 AI ตอบ (P0) → benchmark Decisions API หลัง gate ผ่านและงาน F10 P1 เสร็จ (25 นาที, classifier เดิม live) → F38 follow-up nudges (P2) → F30 voice (P3) | A2: F13 orders (P1) → F14 QR + ตรวจสลิป (P1) · F22 U-deferred |
+| **Lane 2** | C2: F17 LINE (P0) · F18/F21 U-deferred | B2: F10 AI ตอบ (P0) → benchmark Decisions API หลัง gate ผ่านและงาน F10 P1 เสร็จ (25 นาที, classifier เดิม live) → F38 follow-up nudges (P2) → F30 voice (P3) | A2: F13 orders (P1) → F14 QR + ตรวจสลิป (P1) → F22 รหัสสินค้าจากแชต LINE (P2, สถานะปัจจุบัน U) |
 | **Lane 3** | C3: F04 ตั้งค่าร้าน (P0) → F03 ร้านและสิทธิ์ (P0) → F02 login (P1) → F31 แจ้งเตือน (P1) | B3: F06 นำเข้าไฟล์ (P1) → F26 insights (P2) → F27 dashboard + ผลลัพธ์ของร้าน (P2) | A3: F24 ลูกค้าและ tags (P1) → F15 จองนัด (P2) → F16 ปฏิทิน (P2) |
 
 ลำดับใน lane คือลำดับทำงาน ชื่อโฟลเดอร์ (`slug`) และนาทีงานของแต่ละฟีเจอร์อยู่ใน [backlog](docs/competition-plan/feature-backlog.csv) และ [ดัชนี spec](docs/specs/README.md)
@@ -278,8 +280,8 @@ shared/features/<slug>/          ← เจ้าของฟีเจอร์ 
 | 15:30–16:30 | orchestrator ทั้งสามทดสอบทั้งระบบบน production ตาม [quality-bar.md](docs/day/quality-bar.md) (ทางเดินของกรรมการบนมือถือ, ความเร็ว, security review, ข้อมูล demo) แก้เฉพาะบั๊ก · รัน real eval หนึ่งรอบ (F37) และกรอกตัวเลขลง pitch |
 | 16:30 | อัดวิดีโอ demo 2–3 นาทีเสร็จ ([VIDEO-SCRIPT](docs/pitch/VIDEO-SCRIPT.md)) · เปิด uptime monitor ที่ `/healthz` |
 | **16:45** | **deploy freeze** (ห้าม merge เข้า `main` อีก) · `pg_dump` production · ส่งงาน ([SUBMISSION-CHECKLIST](docs/pitch/SUBMISSION-CHECKLIST.md)) |
-| **17:00** | **code freeze ของผู้จัด** · warm แอป (เปิด voice หนึ่ง session, ส่ง LINE หนึ่งข้อความ, upload หนึ่งไฟล์, ถาม Demo Chat หนึ่งคำถาม) · demo reset · ซ้อม demo loop หนึ่งรอบ |
-| 17:15 | **Round 1:** กรรมการเดินมาที่โต๊ะ แอป warm แล้ว มี QR ของ LINE OA และ Demo Chat ให้กรรมการลองเอง มีวิดีโอสำรองที่ติดป้ายว่าเป็นบันทึก |
+| **17:00** | **code freeze ของผู้จัด** · warm แอป (เปิด voice หนึ่ง session, ส่ง LINE หนึ่งข้อความ, upload หนึ่งไฟล์, ทีมถาม Demo Chat หนึ่งคำถามเพื่อตรวจภายใน) · demo reset · ซ้อม demo loop หนึ่งรอบ |
+| 17:15 | **Round 1:** กรรมการเดินมาที่โต๊ะ แอป warm แล้ว ให้กรรมการสแกน QR ของ LINE OA เท่านั้น ถ้า LINE ใช้ไม่ได้ ให้บอกตามจริงหรือเปิดวิดีโอที่ติดป้าย RECORDED และบันทึกจากการทดสอบ LINE ที่ผ่านแล้ว |
 | 19:30 | finalists: pitch ภาษาอังกฤษบนเวทีตาม [PITCH.md](docs/pitch/PITCH.md) |
 | 20:30 | ประกาศรางวัล |
 
