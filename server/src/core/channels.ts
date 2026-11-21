@@ -44,6 +44,11 @@ async function recoverDeliveryEnqueue(
         AND payload->>'messageId'=$2 AND state IN ('queued','running','succeeded')
       ORDER BY (state='succeeded') DESC, created_at LIMIT 1`, [businessId, messageId]);
     if (accepted) return { jobId: accepted.id, change: null };
+    const terminalCanonical = await transaction.maybeOne(`
+      SELECT id FROM jobs WHERE business_id=$1 AND type='core.deliver' AND payload->>'messageId'=$2
+        AND dedup_key=$3 AND state NOT IN ('queued','running','succeeded')`,
+    [businessId, messageId, 'deliver:' + messageId]);
+    if (terminalCanonical) return null;
     const change = await transaction.maybeOne<DeliveryChange>(`
       UPDATE messages SET delivery_state='failed',delivery_error=$4
       WHERE id=$1 AND conversation_id=$2 AND business_id=$3 AND direction='outbound'
@@ -77,7 +82,18 @@ export async function sendToCustomer(conversationId: string, parts: MessagePart[
         WHERE id=$1 AND conversation_id=$2 AND business_id=$3 AND direction='outbound'`,
       [messageId, conversationId, businessId, sender.mode, DELIVERY_ENQUEUE_FAILED]);
       if (!stored.rowCount) throw new AppError('NOT_FOUND', 'Outbound message not found');
-      return enqueueJob(transaction, 'core.deliver', { messageId }, enqueueOptions);
+      const job = await enqueueJob(transaction, 'core.deliver', { messageId }, enqueueOptions);
+      if (job.deduped) {
+        const existing = await transaction.one<{ state: string }>(
+          'SELECT state FROM jobs WHERE id=$1 AND business_id=$2 AND type=$3', [job.jobId, businessId, 'core.deliver'],
+        );
+        if (!['queued', 'running', 'succeeded'].includes(existing.state)) {
+          throw new AppError('POLICY_BLOCKED', 'The canonical delivery job is already terminal', {
+            details: { reason: 'delivery_job_terminal' },
+          });
+        }
+      }
+      return job;
     });
     jobId = job.jobId;
     notifyJobEnqueued('core.deliver', job, enqueueOptions);
