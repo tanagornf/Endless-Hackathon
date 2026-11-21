@@ -1,11 +1,10 @@
-# Blueprint: 1 web service (Docker, Singapore) + 1 Postgres 17 (Singapore)
+# Blueprint: 1 web service (Docker, Singapore) with a dedicated external Neon production database.
 # ตรวจชื่อ field กับ https://render.com/docs/blueprint-spec แล้ว (20 พ.ย. 2569): runtime, plan, region, healthCheckPath,
-# preDeployCommand, autoDeployTrigger, disk{name,mountPath,sizeGB}, envVars{key,value|sync|fromDatabase|generateValue},
-# databases{name,plan,region,postgresMajorVersion,diskSizeGB,ipAllowList}
+# preDeployCommand, autoDeployTrigger, disk{name,mountPath,sizeGB}, envVars{key,value|sync|fromService|generateValue}
 # sync:false = Render ถามค่าตอน "สร้าง Blueprint ครั้งแรก" เท่านั้น แล้วไม่แตะอีก (เพิ่ม/แก้ภายหลังในหน้า Environment ของ service)
 services:
   - type: web
-    name: nless-hack          # URL ที่คาด: https://nless-hack.onrender.com  (UNCONFIRMED: ถ้าชื่อซ้ำ Render เติม suffix → ใช้ URL จริงเป็น APP_BASE_URL)
+    name: nless-hack
     runtime: docker
     plan: 1c-2g               # ID plan ตามเอกสาร blueprint-spec; ราคาจริง UNCONFIRMED (ดู §3)
     region: singapore
@@ -28,10 +27,10 @@ services:
       - { key: UPLOAD_DIR,          value: /var/data/uploads }
       - { key: UPLOAD_MAX_MB,       value: "20" }
       - { key: DB_POOL_MAX,         value: "12" }
-      - { key: DATABASE_URL,        fromDatabase: { name: nless-db, property: connectionString } }
-      - { key: APP_BASE_URL,        sync: false }    # https://<render-url> ไม่มี / ท้าย
-      - { key: WEB_ORIGIN,          sync: false }    # เท่ากับ APP_BASE_URL
-      - { key: PUBLIC_BASE_URL,     sync: false }    # เท่ากับ APP_BASE_URL (webhook + OAuth redirect)
+      - { key: DATABASE_URL,        sync: false }    # Dedicated production Neon direct TLS connection.
+      - { key: APP_BASE_URL,        fromService: { name: nless-hack, type: web, envVarKey: RENDER_EXTERNAL_URL } }
+      - { key: WEB_ORIGIN,          fromService: { name: nless-hack, type: web, envVarKey: RENDER_EXTERNAL_URL } }
+      - { key: PUBLIC_BASE_URL,     fromService: { name: nless-hack, type: web, envVarKey: RENDER_EXTERNAL_URL } }
       - { key: COOKIE_SECURE,       value: "1" }
       # ---- secrets ที่ C สร้างเอง (เก็บค่าไว้ใน ..\nless.secrets.env ของ C เพื่อใช้ซ้ำที่ Railway) ----
       - { key: SESSION_SECRET,      sync: false }
@@ -87,11 +86,3 @@ services:
       - { key: VAPID_PUBLIC_KEY,          sync: false }
       - { key: VAPID_PRIVATE_KEY,         sync: false }
       - { key: VAPID_SUBJECT,             value: "mailto:team@example.test" }   # แก้เป็นอีเมลทีมจริงของ C
-
-databases:
-  - name: nless-db
-    plan: 0.1c-256mb
-    region: singapore
-    postgresMajorVersion: "17"
-    diskSizeGB: 1
-    # ไม่ตั้ง ipAllowList = ทุก IP เชื่อมจากภายนอกได้ (ต้องใช้รหัสผ่าน) เพื่อให้ pg_dump จาก WSL ตอน 16:45 ได้ · ตั้งเป็นปิดหลัง dump ถ้าต้องการ
