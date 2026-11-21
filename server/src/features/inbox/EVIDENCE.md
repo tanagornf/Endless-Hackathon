@@ -40,3 +40,13 @@
 - `npm run typecheck`, `npm run check:paths`, and `git diff --check` passed.
 - Local Chromium with intercepted synthetic responses verified Thai wrapping at 360 px without horizontal overflow and a 44 × 44 px Send target. At a simulated keyboard viewport height of 435 px, the composer bottom moved from 451 px to 435 px and Send from 443 px to 427 px. Chromium also verified the 55 px viewport offset, 24 px top and bottom safe-area insets, and desktop at 1280 × 900.
 - Production smoke for this patch is pending.
+
+### Customer-visible AI delivery
+
+- The public and tester polls show AI replies only after the web delivery worker records a successful send. New messages advance on their own cursor. The visitor rechecks in-flight AI replies in bounded pages. Failed and unknown attempts stay hidden. Staff can still inspect attempted replies in the inbox. Visitor attachment and card action reads apply the same visibility rule.
+- The delivery regression covers the interval between message persistence and queuing, pending to sent, and failed or unknown attempts followed by a successful reply. The first version also held back later staff replies after an orphaned send, and waited through a full page of hidden messages. Both cases failed on c2e7a0e. The corrected queries filter terminal rows before paging and let delivered messages pass an unresolved row. Deployed takeover smoke remains pending.
+
+- Before the evidence-only rebase, the combined F09 and F11 integration suites passed 25/25 in 108.35 seconds with the fake model. Full typecheck and path ownership passed.
+- The corrected F09 and F11 suites passed 30/30 in 140.03 seconds on the A1 test database with the fake model. The visitor received a staff message and a later sent AI message while the earlier AI attempt stayed pending, then received the earlier reply after it became sent. Thirty-two hidden rows did not delay a later staff reply.
+- Additional focused regressions passed 2/2. Two unresolved sends surrounding an already delivered reply did not echo that reply on consecutive long polls. Each 1.1-second poll waited at least 950 ms. With 31 unresolved replies, a new visitor poll retained the earlier customer and staff messages and surfaced the oldest AI message after successful delivery. The cold-load query selects recent visible history and outstanding delivery metadata from a single database snapshot.
+- Final local verification passed all 32 F09 and F11 tests in 154.62 seconds, including the four mobile web regressions, on the A1 test database with the fake model. Full workspace typecheck passed.

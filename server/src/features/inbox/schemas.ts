@@ -87,7 +87,7 @@ export const staffSendBody = z.object({
 }).refine(({ text, attachments }) => Boolean(text?.trim()) || attachments.length > 0);
 
 export const demoPollQuery = z.object({
-  after: z.string().min(1).max(100).optional(),
+  after: z.string().min(1).max(128).optional(),
   waitMs: z.coerce.number().int().min(0).max(20000).default(0),
 });
 

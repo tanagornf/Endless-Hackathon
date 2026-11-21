@@ -81,7 +81,8 @@ export async function performDemoAction(identity: DemoIdentity, action: DemoActi
   const type = action.kind === 'order' ? 'order_review' : 'booking_review';
   const ownsProposal = await db.maybeOne(`SELECT 1 FROM messages m
     CROSS JOIN LATERAL jsonb_array_elements(m.parts) AS entry(part)
-    WHERE m.business_id=$1 AND m.conversation_id=$2 AND part->>'type'=$3 AND part->>'proposalId'=$4 LIMIT 1`,
+    WHERE m.business_id=$1 AND m.conversation_id=$2 AND m.author<>'system'
+      AND (m.direction<>'outbound' OR m.author<>'ai' OR m.delivery_state='sent') AND part->>'type'=$3 AND part->>'proposalId'=$4 LIMIT 1`,
   [identity.businessId, conversation.id, type, action.proposalId]);
   if (!ownsProposal) throw new AppError('NOT_FOUND', 'Proposal not found');
   const { kind, ...input } = action;
@@ -98,6 +99,7 @@ export async function readDemoFile(identity: DemoIdentity, fileId: string) {
   if (!conversation) throw new AppError('NOT_FOUND', 'Chat attachment not found');
   const visible = await db.maybeOne(`SELECT 1 FROM messages m
     WHERE m.business_id=$1 AND m.conversation_id=$2 AND m.author <> 'system'
+      AND (m.direction<>'outbound' OR m.author<>'ai' OR m.delivery_state='sent')
       AND EXISTS (SELECT 1 FROM jsonb_array_elements(m.parts) AS entry(part)
         WHERE part->>'fileId'=$3 OR EXISTS (SELECT 1 FROM jsonb_array_elements(
           CASE WHEN part->>'type'='product_card' THEN part->'items' ELSE '[]'::jsonb END

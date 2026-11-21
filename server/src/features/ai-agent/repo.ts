@@ -1,5 +1,5 @@
 import type { MessagePart } from '@nless/shared/core/types';
-import type { AiGuardAction, AiToolTrace, AiTurnStateName, AiTurnTopic, AiTurnUsage } from '@nless/shared/features/ai-agent/types';
+import type { AiGuardAction, AiIntent, AiToolTrace, AiTurnStateName, AiTurnTopic, AiTurnTrace, AiTurnUsage } from '@nless/shared/features/ai-agent/types';
 import type { ConversationRecord, MessageRecord } from '@nless/shared/features/inbox/types';
 import type { CustomerLanguage } from '@nless/shared/core/language';
 import { db } from '../../core';
@@ -7,6 +7,12 @@ import type { SkipReason } from './gate';
 
 export const MAX_ATTEMPTS = 3;
 export const LEASE_RENEW_MS = 20_000;
+
+export type HandoffReason = 'customer_request' | 'budget_exhausted' | 'ai_failed';
+export interface HandoffCheckpoint {
+  turnId: string;
+  version: number | null;
+}
 
 export interface TurnDraft {
   language: CustomerLanguage;
@@ -19,6 +25,10 @@ export interface TurnDraft {
   timings: Record<string, number | number[]>;
   retryUsed: boolean;
   errorCode: string | null;
+  handoffReason?: HandoffReason | null;
+  intent?: AiIntent | null;
+  intentSource?: AiTurnTrace['intentSource'];
+  intentConfidence?: number | null;
 }
 
 interface TurnRow {
@@ -40,6 +50,12 @@ interface TurnRow {
   retry_used: boolean;
   error_code: string | null;
   reply_message_id: string | null;
+  handoff_reason: HandoffReason | null;
+  handoff_assignment_version: number | null;
+  escalated: boolean;
+  intent: AiIntent | null;
+  intent_source: AiTurnTrace['intentSource'];
+  intent_confidence: string | null;
 }
 
 export type TurnLease = Pick<TurnRow, 'id' | 'business_id' | 'conversation_id' | 'attempts' | 'mode'>;
@@ -60,7 +76,8 @@ export async function claimTurn(
       "SELECT *, retry_after > now() AS waiting FROM ai_turns WHERE business_id = $1 AND conversation_id = $2 AND inbound_message_id = $3 AND mode = 'reply'",
       [businessId, conversationId, inbound.id],
     ) : null;
-    const unsent = delivery && existing?.state === 'completed' && !existing.reply_message_id && Boolean(existing.reply_parts?.length);
+    const unsent = delivery && existing && (existing.state === 'completed' || existing.state === 'handoff') &&
+      !existing.reply_message_id && Boolean(existing.reply_parts?.length);
     if (existing && !unsent && !['running', 'failed'].includes(existing.state)) {
       return { status: 'finished', turn: existing };
     }
@@ -117,6 +134,10 @@ export function readDraft(turn: TurnRow): TurnDraft | null {
     timings: turn.timings,
     retryUsed: turn.retry_used,
     errorCode: turn.error_code,
+    handoffReason: turn.handoff_reason,
+    intent: turn.intent,
+    intentSource: turn.intent_source,
+    intentConfidence: turn.intent_confidence === null ? null : Number(turn.intent_confidence),
   };
 }
 
@@ -125,13 +146,31 @@ export async function storeDraft(turn: TurnLease, draft: TurnDraft): Promise<boo
     UPDATE ai_turns SET reply_language = $5, reply_parts = $6::jsonb, evidence_ids = $7,
       product_refs = $8::jsonb, tools = $9::jsonb, guard_actions = $10::jsonb, usage_summary = $11::jsonb,
       timings = $12::jsonb, retry_used = $13, error_code = $14, reply_group_id = id,
+      handoff_reason = $15, intent = $16, intent_source = $17, intent_confidence = $18,
       lease_until = now() + interval '60 seconds'
     WHERE ` + owned, [
     ...leaseParams(turn), draft.language, JSON.stringify(draft.parts), draft.evidenceIds, JSON.stringify(draft.productRefs),
     JSON.stringify(draft.tools), JSON.stringify(draft.guardActions), JSON.stringify(draft.usage), JSON.stringify(draft.timings),
-    draft.retryUsed, draft.errorCode,
+    draft.retryUsed, draft.errorCode, draft.handoffReason ?? null, draft.intent ?? null, draft.intentSource ?? null, draft.intentConfidence ?? null,
   ]);
   return result.rowCount === 1;
+}
+
+export async function recordHandoff(turn: TurnLease, reason: HandoffReason, version: number | null): Promise<boolean> {
+  return db.tx(async (transaction) => {
+    const updated = await transaction.query(
+      'UPDATE ai_turns SET escalated = true, handoff_assignment_version = $5 WHERE ' + owned + ' AND handoff_reason = $6 AND escalated = false',
+      [...leaseParams(turn), version, reason],
+    );
+    if (!updated.rowCount) return false;
+    await transaction.query(
+      "INSERT INTO ai_handoff_waits (business_id, conversation_id, turn_id, reason, released_at, release_reason) " +
+        "VALUES ($1, $2, $3, $4, CASE WHEN $5::int IS NOT NULL THEN now() END, " +
+        "CASE WHEN $5::int IS NOT NULL THEN 'handed_to_team' END) ON CONFLICT DO NOTHING",
+      [turn.business_id, turn.conversation_id, turn.id, reason, version],
+    );
+    return true;
+  });
 }
 
 export async function finishTurn(turn: TurnLease, outcome: {
