@@ -1,9 +1,11 @@
 import { defineFeatureRoutes } from '../../core';
+import { getReleaseStatus } from './service';
 
 export default defineFeatureRoutes({
-  featureId: "F36",
-  slug: "release",
+  featureId: 'F36',
+  slug: 'release',
   register(api) {
-    api.get("/features/release/status", { auth: 'user', summary: 'placeholder status' }, async () => ({"featureId":"F36","slug":"release","lane":"C1","implemented":false,"mode":"U"}));
+    api.get('/release/status', { auth: 'platform_admin', summary: 'Read release provenance and feature status' },
+      async () => getReleaseStatus(api.readFeatureFlags));
   },
 });
