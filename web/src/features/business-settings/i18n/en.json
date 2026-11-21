@@ -179,6 +179,8 @@
     "selectCandidate": "Choose a candidate to review",
     "reason": "Reason for the proposal: {{reason}}",
     "staleCandidate": "This candidate was based on an earlier version. Review a candidate based on the current version to publish.",
+    "replayPending": "This proposal needs a passing replay in Thai and English before you can publish it.",
+    "refreshReplay": "Check replay status",
     "noCandidates": "No pending candidates to review.",
     "publish": "Review and publish",
     "history": "Version history",
