@@ -91,14 +91,18 @@ test('private feature visibility stays pending during the initial production fla
   expect(screen.queryByRole('heading', { name: 'Page not found' })).toBeNull();
 });
 
-test('the signed-out account redirect passes the internal destination to Login', async () => {
+test.each([
+  { path: '/account?tab=security#password', destination: '/login /account?tab=security#password' },
+  { path: '/oauth/callback?code=synthetic-code&state=synthetic-state', destination: '/login' },
+  { path: '/oauth/callback/?code=synthetic-code&state=synthetic-state', destination: '/login' },
+])('the signed-out redirect handles $path', async ({ path, destination }) => {
   session.status = 'anonymous';
   function Destination() {
     const { pathname, search } = useLocation();
-    return <output aria-label="Destination">{pathname + ' ' + new URLSearchParams(search).get('next')}</output>;
+    return <output aria-label="Destination">{pathname + (search ? ' ' + new URLSearchParams(search).get('next') : '')}</output>;
   }
-  render(<MemoryRouter initialEntries={['/account?tab=security#password']}>
+  render(<MemoryRouter initialEntries={[path]}>
     <Destination /><ToastProvider><App /></ToastProvider>
   </MemoryRouter>);
-  expect(await screen.findByText('/login /account?tab=security#password')).toBeTruthy();
+  expect(await screen.findByText(destination)).toBeTruthy();
 });

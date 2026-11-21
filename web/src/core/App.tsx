@@ -1,7 +1,7 @@
 import { Alert, Box, LinearProgress } from '@mui/material';
 import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { matchPath, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { PageRoute } from '@nless/shared/core/loader';
 import type { PermissionKey } from '@nless/shared/core/permissions';
@@ -31,7 +31,8 @@ function Guard({ auth = 'business', permission, children }: { auth?: PageRoute['
   if (status === 'loading') return <LinearProgress />;
   if (status !== 'ready') {
     const destination = pathname + search + hash;
-    const query = destination === '/' ? '' : '?' + new URLSearchParams({ next: destination });
+    const keepDestination = destination !== '/' && !matchPath('/oauth/callback', pathname);
+    const query = keepDestination ? '?' + new URLSearchParams({ next: destination }) : '';
     return <Navigate replace to={{ pathname: '/login', search: query }} />;
   }
   if (auth === 'platform_admin' && !user?.isPlatformAdmin) return <MessagePage label="pages.forbidden" />;
