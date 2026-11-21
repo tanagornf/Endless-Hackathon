@@ -8,7 +8,7 @@ import type { ModelChatInput, ModelChatResult } from '../../core';
 import { getBusinessOpenState } from '../business-settings/service';
 import { casualIntent, catalogPriceIntent, classifyIntent, unknownIntent } from './classifier';
 import type { IntentScore } from './classifier';
-import { buildReplyContext, turnLanguage, unansweredCustomerMessages } from './context';
+import { buildReplyContext, turnLanguage, unansweredCustomerMessages, unansweredInbounds } from './context';
 import type { ReplyContext } from './context';
 import { fallbacks } from './fallbacks';
 import { codeFallback, inspectReply, isPriceQuestion, mentionsProduct, receiptText, renderCatalogQuotes, shapeReply, stripUnsafeSentences } from './guards';
@@ -18,7 +18,7 @@ import { runModelLoop } from './loop';
 import { arabicDigits, maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
 import { repairPrompt } from './prompt';
-import { priorSavedReply } from './repo';
+import { customerInboundsHeldByStaff, priorSavedReply } from './repo';
 import type { TurnDraft } from './repo';
 
 type Generation =
@@ -126,7 +126,7 @@ export function emptyDraft(language: CustomerLanguage): TurnDraft {
 export async function generateDraft(
   turnId: string,
   conversation: ConversationRecord,
-  history: readonly MessageRecord[],
+  inboxHistory: readonly MessageRecord[],
   inbound: MessageRecord,
   settings: BusinessSettings,
   cancellation: AbortSignal,
@@ -134,13 +134,18 @@ export async function generateDraft(
 ): Promise<Generation> {
   const started = performance.now();
   const signal = AbortSignal.any([cancellation, AbortSignal.timeout(config.MODEL_TIMEOUT_MS)]);
-  const language = turnLanguage(history, inbound, settings.language);
+  const language = turnLanguage(inboxHistory, inbound, settings.language);
   const draft = emptyDraft(language);
   const calls: ModelChatResult[] = [];
   const modelMs: number[] = [];
   let context: ReplyContext | undefined;
   try {
     signal.throwIfAborted();
+    const backlog = unansweredInbounds(inboxHistory, inbound).filter(({ id }) => id !== inbound.id);
+    const held = mode === 'reply' && backlog.length
+      ? await withinDeadline(customerInboundsHeldByStaff(conversation, backlog.map(({ id }) => id)), signal)
+      : null;
+    const history = held?.size ? inboxHistory.filter(({ id }) => !held.has(id)) : inboxHistory;
     const unanswered = unansweredCustomerMessages(history, inbound);
     const prior = mode === 'reply' ? await withinDeadline(priorSavedReply(conversation, inbound), signal) : null;
     const previousAnswer = history.findLast((message) => message.seq < inbound.seq && message.direction === 'outbound' &&

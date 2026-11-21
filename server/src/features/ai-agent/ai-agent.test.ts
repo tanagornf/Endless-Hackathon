@@ -938,7 +938,7 @@ describe('F10 catalog reference scope', { timeout: 20_000 }, () => {
     await execute(known);
     const hours = await incoming('ร้านเปิดกี่โมงคะ', known);
     await execute(hours);
-    const unknown = await incoming('ขอราคาสินค้ารหัส ZZZ-SMOKE-UNKNOWN-914 ค่ะ', known);
+    const unknown = await incoming('ขอราคาสินค้ารหัส ZZZ-SMOKE-UNKNOWN-914 หน่อยค่ะ', known);
     await execute(unknown);
 
     const sent = await replies(known.conversation.id);
@@ -1066,6 +1066,25 @@ describe('F10 catalog reference scope', { timeout: 20_000 }, () => {
         expect.objectContaining({ sku: 'A-GAME-01' }), expect.objectContaining({ sku: 'A-CARD-01' }),
       ]),
       tools: expect.arrayContaining([expect.objectContaining({ name: 'calculate_total', ok: true })]),
+    });
+  });
+
+  it('keeps a takeover-held SKU out of the first new AI price after handback', async () => {
+    const handoff = await incoming('Can I speak to a human?');
+    await execute(handoff);
+    const held = await incoming('A-GAME-01 ราคาเท่าไหร่คะ', handoff);
+    await execute(held);
+    await assignConversation(handoff.conversation.id, null, { businessId });
+    const current = await incoming('A-CARD-01 ราคาเท่าไหร่คะ', handoff);
+    await execute(current);
+
+    expect(await trace(held.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'takeover', reply_message_id: null });
+    const reply = (await replies(handoff.conversation.id)).at(-1)!;
+    expect(reply.text).toContain('99 บาท');
+    expect(reply.text).not.toMatch(/1[,.]?490|Demo Quest/iu);
+    expect(await trace(current.message.id)).toMatchObject({
+      product_refs: [expect.objectContaining({ sku: 'A-CARD-01' })],
+      evidence_ids: [expect.stringMatching(/^catalog:/)],
     });
   });
 });

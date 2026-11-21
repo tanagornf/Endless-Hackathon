@@ -72,8 +72,12 @@ export function turnLanguage(history: readonly MessageRecord[], inbound: Message
   return detectReplyLanguage(context.unanswered.map(textOf), context.previous.map(textOf), language);
 }
 
+export function unansweredInbounds(history: readonly MessageRecord[], inbound: MessageRecord): MessageRecord[] {
+  return contextHistory(history, inbound).unanswered;
+}
+
 export function unansweredCustomerMessages(history: readonly MessageRecord[], inbound: MessageRecord): string[] {
-  return contextHistory(history, inbound).unanswered.map(textOf).filter(Boolean);
+  return unansweredInbounds(history, inbound).map(textOf).filter(Boolean);
 }
 
 function catalogText(text: string): string {
