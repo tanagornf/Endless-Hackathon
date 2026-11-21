@@ -42,6 +42,13 @@ function topic(msg: Awaited<ReturnType<typeof message>>, name = 'Demo cards'): A
 }
 
 it('counts distinct live LINE chats and buyers, confirmed matching orders, and pending staff support', { timeout: 25_000 }, async () => {
+  // The full integration suite shares a seeded database, so report totals include pre-existing LINE chats.
+  await message(shop);
+  const snapshot = new Date(Date.now() + 120_000);
+  const baseline = await merchantReport(shop, 7, snapshot);
+  expect(baseline.conversations).toBeGreaterThanOrEqual(1);
+  expect(baseline.orders).not.toBeNull();
+
   const buyer = randomUUID();
   const bought = await message(shop, { externalId: buyer });
   await message(shop, { externalId: buyer });
@@ -67,10 +74,10 @@ it('counts distinct live LINE chats and buyers, confirmed matching orders, and p
   });
   if (confirmed.stage !== 'confirm' || !confirmed.order) throw new Error('Expected a confirmed order');
   await requestHumanHandoff(waiting.conversation.id, { reason: 'customer needs help', actor: 'customer' }, { businessId: shop });
-  const snapshot = new Date(Date.now() + 2000);
   const report = await merchantReport(shop, 7, snapshot);
   expect(report).toMatchObject({
-    conversations: 2, customers: 2, orders: 1, handoffs: 1, pendingSupport: 1,
+    conversations: baseline.conversations + 2, customers: baseline.customers + 2,
+    orders: baseline.orders! + 1, handoffs: baseline.handoffs + 1, pendingSupport: baseline.pendingSupport + 1,
     products: [{ sku: 'A-CARD-01', conversations: 2, withoutOrder: 1 }],
   });
   expect(vi.mocked(listOrdersByCustomer).mock.calls.every(([id]) => id === shop)).toBe(true);
@@ -79,7 +86,7 @@ it('counts distinct live LINE chats and buyers, confirmed matching orders, and p
     customerId === bought.conversation.customerId ? [cancelled] : []);
   expect(await merchantReport(shop, 7, snapshot)).toMatchObject({ orders: 0, products: [{ withoutOrder: 2 }] });
   await assignConversation(waiting.conversation.id, null, { businessId: shop });
-  expect(await merchantReport(shop, 7, new Date(Date.now() + 2000))).toMatchObject({ handoffs: 1, pendingSupport: 0 });
+  expect(await merchantReport(shop, 7, snapshot)).toMatchObject({ handoffs: baseline.handoffs + 1, pendingSupport: baseline.pendingSupport });
 });
 
 it('includes Bangkok midnight and excludes the preceding millisecond and exclusive end', async () => {
