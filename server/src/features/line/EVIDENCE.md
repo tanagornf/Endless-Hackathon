@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F17 | line | C2 | DOING | R | S | LINE test OA pending | 97abc662e2abbde145c6e019bcd4ba102bce03be | F17 tests 44/44, typecheck, check:paths, 3 Playwright checks discovered | 2026-11-21 13:03:42 +07:00 | NLess Demo activation and on-device receipt, bilingual production smoke, LINE device evidence, Flex |
+| F17 | line | C2 | DOING | R | S | LINE test OA pending | b1341c3b79e5fd9969868101305008091d17776a | F17 tests 59/59, typecheck, check:paths, 3 Playwright checks discovered | 2026-11-21 13:08:24 +07:00 | NLess Demo activation and on-device receipt, bilingual production smoke and LINE device evidence |
 
 ## Log
 
