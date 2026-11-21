@@ -14,3 +14,4 @@
 - C1 Playwright core smoke passed 2/2 on the local frontend, including switching to English and keeping it after reload.
 - Setup scaffolds include 29 feature placeholders. Their owners implement feature behavior on their assigned branches. Nonessential setup fakes can return `SERVICE_NOT_READY`. Realtime client secret minting in OpenAI mode and full jobs operations are pending. Production and independent C0 acceptance remain pending.
 - Final C1 typecheck passed. The full test suite passed with 79 tests across 16 files, including the ownership checks and the English/Thai registry and UI checks.
+- Browser flag check passed. The admin API hid F13. Orders disappeared from owner navigation after reload, and the direct route rendered Page not found. The C1 development flag was restored afterward.
