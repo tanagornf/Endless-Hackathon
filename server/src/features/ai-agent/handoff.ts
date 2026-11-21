@@ -1,6 +1,6 @@
 import type { CustomerLanguage } from '@nless/shared/core/language';
 import type { ConversationRecord } from '@nless/shared/features/inbox/types';
-import type { AiHandoffIntent, AiHandoffReceipt } from '@nless/shared/features/team/types';
+import type { AiHandoffIntent, AiHandoffReceipt, ExplicitStaffRequestEvidence } from '@nless/shared/features/team/types';
 import { audit, log } from '../../core';
 import { getEffectiveAnswerRules } from '../business-settings/service';
 import { getConversation } from '../inbox/service';
@@ -28,19 +28,20 @@ type HandoffResult =
   | { status: 'stale' }
   | { status: 'lost' };
 
-function intentFor(turn: TurnLease, reason: HandoffReason, expectedVersion: number): AiHandoffIntent {
-  return { businessId: turn.business_id, conversationId: turn.conversation_id, turnId: turn.id, reason, expectedVersion };
+function intentFor(turn: TurnLease, reason: HandoffReason, expectedVersion: number, evidence?: ExplicitStaffRequestEvidence): AiHandoffIntent {
+  return { businessId: turn.business_id, conversationId: turn.conversation_id, turnId: turn.id, reason, expectedVersion,
+    ...(evidence ? { explicitRequestEvidence: evidence } : {}) };
 }
 
 function checkpointOf(intent: AiHandoffIntent, receipt: AiHandoffReceipt | null): HandoffCheckpoint | null {
   if (!receipt || receipt.businessId !== intent.businessId || receipt.conversationId !== intent.conversationId ||
     receipt.turnId !== intent.turnId || receipt.reason !== intent.reason || receipt.expectedVersion !== intent.expectedVersion ||
-    receipt.committedVersion !== intent.expectedVersion + 1) return null;
+    receipt.committedVersion !== intent.expectedVersion + 1 || receipt.explicitRequestEvidence !== intent.explicitRequestEvidence) return null;
   return { turnId: intent.turnId, version: receipt.committedVersion };
 }
 
-export async function recoverHandoff(turn: TurnLease, reason: HandoffReason, expectedVersion: number): Promise<HandoffCheckpoint | null> {
-  const intent = intentFor(turn, reason, expectedVersion);
+export async function recoverHandoff(turn: TurnLease, reason: HandoffReason, expectedVersion: number, evidence?: ExplicitStaffRequestEvidence): Promise<HandoffCheckpoint | null> {
+  const intent = intentFor(turn, reason, expectedVersion, evidence);
   return checkpointOf(intent, await getAiHandoffReceipt(intent));
 }
 
@@ -60,19 +61,20 @@ export async function beginHandoff(
   expectedVersion: number,
   shopLanguage: CustomerLanguage,
   signal: AbortSignal,
+  evidence?: ExplicitStaffRequestEvidence,
 ): Promise<HandoffResult> {
   const { id: conversationId, businessId } = conversation;
   signal.throwIfAborted();
   if (conversation.version !== expectedVersion) return { status: 'stale' };
   if (!(await prepareHandoff(turn, reason, expectedVersion))) return { status: 'lost' };
-  const intent = intentFor(turn, reason, expectedVersion);
+  const intent = intentFor(turn, reason, expectedVersion, evidence);
   let checkpoint: HandoffCheckpoint | null;
   try {
     signal.throwIfAborted();
     checkpoint = checkpointOf(intent, await applyAiHandoff(intent));
   } catch {
     signal.throwIfAborted();
-    checkpoint = await recoverHandoff(turn, reason, expectedVersion);
+    checkpoint = await recoverHandoff(turn, reason, expectedVersion, evidence);
     if (!checkpoint) {
       // Only an unchanged AI assignment proves no handoff committed. An
       // intervening staff claim or handback must never produce a fallback ACK.

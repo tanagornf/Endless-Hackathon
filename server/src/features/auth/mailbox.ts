@@ -21,7 +21,7 @@ export async function listMailbox(user: Pick<AuthUser, 'email' | 'isPlatformAdmi
   if (all && !user.isPlatformAdmin) throw new AppError('PERMISSION_DENIED', 'Mailbox scope requires administrator access');
   const { rows } = await db.query<Row>(
     `SELECT id, to_email, template, subject, body_text, action_url_enc, created_at, expires_at
-     FROM email_outbox WHERE expires_at > now()${all ? '' : ' AND to_email_normalized = $1'}
+     FROM email_outbox WHERE expires_at > now() AND template <> 'verify_email'${all ? '' : ' AND to_email_normalized = $1'}
      ORDER BY created_at DESC, id DESC LIMIT ${all ? 100 : 20}`,
     all ? [] : [user.email.trim().toLowerCase()],
   );

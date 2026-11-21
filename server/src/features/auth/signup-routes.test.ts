@@ -1,12 +1,12 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { config, db, decryptSecret } from '../../core';
+import { config, db } from '../../core';
 import { createApp } from '../../core/app';
 import { createSignupAccount } from './signup';
 
-const password = randomBytes(18).toString('base64url');
+const password = '12345678';
 const emails: string[] = [];
 let nextIp = 1;
 let app: Express;
@@ -32,26 +32,11 @@ function getCookie(response: request.Response) {
   return entry.split(';')[0];
 }
 
-async function outbox(email: string) {
-  const { rows } = await db.query<{ action_url_enc: string; body_text: string; locale: string }>(
-    "SELECT action_url_enc, body_text, locale FROM email_outbox WHERE to_email_normalized = $1 AND template = 'verify_email' ORDER BY created_at, id", [email],
-  );
-  return rows.map(({ action_url_enc, body_text, locale }) => {
-    const token = new URL(decryptSecret(action_url_enc)).searchParams.get('token');
-    if (!token) throw new Error('Expected a verification token');
-    return { token, ciphertext: action_url_enc, body: body_text, locale };
-  });
-}
-
-function verify(token: string) {
-  return post('/api/v1/auth/email/verify').send({ token });
-}
-
 async function noUser(email: string) {
   expect(await db.maybeOne('SELECT id FROM users WHERE email_normalized = $1', [email])).toBeNull();
 }
 
-describe('auth S2 signup and verification routes', () => {
+describe('auth signup routes', () => {
   beforeAll(async () => {
     app = await createApp();
     app.set('trust proxy', 1);
@@ -65,7 +50,7 @@ describe('auth S2 signup and verification routes', () => {
     });
   }, 30000);
 
-  it('creates one owner account and a password session plus encrypted verification mail', async () => {
+  it('creates one owner account and signs in with an eight-character password without verification mail', async () => {
     const email = newEmail();
     const registered = await signup(' ' + email.toUpperCase() + ' ');
     expect(registered.status).toBe(201);
@@ -82,25 +67,32 @@ describe('auth S2 signup and verification routes', () => {
     expect(settings.status).toBe(200);
     expect(settings.body.data.settings).toMatchObject({ businessId, aiEnabled: true, answerPolicy: null });
 
-    const rows = await outbox(email);
-    expect(rows).toHaveLength(1);
-    const [{ token, ciphertext, body, locale }] = rows;
-    expect(locale).toBe('en');
-    expect(/^[A-Za-z0-9_-]{43}$/.test(token)).toBe(true);
-    expect(ciphertext.includes(token) || body.includes(token)).toBe(false);
-    const hash = createHash('sha256').update(token).digest('hex');
-    expect(await db.maybeOne('SELECT 1 FROM auth_tokens WHERE token_hash = $1', [hash])).not.toBeNull();
+    expect(await db.maybeOne('SELECT 1 FROM email_outbox WHERE to_email_normalized = $1', [email])).toBeNull();
+    expect(await db.maybeOne('SELECT 1 FROM auth_tokens WHERE user_id = $1', [registered.body.data.userId])).toBeNull();
 
     const duplicate = await signup(email);
     expect(duplicate.status).toBe(422);
     expect(duplicate.body.error.details.reason).toBe('email_taken');
     expect((await db.query('SELECT id FROM accounts WHERE owner_user_id = $1', [registered.body.data.userId])).rowCount).toBe(1);
 
-    const responses = await Promise.all([verify(token), verify(token)]);
-    expect(responses.map(({ status }) => status).sort()).toEqual([200, 422]);
-    expect(responses.find(({ status }) => status === 422)?.body.error.details.reason).toBe('used');
-    expect((await request(app).get('/api/v1/auth/status').set('Cookie', cookie)).body.data.emailVerified).toBe(true);
-    expect((await post('/api/v1/auth/email/resend').set('Cookie', cookie)).body.error.details.reason).toBe('already_verified');
+    expect((await post('/api/v1/auth/email/verify').send({ token: 'x'.repeat(43) })).status).toBe(404);
+    expect((await post('/api/v1/auth/email/resend').set('Cookie', cookie)).status).toBe(404);
+  }, 35000);
+
+  it('accepts a 128-character password with supplementary characters and rejects 129', async () => {
+    const email = newEmail();
+    const character = String.fromCodePoint(0x1f600);
+    const longPassword = (character + 'A\u030a').repeat(64);
+    const registered = await signup(email, { password: longPassword });
+    expect(registered.status).toBe(201);
+
+    const loggedIn = await post('/api/v1/auth/login').send({ email, password: longPassword });
+    expect(loggedIn.status).toBe(200);
+    expect(loggedIn.body.data.userId).toBe(registered.body.data.userId);
+
+    const rejected = await signup(newEmail(), { password: longPassword + character });
+    expect(rejected.status).toBe(400);
+    expect(rejected.body.error.details.issues).toContainEqual({ path: 'password', code: 'too_long' });
   }, 35000);
 
   it('serializes concurrent requests for the same normalized address', async () => {
@@ -110,15 +102,13 @@ describe('auth S2 signup and verification routes', () => {
     const winner = responses.find(({ status }) => status === 201)!;
     expect((await db.query('SELECT id FROM accounts WHERE owner_user_id = $1', [winner.body.data.userId])).rowCount).toBe(1);
     expect(responses.find(({ status }) => status === 422)?.body.error.details.reason).toBe('email_taken');
-    expect(await outbox(email)).toHaveLength(1);
   }, 30000);
 
-  it('rejects missing names, weak passwords and CSRF, and rolls back the user on provisioning failure', async () => {
+  it('rejects missing names, short passwords and CSRF, and rolls back the user on provisioning failure', async () => {
     const email = newEmail();
     expect((await signup(email, { businessName: undefined })).status).toBe(400);
-    expect((await signup(email, { password: 'password123' })).status).toBe(400);
+    expect((await signup(email, { password: '1234567' })).status).toBe(400);
     expect((await request(app).post('/api/v1/auth/signup').send({ email, password })).status).toBe(403);
-    expect((await request(app).post('/api/v1/auth/email/verify').send({ token: randomBytes(32).toString('base64url') })).status).toBe(403);
 
     await expect(createSignupAccount({ email, password, displayName: 'Rollback Test', businessName: 'Rollback Shop' }, {
       provisionAccountForUser: async () => { throw new Error('Synthetic provision failure'); },
@@ -126,26 +116,6 @@ describe('auth S2 signup and verification routes', () => {
       completeInvitationAcceptance: async () => {},
     })).rejects.toThrow('Synthetic provision failure');
     await noUser(email);
-  }, 30000);
-
-  it('invalidates an old or expired verification link and rejects unknown links', async () => {
-    const email = newEmail();
-    const registered = await signup(email);
-    expect(registered.status).toBe(201);
-    const cookie = getCookie(registered);
-    const [first] = await outbox(email);
-    const resent = await post('/api/v1/auth/email/resend').set('Cookie', cookie);
-    expect(resent.status).toBe(200);
-    const links = await outbox(email);
-    expect(links).toHaveLength(2);
-    const next = links.find(({ token }) => token !== first.token)!;
-    expect((await verify(first.token)).body.error.details.reason).toBe('used');
-
-    await db.query("UPDATE auth_tokens SET expires_at = now() - interval '1 second' WHERE token_hash = $1", [
-      createHash('sha256').update(next.token).digest('hex'),
-    ]);
-    expect((await verify(next.token)).body.error.details.reason).toBe('expired');
-    expect((await verify(randomBytes(32).toString('base64url'))).status).toBe(404);
   }, 30000);
 
   it('joins invited staff without provisioning a shop and rolls back failed invitation signups', async () => {
@@ -174,12 +144,11 @@ describe('auth S2 signup and verification routes', () => {
 
     const accepted = await signup(invited, { inviteToken: token, businessName: undefined });
     expect(accepted.status).toBe(201);
-    expect(accepted.body.data.emailVerified).toBe(true);
+    expect(accepted.body.data.emailVerified).toBe(false);
     const me = await request(app).get('/api/v1/me').set('Cookie', getCookie(accepted));
     expect(me.body.data.businesses).toHaveLength(1);
     expect(me.body.data.businesses[0]).toMatchObject({ role: 'staff', business: { id: shopId }, permissions: ['chat.read'] });
     expect((await db.query('SELECT id FROM accounts WHERE owner_user_id = $1', [accepted.body.data.userId])).rowCount).toBe(0);
-    expect(await outbox(invited)).toHaveLength(0);
     const replayAddress = newEmail();
     expect((await signup(replayAddress, { inviteToken: token, businessName: undefined })).status).toBe(422);
     await noUser(replayAddress);

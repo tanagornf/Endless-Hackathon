@@ -27,9 +27,9 @@ export default function AccessPage({ mode }: { mode: string }) {
   const [busy,setBusy] = useState(false);
   const sending = useRef(false);
   const isInvite = mode === 'invite';
-  const tokenMode = ['reset','verify','invite'].includes(mode);
+  const tokenMode = mode === 'reset' || isInvite;
   useEffect(() => {
-    if (token && (mode === 'reset' || mode === 'verify')) navigate(location.pathname, { replace: true });
+    if (token && mode === 'reset') navigate(location.pathname, { replace: true });
   }, [token, mode, location.pathname, navigate]);
   const suffix = invite ? '?invite=' + encodeURIComponent(invite) : '';
   return <Box sx={{ mx: 'auto', width: 'min(100%, 480px)', mt: { xs: 2, md: '9vh' } }}>
@@ -59,7 +59,6 @@ export default function AccessPage({ mode }: { mode: string }) {
               await api.post('/auth/' + mode,body); await session.refresh(); navigate(safeNext(params.get('next')), {replace:true});
             } else if (mode === 'forgot') { await api.post('/auth/password/forgot',{email}); setNotice('checkMail'); }
             else if (mode === 'reset') { await api.post('/auth/password/reset',{token,newPassword:password}); setNotice('passwordSaved'); }
-            else { await api.post('/auth/email/verify',{token}); setNotice('verified'); }
           } catch (cause) { setError(getFailure(cause)?.error.code ?? 'INTERNAL'); }
           finally { sending.current = false; setBusy(false); }
         }}>

@@ -8,8 +8,6 @@ export function recoveryPasswordError(error: ApiFailure['error'] | undefined): s
     case 'too_short': return 'password.error.too_short';
     case 'too_big':
     case 'too_long': return 'password.error.too_long';
-    case 'common': return 'password.error.common';
-    case 'same_as_email': return 'password.error.same_as_email';
     default: return undefined;
   }
 }

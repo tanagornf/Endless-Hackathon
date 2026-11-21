@@ -217,7 +217,6 @@ export const screens: Screen[] = [
   { id: "F02", key: "signup", path: "/signup", layout: 'public', auth: 'none', panels: [] },
   { id: "F02", key: "forgot", path: "/forgot-password", layout: 'public', auth: 'none', panels: [] },
   { id: "F02", key: "reset", path: "/reset-password", layout: 'public', auth: 'none', panels: [] },
-  { id: "F02", key: "verify", path: "/verify-email", layout: 'public', auth: 'none', panels: [] },
   { id: "F09", key: "publicChat", path: "/demo-chat/s/:slug", layout: 'public', auth: 'none', panels: [] },
   { id: "F14", key: "publicPay", path: "/payments/pay/:token", layout: 'public', auth: 'none', panels: [] },
   { id: "F03", key: "invite", path: "/invitations/accept", layout: 'public', auth: 'none', panels: [] },

@@ -1,6 +1,6 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 
-export const PASSWORD_MIN = 10;
+export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 128;
 
 const SCRYPT = { N: 16384, r: 8, p: 1 };
@@ -8,11 +8,6 @@ const KEY_LENGTH = 64;
 const SALT_LENGTH = 16;
 const MAX_MEMORY = 64 * 1024 * 1024;
 const FORMAT = /^scrypt\$N=(\d+),r=(\d+),p=(\d+)\$([A-Za-z0-9_-]{22})\$([A-Za-z0-9_-]{86})$/;
-const commonPasswords = new Set([
-  '1234567890', '12345678910', '0123456789', 'password', 'password1', 'password123',
-  'passw0rd123', 'qwertyuiop', 'qwerty12345', 'iloveyou123', 'letmein1234',
-  'admin12345', 'welcome1234', '0000000000', '1111111111',
-]);
 
 function derive(plain: string, salt: Buffer, params: typeof SCRYPT): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -58,13 +53,13 @@ export function needsRehash(stored: string): boolean {
   return parsed === null || parsed.params.N !== SCRYPT.N || parsed.params.r !== SCRYPT.r || parsed.params.p !== SCRYPT.p;
 }
 
-export function validatePassword(plain: string, context: { email: string; displayName: string }) {
-  const normalized = plain.normalize('NFKC');
-  if (normalized.length < PASSWORD_MIN) return 'too_short';
-  if (normalized.length > PASSWORD_MAX) return 'too_long';
-  const lower = normalized.toLowerCase();
-  if (commonPasswords.has(lower)) return 'common';
-  const email = context.email.trim().normalize('NFKC').toLowerCase();
-  if (lower === email || lower === email.split('@')[0]) return 'same_as_email';
+export function passwordCharacterCount(plain: string): number {
+  return [...plain.normalize('NFKC')].length;
+}
+
+export function validatePassword(plain: string) {
+  const length = passwordCharacterCount(plain);
+  if (length < PASSWORD_MIN) return 'too_short';
+  if (length > PASSWORD_MAX) return 'too_long';
   return null;
 }

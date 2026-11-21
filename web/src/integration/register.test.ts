@@ -34,6 +34,10 @@ describe('frontend integration', () => {
     expect(merged.menu!.some(m => m.path.includes(':slug'))).toBe(false);
     expect(routes).toHaveLength(1);
   });
+  test('does not restore the retired email verification route in the preview', () => {
+    const auth = registerPreparedScreens({featureId:'F02',slug:'auth',routes:[]});
+    expect(auth.routes.map(route => route.path)).not.toContain('/verify-email');
+  });
   test('replaces a generated scaffold and preserves stricter lane metadata on a real route', () => {
     const load = Object.assign(async () => ({default:() => null}),{endlessScaffold:true});
     const merged = registerPreparedScreens({...lane,routes:[{path:'/chat',load}]});
