@@ -27,3 +27,4 @@
 - The lead reopened F30 in issue #1 comment 7060203314. The C2 source was rebased cleanly and locally composed with C1 #100 head 4a80476bd4ad4a57bf19502459fccd9fa59ac575.
 - The unpublished exact composition f67833c8baf57eb68354c45be84a219c0f392dcb passed 106 fake-provider tests in 20 files across voice, LINE and verified catalog reads. Full typecheck passed and Playwright discovered both bilingual public cases.
 - C2 handset acceptance, including the signed LINE invitation and explicit microphone consent, remains pending. Production visibility stays gated separately.
+- With C1 #100 landed at c0ef84acb24bd9114676a7c8976891b68fa5686e, the final fake run passed 23 tests in six files, full typecheck passed, and both Playwright cases were discovered. The additional regression reproduced a placeholder overwriting a known LINE customer's name and confirms the voice intent preserves the existing profile.

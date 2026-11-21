@@ -90,7 +90,10 @@ describe('LINE inbound job', () => {
   it('routes an explicit signed direct voice request before AI or staff classification', async () => {
     mocks.createVoice.mockResolvedValue({ url: 'https://synthetic.example.test/call#invite=fixture' });
     await lineEventJob(job({ message: { id: '1234567', type: 'text', text: 'Can I call you?' } }));
-    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ triggerAi: false, externalId: '1234567' }));
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+      triggerAi: false, externalId: '1234567',
+      customer: { channel: 'line', externalId: 'Utest', channelAccountId: 'Ubot' },
+    }));
     expect(mocks.createVoice).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'business', lineUser: 'Utest', lineBot: 'Ubot', conversationId: 'conversation', language: 'en',
     }));

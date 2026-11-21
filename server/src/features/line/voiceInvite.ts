@@ -31,7 +31,8 @@ export async function handleLineVoiceIntent(input: LineVoiceIntent): Promise<boo
   if (!language) return false;
 
   const saved = await saveMessage({
-    businessId: input.businessId, customer: input.customer, direction: 'inbound', author: 'customer', origin: 'live',
+    businessId: input.businessId, direction: 'inbound', author: 'customer', origin: 'live',
+    customer: { channel: 'line', externalId: sender.lineUser, channelAccountId: sender.lineBot },
     externalId: input.messageId, occurredAt: input.occurredAt, triggerAi: false, providerMeta: input.providerMeta,
     parts: [{ type: 'text', text }],
   });
