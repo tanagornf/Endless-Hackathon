@@ -23,6 +23,7 @@ const allow: EffectiveAnswerRules = {
 const businessId = seedId('biz_demo_a');
 const originalChat = model.chat.bind(model);
 const originalSettings = settings.getBusinessSettings;
+const originalSend = channels.sendToCustomer;
 
 type TraceRow = {
   id: string;
@@ -93,6 +94,12 @@ const priceArguments = (sku: string | null, name: string | null, quantity: numbe
 
 beforeEach(() => {
   vi.spyOn(settings, 'getEffectiveAnswerRules').mockResolvedValue(allow);
+  // These direct-handler tests share the lane DB with the real delivery integration.
+  // Keep their unrelated sends out of the integration queue.
+  vi.spyOn(channels, 'sendToCustomer').mockImplementation(async (conversationId, _parts, options) => ({
+    messageId: options!.messageId!, conversationId, channel: 'web', jobId: randomUUID(),
+    delivery: { mode: 'real', state: 'pending' },
+  }));
 });
 afterEach(() => vi.restoreAllMocks());
 afterAll(closeDb);
@@ -319,6 +326,7 @@ describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
     const chat = vi.spyOn(model, 'chat');
     const writes = vi.spyOn(inbox, 'saveMessage');
     const sends = vi.spyOn(channels, 'sendToCustomer')
+      .mockImplementation(originalSend)
       .mockRejectedValueOnce(new AppError('SERVICE_NOT_READY', 'Synthetic delivery queue error', { retryable: true }));
 
     expect(await execute(inbound)).toHaveProperty('retryAt');
