@@ -23,3 +23,20 @@
 - Added the authenticated staff inbox with queue filters, search, cursor pagination, conversation history, live refresh, and staff replies. Staff sends take over before delivery when the user has permission, and display the recorded delivery state.
 - `npm test -- inbox` passed 13/13 on A1's test database with the model in fake mode. Includes tied conversation timestamps, literal search, tenant checks, staff takeover and send replay.
 - `npm run typecheck` passed. F09 remains A while the public Demo Chat slice and production smoke are pending.
+
+### S3 public Demo Chat and staff tester
+
+- Customers can open a shop link in Thai or English, send a message, see typing and receive persisted updates by long poll. The staff tester uses the signed-in user and business. The public route uses a signed visitor session, text limits, IP and visitor throttles, moderation, and a daily shop cap.
+- A1 ran all 18 inbox integration tests against its test database with `MODEL_MODE=fake`. The cases cover signed visitor sessions, tenant isolation, duplicate sends, length and moderation rejection, visitor and daily shop limits, staff replies during long poll, and a fresh conversation after reset.
+- Full workspace typecheck and whitespace checks passed before rebase. Migration and seed ran on the A1 development database. F09 remains A pending production verification with the deployed AI worker. No live model or production smoke result is claimed here.
+
+- After rebase onto the merged F11 takeover implementation, all 18 inbox tests passed in 84.58 seconds. GitHub CI also passed these tests. Its B2 trace fixture observed an unrelated synthetic AI job before its own trace. The F09 suite now removes its own queued replies by the fixture request IDs during teardown.
+
+### S4 mobile inbox and Demo Chat follow-up
+
+- The staff inbox filters the desktop-only Team side panel below the MUI md breakpoint. Details remains available when a mobile-capable side panel is registered.
+- Public Demo Chat follows the visual viewport during keyboard resize and scroll. The layout respects the top and bottom safe-area insets.
+- `npm test -- --project web web/src/features/inbox` passed 4/4. Both mobile Details assertions reproduced the issue before the filter. The desktop Team panel and visual viewport regressions passed on the finished branch.
+- `npm run typecheck`, `npm run check:paths`, and `git diff --check` passed.
+- Local Chromium with intercepted synthetic responses verified Thai wrapping at 360 px without horizontal overflow and a 44 × 44 px Send target. At a simulated keyboard viewport height of 435 px, the composer bottom moved from 451 px to 435 px and Send from 443 px to 427 px. Chromium also verified the 55 px viewport offset, 24 px top and bottom safe-area insets, and desktop at 1280 × 900.
+- Production smoke for this patch is pending.

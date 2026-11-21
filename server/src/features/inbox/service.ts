@@ -1,4 +1,6 @@
-import { AppError } from '../../core';
+import { randomUUID } from 'node:crypto';
+import { AppError, config } from '../../core';
+import { signVisitorToken } from './visitor';
 import { db } from '../../core';
 import { deliverStaffMessage } from './staff';
 import { customerLanguage, persistMessage, readConversation, readHistory } from './setup';
@@ -121,5 +123,14 @@ export async function saveChatAttachment(input: {
 export async function getDemoChatHandoff(
   businessId: string,
 ): Promise<{ visitorId: string; customerExternalId: string; url: string; publicSlug: string } | null> {
-  throw new AppError("SERVICE_NOT_READY", "getDemoChatHandoff is not implemented");
+  const shop = await db.maybeOne<{ publicSlug: string }>(`SELECT s.public_slug AS "publicSlug" FROM demo_chat_settings s
+    JOIN businesses b ON b.id=s.business_id WHERE s.business_id=$1 AND s.enabled AND b.status='active'`, [businessId]);
+  if (!shop) return null;
+  const { publicSlug } = shop;
+  const visitorId = randomUUID();
+  const issuedAt = Math.floor(Date.now() / 1000) - 29 * 86400;
+  const token = signVisitorToken(visitorId, issuedAt);
+  const baseUrl = (config.PUBLIC_BASE_URL || config.APP_BASE_URL).replace(/\/$/u, '');
+  return { visitorId, customerExternalId: 'demo-visitor:' + visitorId, publicSlug,
+    url: baseUrl + '/demo-chat/s/' + publicSlug + '#v=' + token };
 }

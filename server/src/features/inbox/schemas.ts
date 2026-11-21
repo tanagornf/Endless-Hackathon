@@ -85,3 +85,33 @@ export const staffSendBody = z.object({
   text: z.string().max(2000).optional(),
   attachments: z.array(z.object({ fileId: uuid, kind: z.enum(['image', 'file']) })).max(4).default([]),
 }).refine(({ text, attachments }) => Boolean(text?.trim()) || attachments.length > 0);
+
+export const demoPollQuery = z.object({
+  after: z.string().min(1).max(100).optional(),
+  waitMs: z.coerce.number().int().min(0).max(20000).default(0),
+});
+
+export const demoSendBody = z.object({
+  clientRequestId: z.string().trim().min(8).max(80),
+  text: z.string().max(4000),
+});
+
+export const demoSessionBody = z.object({ visitorToken: z.string().max(160).optional() }).default({});
+
+export const demoSettingsBody = z.object({
+  enabled: z.boolean(),
+  publicSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{2,39}$/u),
+  welcomeText: z.string().trim().min(1).max(300).nullable(),
+  suggestedQuestions: z.array(z.string().trim().min(1).max(80)).max(4),
+  welcomeTextEn: z.string().trim().min(1).max(300).nullable().default(null),
+  suggestedQuestionsEn: z.array(z.string().trim().min(1).max(80)).max(4).default([]),
+});
+
+export const demoActionBody = z.object({
+  clientRequestId: z.string().trim().min(8).max(80),
+  kind: z.enum(['order', 'booking']),
+  proposalId: z.string().min(1).max(100),
+  version: z.number().int().min(1),
+  reviewToken: z.string().min(1).max(500),
+  decision: z.enum(['confirm', 'cancel']),
+});
