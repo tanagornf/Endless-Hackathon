@@ -5,7 +5,7 @@ import { messageColumns, formatMessage } from './mappers';
 import type { DbMessage } from './mappers';
 import { saveMessage } from './service';
 import { readDemoHistory } from './demoHistory';
-import { waitForDemoUpdate } from './demoSignal';
+import { watchDemoConversation } from './demoSignal';
 
 const settingsColumns = `s.business_id AS "businessId", s.public_slug AS "publicSlug", s.enabled,
   s.welcome_text AS "welcomeText", s.welcome_text_en AS "welcomeTextEn",
@@ -247,12 +247,15 @@ async function readPoll(identity: DemoIdentity, conversation: { id: string; stat
 export async function demoPoll(identity: DemoIdentity, after: string | undefined, waitMs: number): Promise<DemoChatPoll> {
   const conversation = await conversationFor(identity);
   if (!conversation) return { conversationId: null, items: [], cursor: null, pending: null, closed: false };
-  const first = await readPoll(identity, conversation, after);
-  if (first.immediate || first.page.closed || waitMs === 0) return first.page;
-  // Replayed rows from a broad retry scan alone do not wake an otherwise idle visitor.
-  const recheckMs = first.page.pending?.state === 'typing' ? (first.revisiting ? 2000 : 1000) : waitMs;
-  await waitForDemoUpdate(identity.businessId + ':' + identity.externalId, conversation.id, Math.min(waitMs, recheckMs));
-  const current = await conversationFor(identity);
-  if (!current) return { conversationId: null, items: [], cursor: null, pending: null, closed: false };
-  return (await readPoll(identity, current, current.id === conversation.id ? after : undefined)).page;
+  // Register before the database reads: a staff message committed during those reads must wake this request.
+  const watcher = waitMs > 0 ? watchDemoConversation(identity.businessId + ':' + identity.externalId, conversation.id) : null;
+  try {
+    const first = await readPoll(identity, conversation, after);
+    if (first.immediate || first.page.closed || !watcher) return first.page;
+    const recheckMs = first.page.pending?.state === 'typing' ? (first.revisiting ? 2000 : 1000) : waitMs;
+    await watcher.wait(Math.min(waitMs, recheckMs));
+    const current = await conversationFor(identity);
+    if (!current) return { conversationId: null, items: [], cursor: null, pending: null, closed: false };
+    return (await readPoll(identity, current, current.id === conversation.id ? after : undefined)).page;
+  } finally { watcher?.finish(); }
 }

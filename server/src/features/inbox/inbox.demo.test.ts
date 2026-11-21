@@ -5,6 +5,7 @@ import { db } from '../../core';
 import { createTestAgent } from '../../core/test-utils';
 import { getHistory, saveMessage } from './service';
 import { signVisitorToken, verifyVisitorToken } from './visitor';
+import { signalDemoConversation, watchDemoConversation } from './demoSignal';
 
 const demoA = '/api/v1/public/demo-chat/demo-boardgame';
 const demoB = '/api/v1/public/demo-chat/demo-repair';
@@ -26,6 +27,15 @@ afterAll(async () => {
 });
 
 describe('F09 public Demo Chat', { timeout: 30000 }, () => {
+  it('retains a notification received between starting a poll and awaiting updates', async () => {
+    const conversationId = randomUUID();
+    const watcher = watchDemoConversation(randomUUID(), conversationId);
+    signalDemoConversation(conversationId);
+    try {
+      await watcher.wait(10000);
+    } finally { watcher.finish(); }
+  }, 1000);
+
   it('rejects tampered and expired visitor tokens', () => {
     const id = randomUUID();
     const token = signVisitorToken(id);
