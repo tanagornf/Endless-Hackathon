@@ -37,13 +37,13 @@ vi.mock('../../core', () => ({
 }));
 
 const createdAt = '2026-11-21T08:00:00Z';
-const previous: ShopInstructionVersion = {
+const previous = {
   id: 'revision-one', parentVersionId: null, restoredFromVersionId: null, candidateId: 'first-candidate',
   actorUserId: 'owner-a', instruction: 'ใช้เลขใบเสร็จ', createdAt,
-};
-const active: ShopInstructionVersion = {
+} satisfies ShopInstructionVersion;
+const active = {
   ...previous, id: 'revision-two', parentVersionId: previous.id, candidateId: 'second-candidate', instruction: 'Use the order number.',
-};
+} satisfies ShopInstructionVersion;
 const candidate = { id: 'candidate-one', baseVersionId: active.id, instruction: 'Check the order number first.', reason: 'Owner correction', createdAt };
 const view: ShopInstructionReview = { activeVersionId: active.id, candidates: [candidate], versions: [active, previous] };
 
@@ -138,4 +138,35 @@ it('shows history and confirms rollback to the selected earlier version', async 
     { expectedActiveVersionId: active.id },
   ));
   expect(screen.getByText('shopInstructions.rolledBack')).toBeTruthy();
+});
+
+it('requires confirmation before restoring the original state with no shop instruction', async () => {
+  const first = { ...active, parentVersionId: null };
+  const restored: ShopInstructionVersion = {
+    ...first, id: 'baseline-restored', parentVersionId: first.id,
+    instruction: null, candidateId: null, restoredFromVersionId: null,
+  };
+  query({ activeVersionId: first.id, candidates: [], versions: [first] });
+  api.rollback.mockResolvedValue(restored);
+  const { rerender } = render(<ShopInstructionReviewPanel />);
+
+  click('shopInstructions.restoreBaseline');
+  const dialog = screen.getByRole('dialog', { name: 'shopInstructions.confirmBaselineTitle' });
+  expect(within(dialog).getByText('shopInstructions.confirmBaselineMessage')).toBeTruthy();
+  expect(api.rollback).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'shopInstructions.restoreBaseline' }));
+
+  expect(await screen.findByText('shopInstructions.baselineRestored')).toBeTruthy();
+  expect(api.rollback).toHaveBeenCalledExactlyOnceWith(
+    '/settings/shop-instructions/versions/baseline/rollback',
+    { expectedActiveVersionId: first.id },
+  );
+  expect(api.reload).toHaveBeenCalledOnce();
+
+  query({ activeVersionId: restored.id, candidates: [], versions: [restored, first] });
+  rerender(<ShopInstructionReviewPanel />);
+  const current = within(screen.getByRole('region', { name: 'shopInstructions.current' }));
+  expect(current.getByText(`shopInstructions.versionId ${restored.id}`)).toBeTruthy();
+  expect(current.getByText('shopInstructions.noCurrent')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'shopInstructions.restoreBaseline' })).toBeNull();
 });

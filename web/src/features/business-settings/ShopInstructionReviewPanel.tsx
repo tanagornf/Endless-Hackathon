@@ -13,10 +13,25 @@ import { apiFailure } from './settings-errors';
 
 const endpoint = '/settings/shop-instructions';
 
-type ReviewAction = ShopInstructionActivation & {
-  kind: 'publish' | 'rollback';
-  id: string;
-};
+type ReviewTarget = { kind: 'publish' | 'rollback'; id: string } | { kind: 'restoreBaseline' };
+type ReviewAction = ShopInstructionActivation & ReviewTarget;
+
+const actionText = {
+  publish: {
+    title: 'shopInstructions.confirmPublishTitle', message: 'shopInstructions.confirmPublishMessage',
+    confirm: 'shopInstructions.confirmPublish', success: 'shopInstructions.published',
+  },
+  rollback: {
+    title: 'shopInstructions.confirmRollbackTitle', message: 'shopInstructions.confirmRollbackMessage',
+    confirm: 'shopInstructions.confirmRollback', success: 'shopInstructions.rolledBack',
+  },
+  restoreBaseline: {
+    title: 'shopInstructions.confirmBaselineTitle', message: 'shopInstructions.confirmBaselineMessage',
+    confirm: 'shopInstructions.restoreBaseline', success: 'shopInstructions.baselineRestored',
+  },
+} as const;
+
+type ReviewNotice = typeof actionText[keyof typeof actionText]['success'] | 'shopInstructions.conflict';
 
 export default function ShopInstructionReviewPanel() {
   const { currentBusiness, businesses } = useSession();
@@ -29,7 +44,7 @@ function InstructionReview() {
   const query = useApiQuery<ShopInstructionReview>(endpoint);
   const [selectedId, setSelectedId] = useState<string>();
   const [action, setAction] = useState<ReviewAction | null>(null);
-  const [notice, setNotice] = useState<'published' | 'rolledBack' | 'conflict' | null>(null);
+  const [notice, setNotice] = useState<ReviewNotice | null>(null);
   const [saveError, setSaveError] = useState(false);
   const submitting = useRef(false);
   const historyId = useId();
@@ -42,16 +57,17 @@ function InstructionReview() {
   const active = view?.versions.find(({ id }) => id === view.activeVersionId);
   const candidate = view?.candidates.find(({ id }) => id === selectedId) ?? view?.candidates[0];
   const stale = Boolean(view && candidate && candidate.baseVersionId !== view.activeVersionId);
+  const confirmation = action && actionText[action.kind];
 
-  function choose(kind: ReviewAction['kind'], id: string) {
+  function choose(target: ReviewTarget) {
     if (!view || submitting.current) return;
     setNotice(null);
     setSaveError(false);
-    setAction({ kind, id, expectedActiveVersionId: view.activeVersionId });
+    setAction({ ...target, expectedActiveVersionId: view.activeVersionId });
   }
 
   function refreshConflict() {
-    setNotice('conflict');
+    setNotice('shopInstructions.conflict');
     setAction(null);
     query.reload();
   }
@@ -67,7 +83,7 @@ function InstructionReview() {
     setSaveError(false);
     try {
       await mutation.run({ expectedActiveVersionId: action.expectedActiveVersionId });
-      setNotice(action.kind === 'publish' ? 'published' : 'rolledBack');
+      setNotice(actionText[action.kind].success);
       setAction(null);
       query.reload();
     } catch (error) {
@@ -85,8 +101,8 @@ function InstructionReview() {
   return (
     <SectionCard title={t('shopInstructions.title')}>
       <Stack spacing={2}>
-        {notice && <Alert severity={notice === 'conflict' ? 'warning' : 'success'}>
-          {t(`shopInstructions.${notice}`)}
+        {notice && <Alert severity={notice === 'shopInstructions.conflict' ? 'warning' : 'success'}>
+          {t(notice)}
         </Alert>}
         {query.error && <EmptyState title={t('shopInstructions.loadError')}
           action={<Button onClick={query.reload}>{t('settings.retry')}</Button>} />}
@@ -109,7 +125,7 @@ function InstructionReview() {
               {t('shopInstructions.reason', { reason: candidate.reason })}
             </Typography>}
             {stale && <Alert severity="warning">{t('shopInstructions.staleCandidate')}</Alert>}
-            <Button variant="contained" disabled={stale || mutation.running} onClick={() => choose('publish', candidate.id)}
+            <Button variant="contained" disabled={stale || mutation.running} onClick={() => choose({ kind: 'publish', id: candidate.id })}
               sx={{ minHeight: 44, alignSelf: { xs: 'stretch', sm: 'flex-start' } }}>
               {t('shopInstructions.publish')}
             </Button>
@@ -137,31 +153,37 @@ function InstructionReview() {
                       {version.restoredFromVersionId && <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
                         {t('shopInstructions.restoredFrom', { id: version.restoredFromVersionId })}
                       </Typography>}
-                      <Typography dir="auto" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{version.instruction}</Typography>
-                      {!isActive && view.activeVersionId && <Button variant="outlined" disabled={mutation.running}
+                      {version.instruction === null
+                        ? <Typography color="text.secondary">{t('shopInstructions.baselineVersion')}</Typography>
+                        : <Typography dir="auto" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{version.instruction}</Typography>}
+                      {!isActive && version.instruction !== null && view.activeVersionId && <Button variant="outlined" disabled={mutation.running}
                         sx={{ minHeight: 44, alignSelf: { xs: 'stretch', sm: 'flex-start' } }}
-                        onClick={() => choose('rollback', version.id)}>{t('shopInstructions.rollback')}</Button>}
+                        onClick={() => choose({ kind: 'rollback', id: version.id })}>{t('shopInstructions.rollback')}</Button>}
                     </Stack>
                   </AccordionDetails>
                 </Accordion>
               );
             })}
+            {active && active.instruction !== null && <Button variant="outlined" disabled={mutation.running}
+              sx={{ minHeight: 44, alignSelf: { xs: 'stretch', sm: 'flex-start' } }}
+              onClick={() => choose({ kind: 'restoreBaseline' })}>{t('shopInstructions.restoreBaseline')}</Button>}
           </Stack>
         </>}
       </Stack>
-      {action && <ConfirmDialog open danger={action.kind === 'rollback'}
-        title={t(action.kind === 'publish' ? 'shopInstructions.confirmPublishTitle' : 'shopInstructions.confirmRollbackTitle')}
+      {action && confirmation && <ConfirmDialog open danger={action.kind !== 'publish'}
+        title={t(confirmation.title)}
         message={<Stack spacing={2} sx={{ overflowWrap: 'anywhere' }}>
-          <Typography>{t(action.kind === 'publish' ? 'shopInstructions.confirmPublishMessage' : 'shopInstructions.confirmRollbackMessage', { id: action.id })}</Typography>
+          <Typography>{'id' in action ? t(confirmation.message, { id: action.id }) : t(confirmation.message)}</Typography>
           {saveError && <Alert severity="error">{t('shopInstructions.saveError')}</Alert>}
         </Stack>}
-        confirmLabel={t(action.kind === 'publish' ? 'shopInstructions.confirmPublish' : 'shopInstructions.confirmRollback')}
+        confirmLabel={t(confirmation.confirm)}
         onClose={() => setAction(null)} onConfirm={confirm} />}
     </SectionCard>
   );
 }
 
-function actionEndpoint({ kind, id }: ReviewAction) {
-  const collection = kind === 'publish' ? 'candidates' : 'versions';
-  return `${endpoint}/${collection}/${encodeURIComponent(id)}/${kind}`;
+function actionEndpoint(action: ReviewAction) {
+  if (action.kind === 'restoreBaseline') return `${endpoint}/versions/baseline/rollback`;
+  const collection = action.kind === 'publish' ? 'candidates' : 'versions';
+  return `${endpoint}/${collection}/${encodeURIComponent(action.id)}/${action.kind}`;
 }
