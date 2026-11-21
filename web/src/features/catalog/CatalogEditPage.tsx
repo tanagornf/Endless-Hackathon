@@ -9,20 +9,23 @@ import {
 } from '../../core';
 import CatalogFields, { catalogFields, catalogValues } from './CatalogFields';
 import type { CatalogFieldsState } from './CatalogFields';
+import CatalogHistoryPanel from './CatalogHistoryPanel';
 
-type PatchInput = Pick<CatalogItemAdminDetail, 'sku' | 'name' | 'nameEn' | 'priceMinor' | 'active'> & { expectedVersion: number };
+type PatchInput = Pick<CatalogItemAdminDetail, 'sku' | 'name' | 'nameEn' | 'priceMinor' | 'active' | 'category' | 'description' | 'unit' | 'shippable' | 'durationMinutes'> & { expectedVersion: number };
 
 function Editor({ id }: { id: string }) {
   const { t } = useTranslation('catalog');
   const navigate = useNavigate();
   const toast = useToast();
   const canWrite = useCan('product.write');
+  const canDelete = useCan('product.delete');
   const path = '/catalog/items/' + id;
   const query = useApiQuery<CatalogItemAdminDetail>(path);
   const patch = useApiMutation<PatchInput, CatalogItemAdminDetail>('PATCH', path, { toastOnError: false });
+  const remove = useApiMutation<void, { id: string; deletedAt: string }>('DELETE', path);
   const [item, setItem] = useState<CatalogItemAdminDetail>();
   const [fields, setFields] = useState<CatalogFieldsState>();
-  const [confirm, setConfirm] = useState<'price' | 'leave' | null>(null);
+  const [confirm, setConfirm] = useState<'price' | 'leave' | 'delete' | null>(null);
   const [pending, setPending] = useState<PatchInput>();
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
@@ -68,8 +71,8 @@ function Editor({ id }: { id: string }) {
       setError(t(parsed.error));
       return;
     }
-    const { name, nameEn, sku, priceMinor, active } = parsed.data;
-    const values = { expectedVersion: item.version, name, nameEn, sku, priceMinor, active };
+    const { name, nameEn, sku, priceMinor, active, category, description, unit, shippable, durationMinutes } = parsed.data;
+    const values = { expectedVersion: item.version, name, nameEn, sku, priceMinor, active, category, description, unit, shippable, durationMinutes };
     if (priceMinor !== item.priceMinor) {
       setPending(values);
       setConfirm('price');
@@ -106,18 +109,30 @@ function Editor({ id }: { id: string }) {
             {t('error.conflict')}
           </Alert>}
           {error && <Alert severity="error">{error}</Alert>}
-          <CatalogFields value={fields} disabled={!canWrite || patch.running} creating={false}
+          <CatalogFields value={fields} disabled={!canWrite || patch.running || remove.running} creating={false} itemId={item.id}
             onChange={(change) => setFields((old) => old && ({ ...old, ...change }))} />
           <span>{t('editor.priceChanged', { at: formatDateTime(item.priceChangedAt) })}</span>
-          {canWrite && <Button variant="contained" sx={{ alignSelf: 'start' }} disabled={!dirty || patch.running || conflict}
-            onClick={save}>{t('actions.save')}</Button>}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            {canWrite && <Button variant="contained" disabled={!dirty || patch.running || remove.running || conflict}
+              onClick={save}>{t('actions.save')}</Button>}
+            {canDelete && <Button color="error" disabled={patch.running || remove.running}
+              onClick={() => setConfirm('delete')}>{t('actions.delete')}</Button>}
+          </Stack>
         </Stack>
       </SectionCard>
+      <CatalogHistoryPanel itemId={item.id} revision={item.version} />
     </Stack>
     {canWrite && <ConfirmDialog open={confirm === 'price'} title={t('confirm.priceTitle')} message={t('confirm.priceMessage')}
       confirmLabel={t('actions.save')} onClose={() => setConfirm(null)} onConfirm={async () => {
         if (!pending) return;
         try { await persist(pending); } finally { setConfirm(null); }
+      }} />}
+
+    {canDelete && <ConfirmDialog open={confirm === 'delete'} title={t('confirm.deleteTitle')} message={t('confirm.deleteMessage')}
+      confirmLabel={t('actions.delete')} danger onClose={() => setConfirm(null)} onConfirm={async () => {
+        await remove.run();
+        toast.success(t('toast.deleted'));
+        navigate('/catalog');
       }} />}
     <ConfirmDialog open={confirm === 'leave'} title={t('confirm.leaveTitle')} message={t('confirm.leaveMessage')}
       confirmLabel={t('actions.leave')} onClose={() => setConfirm(null)} onConfirm={() => navigate('/catalog')} />
