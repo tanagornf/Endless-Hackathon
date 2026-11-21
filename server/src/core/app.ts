@@ -6,7 +6,7 @@ import { destroySession, listBusinesses } from './auth';
 import { config, rootDir } from './config';
 import { mountDev } from './dev';
 import { AppError } from './errors';
-import { featureFlags, initializeFlags, loadFeatures, setFeatureFlag } from './features';
+import { featureFlags, initializeFlags, loadFeatures, setFeatureFlag, visiblePublicFeatures } from './features';
 import { createHttpApp, httpError } from './http';
 import { mountMeta } from './meta';
 
@@ -21,6 +21,10 @@ export async function createApp() {
     return { ok: true };
   });
   api.get('/features', { auth: 'user' }, async () => ({ production: config.NODE_ENV === 'production', items: await featureFlags(routes) }));
+  api.get('/features/visible', { auth: 'none' }, async ({ res }) => {
+    res.setHeader('Cache-Control', 'no-store');
+    return { visibleFeatureIds: await visiblePublicFeatures(routes) };
+  });
   api.put('/ops/features/:featureId', { auth: 'platform_admin', body: SetFeatureFlagBody }, async ({ body, params, user }) => {
     await setFeatureFlag(user!.id, params.featureId, body.hidden, body.reason);
     return (await featureFlags(routes)).find((feature) => feature.featureId === params.featureId);

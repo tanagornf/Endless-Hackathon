@@ -1,5 +1,7 @@
 import { afterAll, expect, test } from 'vitest';
 import { config } from './config';
+import { visiblePublicFeatures } from './features';
+import { createHttpApp } from './http';
 import { closeDb, db } from './db';
 import { createTestAgent, loginAs } from './test-utils';
 
@@ -35,4 +37,24 @@ test('initializes env flags once and defaults all production placeholders to hid
     config.HIDDEN_FEATURES = original.hidden;
     config.NODE_ENV = original.env;
   }
+});
+
+test('anonymous flags expose only visible features with public API routes', async () => {
+  const http = createHttpApp();
+  http.api('F09').get('/public/demo-chat/:slug', { auth: 'none' }, async () => ({}));
+  http.api('F08').get('/businesses/:businessId/example-catalog', { auth: 'business' }, async () => ({}));
+  http.api('F14').get('/features/payments/status', { auth: 'none', summary: 'placeholder status' }, async () => ({}));
+  expect(await visiblePublicFeatures(http.routes)).toEqual(['F09']);
+  await db.query("INSERT INTO feature_flags (feature_id,hidden) VALUES ('F09',true) ON CONFLICT (feature_id) DO UPDATE SET hidden=true");
+  try { expect(await visiblePublicFeatures(http.routes)).toEqual([]); }
+  finally { await db.query("DELETE FROM feature_flags WHERE feature_id='F09'"); }
+});
+
+test('the public feature flags route leaves merchant and administrative routes protected', async () => {
+  const agent = await createTestAgent();
+  const flags = await agent.get('/api/v1/features/visible');
+  expect(flags.status).toBe(200);
+  expect(flags.body.data).toEqual({ visibleFeatureIds: [] });
+  expect((await agent.get('/api/v1/features')).status).toBe(401);
+  expect((await agent.put('/api/v1/ops/features/F13').set('X-Requested-With','nless').send({ hidden: false })).status).toBe(401);
 });
