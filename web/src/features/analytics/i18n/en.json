@@ -1,8 +1,62 @@
 {
   "menu": {
-    "title": "Dashboard & cost"
+    "dashboard": "Shop overview"
   },
-  "page": {
-    "title": "Dashboard & cost"
+  "dashboard": {
+    "title": "Shop overview"
+  },
+  "scope": "Figures use customer LINE conversations. Demo Chat test data is excluded.",
+  "refresh": "Refresh",
+  "loading": "Loading overview",
+  "error": "Could not load the overview.",
+  "retry": "Try again",
+  "empty": "No LINE messages in this period.",
+  "unknown": "Unknown",
+  "unavailable": "Unavailable",
+  "percent": "{{value}}%",
+  "seconds": "{{value}} seconds",
+  "minutes": "{{value}} minutes",
+  "cost": "{{value}} USD",
+  "range": {
+    "period": "Preset period",
+    "days1": "Today",
+    "days7": "7 days",
+    "days30": "30 days",
+    "from": "From",
+    "to": "To",
+    "apply": "Apply dates",
+    "scope": "{{from}} to {{to}} · Shop timezone {{timezone}}"
+  },
+  "results": "Shop results",
+  "activity": "LINE activity",
+  "daily": "Daily messages",
+  "tile": {
+    "active": "Chats with customer messages",
+    "autoResolved": "AI-only handling",
+    "handoff": "Handoff rate",
+    "firstResponse": "First response time",
+    "orders": "Chat orders",
+    "followUps": "Follow-up recoveries",
+    "aiCost": "Estimated cost per AI-only chat",
+    "timeSaved": "Estimated staff time saved",
+    "customersActive": "Customers who messaged",
+    "newCustomers": "New customers",
+    "customerMessages": "Customer messages",
+    "aiReplies": "AI replies",
+    "staffMessages": "Staff replies",
+    "open": "Chats open now",
+    "waiting": "Now awaiting assignment",
+    "staffTouched": "Chats with staff replies"
+  },
+  "definitions": {
+    "auto": "{{count}} chats with an AI reply and no staff reply or handoff.",
+    "handoff": "{{count}} chats with a recorded handoff or staff takeover.",
+    "response": "AI {{ai}} · Staff {{staff}} · {{unanswered}} without a reply in 24 hours.",
+    "cost": "Estimate based on recorded OpenAI calls."
+  },
+  "estimate": {
+    "edit": "Set time assumption",
+    "input": "Minutes per chat (1–60)",
+    "assumption": "Estimate assumes {{minutes}} minutes per chat."
   }
 }
