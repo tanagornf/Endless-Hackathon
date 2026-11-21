@@ -12,6 +12,16 @@
   "yes": "ใช่",
   "no": "ไม่ใช่",
   "overview": "ภาพรวม",
+  "dashboardByDay": "จำนวนการสนทนารายวัน",
+  "dashboardLatestDays": "จำนวนการสนทนาใน 7 วันสุดท้ายของช่วงที่เลือก",
+  "dashboardByChannel": "จำนวนการสนทนาแยกตามช่องทาง",
+  "dashboardNoCounts": "ไม่มีการสนทนาที่บันทึกไว้ในช่วงนี้",
+  "dashboardCountsUnavailable": "ยังโหลดจำนวนการสนทนาไม่ได้",
+  "dashboardFallback": {
+    "activity": "ดูการสนทนาและข้อความตอบกลับล่าสุดได้ในกล่องข้อความ",
+    "channels": "ตรวจสอบสถานะการเชื่อมต่อบัญชี LINE ของร้าน"
+  },
+  "dashboardViewChannels": "ดูช่องทาง",
   "retry": "ลองอีกครั้ง",
   "back": "กลับ",
   "details": "รายละเอียด",

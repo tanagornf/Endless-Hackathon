@@ -2,7 +2,7 @@ import { lazy, Suspense, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Avatar, Box, Drawer, IconButton, LinearProgress, Menu, MenuItem, Paper, Stack, Typography } from '@mui/material';
 import MenuOutlined from '@mui/icons-material/MenuOutlined';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry, SlotContribution } from '@nless/shared/core/loader';
 import { useFeatures } from '../featureFlags';
@@ -46,7 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return <Box sx={{ display:'flex', minHeight:'100dvh' }}>
     <Box component="a" href="#workspace-main" sx={{position:'fixed',top:-80,left:8,zIndex:1500,p:1,bgcolor:'white','&:focus':{top:8}}}>{t('workspace.skip')}</Box>
     <Box component="aside" sx={{bgcolor:'white',borderRight:1,borderColor:'divider',display:{xs:'none',md:'block'},position:'sticky',top:0,height:'100dvh',flexShrink:0}}>
-      <Navigation entries={entries} close={close} />
+      <Navigation entries={entries} close={close} desktop />
     </Box>
     <Drawer open={drawer} onClose={close} sx={{ display:{md:'none'} }}><Navigation entries={entries} close={close} /></Drawer>
     <Box sx={{flex:1,minWidth:0}}>
@@ -64,7 +64,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Menu>
         </Stack>
       </Paper>
-      <Box id="workspace-main" component="main" tabIndex={-1} sx={{maxWidth:1280,mx:'auto',p:{xs:2,sm:3},pb:{xs:mobile.length ? 11 : 3,md:3}}}>
+      <Box id="workspace-main" component="main" tabIndex={-1} sx={{maxWidth:matchPath('/dashboard', pathname) ? 'none' : 1280,mx:'auto',p:{xs:2,sm:3},pb:{xs:mobile.length ? 11 : 3,md:3}}}>
         {current && <Typography variant="overline" sx={{color:'primary.main',fontWeight:700,letterSpacing:'.07em',textTransform:'none'}}>{t('nav:' + current.group)}</Typography>}
         <Suspense fallback={<LinearProgress aria-label={t('pages.loading')} />}><Box key={session.currentBusiness?.id ?? 'account'}>{children}</Box></Suspense>
       </Box>

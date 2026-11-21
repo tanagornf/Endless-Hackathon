@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Stack, Tab, Tabs, TextField } from '@mui/material';
+import { Alert, Box, Button, Stack, Tab, Tabs, TextField } from '@mui/material';
 import { matchPath, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { api, DataTable, EmptyState, PageHeader, SectionCard, useApiMutation, useSession, useSlot } from '../core';
@@ -62,11 +62,16 @@ function MerchantScreen({ screen }: {screen:Screen}) {
   const path = panel.endpoint.replace(/:([A-Za-z]+)/g, (_,key:string) => encodeURIComponent(params[key] ?? ''));
   const endpoint = (screen.global ? path : api.biz(path)) + range;
   const slots = screen.key === 'dashboard' ? dashboard : screen.key === 'business' ? business : screen.key === 'line' ? channels : [];
+  const header = <PageHeader title={t('page.' + screen.key + '.title')} description={t('page.' + screen.key + '.description')} />;
   return <Stack spacing={2.5}>
-    <PageHeader title={t('page.' + screen.key + '.title')} description={t('page.' + screen.key + '.description')} />
+    {screen.key === 'dashboard' ? <Box sx={{
+      display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'space-between',
+      flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' },
+      '& > :first-child': { mb: 0 },
+    }}>{header}<DateFilter apply={setRange} /></Box> : header}
     {screen.key === 'search' && <SearchTest />}
     {['voice','call'].includes(screen.key) && <Alert severity="info">{t('unavailableVoice')}</Alert>}
-    {['dashboard','usage','insights'].includes(screen.key) && <DateFilter apply={setRange} />}
+    {['usage','insights'].includes(screen.key) && <DateFilter apply={setRange} />}
     {panels.length > 1 && <Tabs value={panel.label} variant="scrollable" scrollButtons="auto" aria-label={t('page.' + screen.key + '.title')}
       onChange={(_,label:string) => setUrl(prev => {const next=new URLSearchParams(prev);next.set('tab',label);return next;})}>
       {panels.map(p => <Tab key={p.label} value={p.label} label={t('tabs.' + p.label)} />)}

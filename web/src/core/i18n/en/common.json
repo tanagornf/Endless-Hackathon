@@ -117,6 +117,8 @@
   "workspace": {
     "title": "Shop workspace",
     "openInbox": "Open inbox",
+    "expandMenu": "Expand navigation",
+    "collapseMenu": "Collapse navigation",
     "testChat": "Test customer chat",
     "manageCatalog": "Manage catalog",
     "allTools": "All tools",

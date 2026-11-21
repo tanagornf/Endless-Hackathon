@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, EmptyState, SectionCard, StatusChip, formatDateTime, formatMoney } from '../core';
 import { useApiQuery } from '../core';
 import type { Panel, Screen } from './screens';
+import { DashboardBreakdowns } from './DashboardBreakdowns';
 
 type Row = Record<string, unknown>;
 export function property(value: unknown, path: string): unknown {
@@ -59,6 +60,7 @@ export function ResourcePanel({ screen, panel, endpoint, onRow }: { screen: Scre
   const valueOf = (row: unknown, field: typeof fields[number]) => display(field.label, property(row, field.path));
   const empty = <EmptyState title={t(search ? 'noMatches' : 'empty')} />;
   const overview = panel.rows === null;
+  const shopOverview = overview && screen.key === 'dashboard';
   function choose(row: Row) {
     if (onRow) { onRow(row); return; }
     if (screen.key === 'customers' && typeof row.id === 'string') { navigate('/customers/' + encodeURIComponent(row.id)); return; }
@@ -70,10 +72,13 @@ export function ResourcePanel({ screen, panel, endpoint, onRow }: { screen: Scre
     {malformed && <Alert severity="error">{t('unavailableFormat')}</Alert>}
     {overview ? <SectionCard title={t('tabs.' + panel.label)} actions={<Button startIcon={<RefreshOutlined />} onClick={result.reload}>{t('refresh')}</Button>}>
       {result.loading ? <CircularProgress size={24} /> : result.data === null ? empty :
-        <Box component="dl" sx={{ m: 0, display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fit,minmax(min(165px,100%),1fr))' }}>
+        <Box component="dl" sx={{ m: 0, display: 'grid', gap: shopOverview ? { xs: 1, sm: 2 } : 2,
+          gridTemplateColumns: shopOverview ? { xs: 'repeat(2,minmax(0,1fr))', md: 'repeat(4,minmax(0,1fr))' }
+            : 'repeat(auto-fit,minmax(min(165px,100%),1fr))' }}>
           {fields.map(field => <Box key={field.path} sx={{ p: 2, bgcolor: '#F1F6F4', borderRadius: 1 }}>
             <Typography component="dt" variant="body2" color="text.secondary">{field.title}</Typography>
-            <Typography component="dd" sx={{ m: 0, mt: .5, color: 'primary.dark', fontSize: '1.2rem', fontWeight: 600 }}>{valueOf(result.data, field)}</Typography>
+            <Typography component="dd" sx={{ m: 0, mt: .5, color: 'primary.dark', fontSize: shopOverview ? '1.75rem' : '1.2rem',
+              fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{valueOf(result.data, field)}</Typography>
           </Box>)}
         </Box>}
     </SectionCard> : <>
@@ -93,6 +98,8 @@ export function ResourcePanel({ screen, panel, endpoint, onRow }: { screen: Scre
         <Button disabled={!next || result.loading} onClick={() => { if (typeof next === 'string' && next !== cursor) setPages(p => [...p,next]); }}>{t('next')}</Button>
       </Stack>}
     </>}
+    {shopOverview && <DashboardBreakdowns
+      daily={property(result.data, 'daily')} channels={property(result.data, 'channels')} loading={result.loading} />}
     <Dialog open={Boolean(detail)} onClose={() => setDetail(null)} fullWidth maxWidth="sm" aria-labelledby="row-detail">
       <DialogTitle id="row-detail">{t('details')}</DialogTitle>
       <DialogContent dividers><Box component="dl" sx={{ m: 0 }}>{fields.map(f => <Box key={f.path} sx={{ mb: 1.5 }}>

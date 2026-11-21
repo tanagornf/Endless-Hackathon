@@ -1,4 +1,4 @@
-import { Alert, Box, LinearProgress, Switch, ThemeProvider, Typography } from '@mui/material';
+import { Alert, Box, LinearProgress, Switch, ThemeProvider } from '@mui/material';
 import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
@@ -76,9 +76,7 @@ function Ops() {
 const OpsScreen = import.meta.env.VITE_UI_PREVIEW === '1' ? lazy(() => import('../integration/PreparedPage')) : Ops;
 function Home() {
   const { search } = useLocation();
-  const { t } = useTranslation('common');
-  if (new URLSearchParams(search).get('view') === 'workspace') return <WorkspaceHome />;
-  return <><PageHeader title={t('pages.home')} /><Typography>{t('pages.welcome')}</Typography></>;
+  return <WorkspaceHome showDirectory={new URLSearchParams(search).get('view') === 'workspace'} />;
 }
 
 function SessionHome({ children }: { children: ReactNode }) {

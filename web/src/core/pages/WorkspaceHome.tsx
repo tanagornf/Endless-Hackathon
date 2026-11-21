@@ -9,22 +9,28 @@ import { useNavigation } from '../layout/AppShell';
 import { groups } from '../layout/Navigation';
 import { useSession } from '../session';
 import { EmptyState } from '../ui';
+import { PageHeader } from '../layout/PageHeader';
 
 const shortcuts = [
   { path: '/chat', label: 'workspace.openInbox' },
   { path: '/demo-chat', label: 'workspace.testChat' },
   { path: '/catalog', label: 'workspace.manageCatalog' },
+  { path: '/dashboard', label: '' },
+  { path: '/knowledge', label: '' },
+  { path: '/members', label: '' },
 ];
 
-export default function WorkspaceHome() {
+export default function WorkspaceHome({ showDirectory }: { showDirectory: boolean }) {
   const { t } = useTranslation('common');
   const { entries, flags, error } = useNavigation();
   const { currentBusiness } = useSession();
-  if (!flags && !error) return <LinearProgress aria-label={t('pages.loading')} />;
-
-  const actions = shortcuts.filter(shortcut => entries.some(entry => entry.path === shortcut.path));
+  if (showDirectory && !flags && !error) return <LinearProgress aria-label={t('pages.loading')} />;
+  const actions = shortcuts.flatMap(({ path, label }) => {
+    const entry = entries.find(item => item.path === path);
+    return entry ? [{ ...entry, label: t(label || entry.labelKey) }] : [];
+  });
   return <Stack spacing={{ xs: 2.5, sm: 3.5 }}>
-    <Box component="section" aria-labelledby="workspace-title" sx={{
+    {showDirectory ? <Box component="section" aria-labelledby="workspace-title" sx={{
       position: 'relative', isolation: 'isolate', overflow: 'hidden', borderRadius: '18px',
       background: 'linear-gradient(110deg, #103F40 12%, #15534E 65%, #227466)',
       color: 'white', px: { xs: 2.5, sm: 4 }, py: { xs: 3, sm: 4 },
@@ -40,25 +46,29 @@ export default function WorkspaceHome() {
       <Typography id="workspace-title" component="h1" variant="h4" sx={{
         mt: .5, fontSize: { xs: '1.65rem', sm: '2.15rem' }, lineHeight: 1.4,
       }}>{t('workspace.title')}</Typography>
-      {actions.length > 0 && <Box sx={{
-        display: 'flex', flexWrap: 'wrap', gap: 1, mt: { xs: 2, sm: 2.5 },
-        flexDirection: { xs: 'column', sm: 'row' },
-      }}>
-        {actions.map(({ path, label }, index) => <Button key={path} component={Link} to={path}
-          variant={index === 0 ? 'contained' : 'outlined'} endIcon={<ArrowForwardOutlined />} sx={{
-            justifyContent: 'space-between', px: 2, gap: 1, borderRadius: '8px',
-            ...(index === 0 ? {
-              bgcolor: '#D6F6E7', color: '#123E39', '&:hover': { bgcolor: '#E9FCF3' },
-            } : {
-              color: 'white', borderColor: '#79A99B', bgcolor: '#144F49',
-              '&:hover': { borderColor: '#BEEBD8', bgcolor: '#205F55' },
-            }),
-            '&:focus-visible': { outlineColor: 'white' },
-          }}>{t(label)}</Button>)}
-      </Box>}
-    </Box>
+    </Box> : <PageHeader title={t('pages.home')} description={t('pages.welcome')} actions={
+      <Button component={Link} to="/?view=workspace" endIcon={<ArrowForwardOutlined />} sx={{ alignSelf: 'start' }}>
+        {t('workspace.title')}
+      </Button>
+    } />}
+    {flags && actions.length > 0 && <Paper component="section" variant="outlined" aria-labelledby="shop-shortcuts" sx={{ p: { xs: 1.5, sm: 2 } }}>
+      <Typography id="shop-shortcuts" component="h2" variant="h6" sx={{ mb: 1.5 }}>{t('workspace.shortcuts')}</Typography>
+      <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: 'repeat(auto-fit, minmax(min(130px, 100%), 1fr))' }}>
+        {actions.map(item => {
+          const Icon = menuIcon(item.icon);
+          return <ButtonBase key={item.path} component={Link} to={item.path} sx={{
+            flexDirection: 'column', gap: 1, minHeight: 88, px: 1, py: 1.25, borderRadius: '10px',
+            bgcolor: '#F2F7F5', color: 'text.primary', '&:hover, &:focus-visible': { bgcolor: 'primary.light', color: 'primary.dark' },
+          }}>
+            <Box component="span" sx={{ display: 'grid', placeItems: 'center', width: 36, height: 36,
+              borderRadius: '50%', color: 'primary.dark', bgcolor: '#DDEDE6' }}><Icon fontSize="small" /></Box>
+            <Typography component="span" variant="body2" sx={{ fontWeight: 600 }}>{item.label}</Typography>
+          </ButtonBase>;
+        })}
+      </Box>
+    </Paper>}
 
-    {entries.length > 0 ? <Box component="section" aria-labelledby="directory-title">
+    {showDirectory && (entries.length > 0 ? <Box component="section" aria-labelledby="directory-title">
       <Typography id="directory-title" component="h2" variant="h6" sx={{ mb: 1.5 }}>
         {t('workspace.allTools')}
       </Typography>
@@ -98,6 +108,6 @@ export default function WorkspaceHome() {
           </Paper>;
         })}
       </Box>
-    </Box> : <EmptyState title={t(error ? 'errors.generic' : 'workspace.noPages')} />}
+    </Box> : <EmptyState title={t(error ? 'errors.generic' : 'workspace.noPages')} />)}
   </Stack>;
 }

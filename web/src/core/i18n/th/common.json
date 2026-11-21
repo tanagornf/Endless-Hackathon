@@ -117,6 +117,8 @@
   "workspace": {
     "title": "พื้นที่ทำงานของร้าน",
     "openInbox": "เปิดกล่องข้อความ",
+    "expandMenu": "ขยายเมนู",
+    "collapseMenu": "ย่อเมนู",
     "testChat": "ทดสอบแชตลูกค้า",
     "manageCatalog": "จัดการสินค้าและบริการ",
     "allTools": "เครื่องมือทั้งหมด",
