@@ -96,11 +96,19 @@ describe('F03 tenant isolation', () => {
       .resolves.toEqual({ status: 'active' });
   });
 
-  it('lists only owner A’s shop and grants no implicit business access to platform admin', async () => {
+  it('lists only authorized shops for owner A and grants no implicit access to platform admin', async () => {
     const [agentA, administrator] = await Promise.all([login(ownerA.email), login(admin.email)]);
     const me = await agentA.get('/api/v1/me');
     expect(me.status).toBe(200);
-    expect(me.body.data.businesses.map((row: { business: { id: string } }) => row.business.id)).toEqual([shopA.id]);
+    const visibleBusinessIds = me.body.data.businesses.map((row: { business: { id: string } }) => row.business.id) as string[];
+    const demoBusinessIds = new Set(SEED.businesses.map(({ id }) => id));
+    expect(visibleBusinessIds.filter((id) => demoBusinessIds.has(id))).toEqual([shopA.id]);
+    // Other integration suites can provision legitimate additional shops in the same test DB.
+    const memberships = await db.query<{ business_id: string }>(
+      "SELECT business_id FROM memberships WHERE user_id=$1 AND status='active'", [ownerA.id],
+    );
+    const allowedBusinessIds = new Set(memberships.rows.map(({ business_id }) => business_id));
+    for (const businessId of visibleBusinessIds) expect(allowedBusinessIds.has(businessId)).toBe(true);
     const adminMe = await administrator.get('/api/v1/me');
     expect(adminMe.status).toBe(200);
     expect(adminMe.body.data.businesses).toEqual([]);

@@ -9,7 +9,8 @@
 ## Log
 
 - S1 adds the invitation schema and completes tenant-scoped member listing, staff permissions, role changes, revocation and restoration. The bilingual members screen uses the same permission keys as core.
-- Owner A sees only shop A in the session. The registry test covered every currently registered business GET endpoint: ten distinct routes and 30 requests by callers outside the corresponding tenant. Future registrations are included automatically. The target of 15 distinct routes depends on the remaining feature registrations.
+- Only shop A appears among the seeded shops in the owner A session. Any other returned shop has an active membership for owner A. The registry test covered every currently registered business GET endpoint: ten distinct routes and 30 requests by callers outside the corresponding tenant. Future registrations are included automatically. The target of 15 distinct routes depends on the remaining feature registrations.
 - Role changes serialize per business. Tests verify revoked staff lose access on the same session's next request, platform admins get no implicit tenant access, owner-only permissions cannot be assigned to staff, and concurrent revocations retain one active owner.
 - The two production smoke cases are read-only and do not change seeded users. Playwright discovery passed. Production run, invitations workflow, and business onboarding are pending.
 - Review verification added seeded success controls for knowledge item detail and revisions, empty-grant behavior, and a concurrent demotion race. Each knowledge detail is confirmed readable by its own owner and denied under both foreign shop and foreign resource requests. The member tests reuse the authenticated sessions under the existing dev-login rate limit.
+- F04 and F03 suites ran together and passed all 36 tests. This includes the shared test database case where F04 provisions additional authorized synthetic shops for owner A.
