@@ -10,6 +10,7 @@ import {
 import CatalogFields, { catalogFields, catalogValues } from './CatalogFields';
 import type { CatalogFieldsState } from './CatalogFields';
 import CatalogHistoryPanel from './CatalogHistoryPanel';
+import CatalogImages from './CatalogImages';
 
 type PatchInput = Pick<CatalogItemAdminDetail, 'sku' | 'name' | 'nameEn' | 'priceMinor' | 'active' | 'category' | 'description' | 'unit' | 'shippable' | 'durationMinutes'> & { expectedVersion: number };
 
@@ -120,6 +121,7 @@ function Editor({ id }: { id: string }) {
           </Stack>
         </Stack>
       </SectionCard>
+      <CatalogImages item={item} canWrite={canWrite} onChange={(images) => setItem((current) => current && ({ ...current, images }))} />
       <CatalogHistoryPanel itemId={item.id} revision={item.version} />
     </Stack>
     {canWrite && <ConfirmDialog open={confirm === 'price'} title={t('confirm.priceTitle')} message={t('confirm.priceMessage')}

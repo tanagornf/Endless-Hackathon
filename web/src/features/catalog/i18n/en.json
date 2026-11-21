@@ -86,6 +86,19 @@
     "inactive": "Off sale",
     "categoriesError": "Could not load categories."
   },
+  "images": {
+    "title": "Product photos",
+    "alt": "Image description (optional)",
+    "upload": "Upload photo",
+    "primary": "Primary photo",
+    "flagged": "Flagged for review",
+    "earlier": "Move earlier",
+    "later": "Move later",
+    "remove": "Remove",
+    "empty": "No photos yet.",
+    "formats": "Up to 5 JPEG, PNG or WebP images, 8 MB each.",
+    "error": "Could not update the photos. Check the file and try again."
+  },
   "history": {
     "title": "History",
     "version": "Version",
