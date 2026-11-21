@@ -5,6 +5,8 @@ import type { PriceEvidence, ReplyContext } from './context';
 import { fallbacks } from './fallbacks';
 import { maskCardNumbers } from './mask';
 import { moneyContextMatches, moneyInWords, moneyMentions, skuPattern } from './money';
+import { noShipping } from './tools';
+import type { TotalEvidence } from './tools';
 
 type Violation = Pick<AiGuardAction, 'guard' | 'detail'>;
 const urlPattern = /https?:\/\/[^\s<>]+|www\.[^\s<>]+/giu;
@@ -58,7 +60,11 @@ export function inspectReply(draft: string, context: ReplyContext): { text: stri
   }).replace(/\[(?:K\d+|(?:knowledge|catalog):[^\]\r\n]+)\]/gi, '').trim();
 
   const amounts = moneyMentions(text);
-  const allowed = new Set([0, ...context.prices.flatMap(({ quote }) => [quote.unitPriceMinor, quote.subtotalMinor])]);
+  const allowed = new Set([
+    0,
+    ...context.prices.flatMap(({ quote }) => [quote.unitPriceMinor, quote.subtotalMinor]),
+    ...context.totals.map(({ subtotalMinor }) => subtotalMinor),
+  ]);
   const customerAmounts = new Set(context.unanswered.flatMap(moneyMentions).map(({ minor }) => minor));
   if (moneyInWords.test(text)) violations.push({ guard: 'money_words', detail: 'Use digits for currency amounts.' });
   if (amounts.length && context.rules.price !== 'always') {
@@ -141,6 +147,23 @@ export function renderCatalogQuotes(context: ReplyContext, text: string): string
     line !== fallbacks.no_answer[context.language],
   );
   return [...lines, ...independentFacts].join('\n');
+}
+
+export function receiptText(context: ReplyContext, replyText: string): string | null {
+  if (context.rules.price !== 'always') return null;
+  const calculated = context.totals.findLast(({ lines }) => lines.length > 1 || lines.some(({ quote }) => quote.quantity > 1));
+  const mentioned = context.prices.filter((price) => mentionsProduct(replyText, price) && price.quote.quantity > 1);
+  const onlyPrice = mentioned.length === 1 ? mentioned[0] : undefined;
+  const eligible: TotalEvidence | undefined = calculated ?? (onlyPrice ? { lines: [onlyPrice], subtotalMinor: onlyPrice.quote.subtotalMinor } : undefined);
+  if (!eligible || eligible.lines.some(({ quote }) => quote.soldOut)) return null;
+  const { language } = context;
+  const lines = eligible.lines.map(({ name, quote }) =>
+    quote.sku + ' ' + name + ' ' + quote.quantity + ' × ' + formatMoneyText(quote.unitPriceMinor, language) +
+      ' = ' + formatMoneyText(quote.subtotalMinor, language),
+  );
+  const totalLabel = language === 'en' ? 'Total ' : 'รวม ';
+  lines.push(totalLabel + formatMoneyText(eligible.subtotalMinor, language) + ' (' + noShipping[language] + ')');
+  return lines.join('\n');
 }
 
 export function shapeReply(text: string): MessagePart[] {
