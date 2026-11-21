@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { WebSocket } from 'ws';
+import { WebSocket, type RawData } from 'ws';
 import { config } from './config';
 import { AppError } from './errors';
 import { decodeLiveVoiceEvent, liveSessionId } from './live-voice';
@@ -8,6 +8,57 @@ import type { LiveVoiceCloseResult, LiveVoiceControl, LiveVoiceEvent, ModelLiveV
 const unconfirmed: LiveVoiceCloseResult = { confirmed: false, duration: null };
 const empty: LiveVoiceCloseResult = { confirmed: true, duration: { seconds: 0, activeSeconds: 0, pausedSeconds: 0 } };
 const providerUnavailable = () => new AppError('PROVIDER_UNAVAILABLE', 'Live voice control is unavailable');
+
+function openSideband(providerSessionId: string, handshakeTimeout: number) {
+  return new WebSocket('wss://api.openai.com/v1/live/sessions/' + encodeURIComponent(providerSessionId) + '/attach', {
+    headers: { Authorization: 'Bearer ' + config.OPENAI_API_KEY },
+    handshakeTimeout,
+    maxPayload: 1_048_576,
+  });
+}
+
+function receive(raw: RawData): LiveVoiceEvent | null {
+  try {
+    const bytes = Array.isArray(raw) ? Buffer.concat(raw) : Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+    return decodeLiveVoiceEvent(JSON.parse(bytes.toString('utf8')));
+  } catch {
+    return null;
+  }
+}
+
+export async function recoverLiveVoiceTransport(providerSessionId: string, mode: 'openai' | 'fake'): Promise<LiveVoiceCloseResult> {
+  if (!liveSessionId.safeParse(providerSessionId).success) {
+    throw new AppError('VALIDATION_ERROR', 'Invalid Live session ID');
+  }
+  if (mode === 'fake') return empty;
+
+  return new Promise((resolve) => {
+    const socket = openSideband(providerSessionId, 2000);
+    let finished = false;
+    const timer = setTimeout(() => finish(unconfirmed), 3500).unref();
+    function finish(result: LiveVoiceCloseResult) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      resolve(result);
+      if (socket.readyState === WebSocket.OPEN) socket.close();
+      else if (socket.readyState === WebSocket.CONNECTING) socket.terminate();
+    }
+
+    socket.once('open', () => {
+      if (finished) return;
+      socket.send(JSON.stringify({ type: 'session.close', event_id: randomUUID() }), (error) => {
+        if (error) finish(unconfirmed);
+      });
+    });
+    socket.on('error', () => finish(unconfirmed));
+    socket.once('close', () => finish(unconfirmed));
+    socket.on('message', (raw) => {
+      const event = receive(raw);
+      if (event?.type === 'closed') finish({ confirmed: event.confirmed, duration: event.duration });
+    });
+  });
+}
 
 async function fakeControl(input: ModelLiveVoiceAttachInput): Promise<LiveVoiceControl> {
   let closed = false;
@@ -34,15 +85,12 @@ export async function attachLiveVoiceTransport(input: ModelLiveVoiceAttachInput,
   }
   if (mode === 'fake') return fakeControl(input);
 
-  const socket = new WebSocket('wss://api.openai.com/v1/live/sessions/' + encodeURIComponent(input.providerSessionId) + '/attach', {
-    headers: { Authorization: 'Bearer ' + config.OPENAI_API_KEY },
-    handshakeTimeout: 5_000,
-    maxPayload: 1_048_576,
-  });
+  const socket = openSideband(input.providerSessionId, 5_000);
   const seen = new Set<string>();
   const pendingDelegations = new Set<string>();
   let closing = false;
   let ended = false;
+  let recovering = false;
   let closeTimer: ReturnType<typeof setTimeout> | undefined;
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let resolveFinal!: (result: LiveVoiceCloseResult) => void;
@@ -70,8 +118,8 @@ export async function attachLiveVoiceTransport(input: ModelLiveVoiceAttachInput,
   function close(): Promise<LiveVoiceCloseResult> {
     if (!closing && !ended) {
       closing = true;
-      closeTimer = setTimeout(() => finish(unconfirmed), 5_000).unref();
-      void send({ type: 'session.close', event_id: randomUUID() }).catch(() => finish(unconfirmed));
+      closeTimer = setTimeout(recover, 2_000).unref();
+      void send({ type: 'session.close', event_id: randomUUID() }).catch(recover);
     }
     return final;
   }
@@ -87,24 +135,20 @@ export async function attachLiveVoiceTransport(input: ModelLiveVoiceAttachInput,
     });
   }
 
-  function disconnected() {
-    if (!ended) {
-      finish(unconfirmed);
-      emit({ type: 'error', code: 'connection_lost' });
-    }
+  function recover() {
+    if (ended || recovering) return;
+    closing = true;
+    recovering = true;
+    clearTimeout(closeTimer);
+    // Stop media through the caller even if a transcript or delegation callback is busy.
+    void Promise.resolve().then(() => input.onEvent({ type: 'error', code: 'connection_lost' })).catch(() => {});
+    void recoverLiveVoiceTransport(input.providerSessionId, mode).then(finish, () => finish(unconfirmed));
   }
 
-  socket.on('error', disconnected);
-  socket.once('close', disconnected);
+  socket.on('error', recover);
+  socket.once('close', recover);
   socket.on('message', (raw) => {
-    let content: unknown;
-    try {
-      const bytes = Array.isArray(raw) ? Buffer.concat(raw) : Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
-      content = JSON.parse(bytes.toString('utf8'));
-    } catch {
-      return;
-    }
-    const event = decodeLiveVoiceEvent(content);
+    const event = receive(raw);
     if (!event) return;
     if ('eventId' in event) {
       if (seen.has(event.eventId)) return;
@@ -112,6 +156,7 @@ export async function attachLiveVoiceTransport(input: ModelLiveVoiceAttachInput,
       seen.add(event.eventId);
     }
     if (event.type === 'delegation') {
+      if (closing || ended) return;
       if (pendingDelegations.size >= 256 || pendingDelegations.has(event.delegationId)) return;
       pendingDelegations.add(event.delegationId);
     }

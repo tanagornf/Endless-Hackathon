@@ -48,5 +48,6 @@ export interface LiveVoiceControl {
 export interface ModelLiveVoiceUsageInput {
   usage: UsageAttribution;
   providerSessionId: string;
+  /** Final duration observed from the provider close, or null when close could not be confirmed. */
   duration: LiveVoiceDuration | null;
 }

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { config } from './config';
 import { db } from './db';
 import { AppError } from './errors';
-import { attachLiveVoiceTransport } from './live-voice-control';
+import { attachLiveVoiceTransport, recoverLiveVoiceTransport } from './live-voice-control';
 import { recordLiveVoiceDuration } from './live-voice-usage';
 import { createLiveVoiceTransport } from './live-voice';
 import { log } from './log';
@@ -479,14 +479,16 @@ export const model: ModelApi = {
       });
     } catch (error) {
       if (provider && providerSessionId) {
-        await attachLiveVoiceTransport({ providerSessionId, onEvent() {} }, mode)
-          .then((control) => control.close()).catch(() => {});
+        await recoverLiveVoiceTransport(providerSessionId, mode).catch(() => {});
       }
       throw error;
     }
   },
   attachLiveVoiceSession(input) {
     return attachLiveVoiceTransport(input, mode);
+  },
+  closeLiveVoiceSession(providerSessionId) {
+    return recoverLiveVoiceTransport(providerSessionId, mode);
   },
   recordLiveVoiceUsage: recordLiveVoiceDuration,
   async createRealtimeSession(input) {

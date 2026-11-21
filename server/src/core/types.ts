@@ -5,7 +5,7 @@ import type { FeatureId, FolderSlug, MigrationOwner } from '@nless/shared/core/f
 import type { SeedData } from '@nless/shared/core/fixtures';
 import type { Application, Request, Response } from 'express';
 import type { ZodType } from 'zod';
-import type { LiveVoiceControl, ModelLiveVoiceAttachInput, ModelLiveVoiceSession, ModelLiveVoiceSessionInput, ModelLiveVoiceUsageInput } from './live-voice-types';
+import type { LiveVoiceCloseResult, LiveVoiceControl, ModelLiveVoiceAttachInput, ModelLiveVoiceSession, ModelLiveVoiceSessionInput, ModelLiveVoiceUsageInput } from './live-voice-types';
 import type { ShopCorrectionAnalysisInput } from './shop-correction-analysis';
 export type * from './live-voice-types';
 export type { ShopCorrectionAnalysisInput } from './shop-correction-analysis';
@@ -338,6 +338,7 @@ export type ModelPriceTable = Record<string, ModelPriceRate>;
 export interface ModelApi {
   createLiveVoiceSession(input: ModelLiveVoiceSessionInput): Promise<ModelLiveVoiceSession>;
   attachLiveVoiceSession(input: ModelLiveVoiceAttachInput): Promise<LiveVoiceControl>;
+  closeLiveVoiceSession(providerSessionId: string): Promise<LiveVoiceCloseResult>;
   recordLiveVoiceUsage(input: ModelLiveVoiceUsageInput): Promise<{ usageId: string; costUsdMicros: number | null }>;
 
   /**

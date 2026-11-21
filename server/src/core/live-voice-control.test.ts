@@ -67,10 +67,28 @@ describe('Live voice controls', () => {
     expect(wire.sent.filter((event) => event.type === 'session.close')).toHaveLength(1);
   });
 
+  it('reattaches once to close provider media on transport loss and bypasses slow handlers', async () => {
+    const blocked = new Promise<void>(() => {});
+    const onEvent = vi.fn((event) => event.type === 'transcript' ? blocked : undefined);
+    wire.sent.length = 0;
+    const control = await attachLiveVoiceTransport({ providerSessionId: 'live-loss', onEvent }, 'openai');
+    push({ type: 'session.input_transcript.delta', event_id: 'evt-1', delta: 'A product', start_ms: 0, end_ms: 10 });
+    await Promise.resolve();
+    const original = wire.socket;
+    original.emit('close');
+    await vi.waitFor(() => expect(wire.sent[0]?.type).toBe('session.close'), { timeout: 200 });
+    expect(wire.socket).not.toBe(original);
+    expect(onEvent).toHaveBeenCalledWith({ type: 'error', code: 'connection_lost' });
+    push({ type: 'session.closed', event_id: 'evt-2', usage: { seconds: 4, active_seconds: 4, paused_seconds: 0 } });
+    await expect(control.close()).resolves.toEqual({ confirmed: true, duration: { seconds: 4, activeSeconds: 4, pausedSeconds: 0 } });
+    expect(wire.sent.filter((event) => event.type === 'session.close')).toHaveLength(1);
+  });
+
   it('reports transport loss without fabricating provider duration', async () => {
     const onEvent = vi.fn();
     const control = await attachLiveVoiceTransport({ providerSessionId: 'live-test', onEvent }, 'openai');
     wire.socket.emit('close');
+    wire.socket.emit('error', new Error('Synthetic failed recovery handshake'));
     await expect(control.close()).resolves.toEqual({ confirmed: false, duration: null });
     expect(onEvent).toHaveBeenCalledWith({ type: 'error', code: 'connection_lost' });
   });
