@@ -28,7 +28,7 @@ export async function loadFeatures({ api, app }: ReturnType<typeof createHttpApp
     await route.register(api(feature.id));
     if (!registered.has(route)) {
       for (const [type, handler] of Object.entries(route.jobs ?? {})) registerJob(type, handler);
-      for (const schedule of route.schedules ?? []) registerSchedule(schedule);
+      for (const schedule of route.schedules ?? []) registerSchedule(schedule, feature.id);
       registered.add(route);
     }
     if (route.mountExpress) mounts.push(route.mountExpress);

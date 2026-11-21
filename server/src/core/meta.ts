@@ -1,10 +1,13 @@
 import { execFileSync } from 'node:child_process';
 import type { Application } from 'express';
+import { FEATURES } from '@nless/shared/core/features';
 import { config, providerMode, rootDir } from './config';
 import { db } from './db';
 import { AppError } from './errors';
 import { migrationStatus } from './migrate';
+import { schedulerState } from './scheduler';
 import { checkStorage } from './storage';
+import { workerState } from './worker';
 
 function buildSha(): string {
   if (config.BUILD_SHA || config.RENDER_GIT_COMMIT) return config.BUILD_SHA || config.RENDER_GIT_COMMIT;
@@ -12,23 +15,39 @@ function buildSha(): string {
     return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch { return 'unknown'; }
 }
-const sha = buildSha();
+export const BUILD_SHA = buildSha();
+const startedAt = new Date().toISOString();
 let draining = false;
 export function markDraining(): void { draining = true; }
 
 export function mountMeta(app: Application, features: () => number) {
   app.get(['/healthz', '/health/live'], async (_req, res) => {
-    try { await db.query('SELECT 1'); }
-    catch { throw new AppError('SERVICE_NOT_READY', 'Database unavailable', { retryable: true }); }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        db.query('SELECT 1'),
+        new Promise<never>((_resolve, reject) => { timer = setTimeout(reject, 2000); }),
+      ]);
+    } catch { throw new AppError('SERVICE_NOT_READY', 'Database unavailable', { retryable: true }); }
+    finally { clearTimeout(timer); }
     res.json({ status: 'ok', db: 'ok' });
   });
   app.get(['/readyz', '/health/ready'], async (_req, res) => {
     if (draining) { res.status(503).json({ status: "draining" }); return; }
-    try {
-      if (features() < 2 || (await migrationStatus()).pending > 0) throw Error('Application unavailable');
-      await checkStorage();
-    } catch { throw new AppError('SERVICE_NOT_READY', 'Application is starting', { retryable: true }); }
-    res.json({ status: 'ready' });
+    const [migrations, storage] = await Promise.allSettled([migrationStatus(), checkStorage()]);
+    const { enabled, running, lastPollAt } = workerState();
+    const worker = { enabled, running, lastPollAt };
+    const scheduler = schedulerState();
+    const failed: string[] = [];
+    const now = Date.now();
+    if (features() !== FEATURES.length) failed.push('features');
+    if (migrations.status === 'rejected' || migrations.value.pending > 0) failed.push('migrations');
+    if (storage.status === 'rejected') failed.push('uploadDir');
+    if (enabled && (!running || !lastPollAt || now - Date.parse(lastPollAt) > 30_000)) failed.push('worker');
+    const anotherScheduler = scheduler.observedOtherAt && now - Date.parse(scheduler.observedOtherAt) <= 60_000;
+    if (scheduler.enabled && !scheduler.holdsLock && !anotherScheduler) failed.push('scheduler');
+    if (failed.length) throw new AppError('SERVICE_NOT_READY', 'Application is starting', { retryable: true, details: { failed } });
+    res.json({ status: 'ready', worker, scheduler, migrations: migrations.status === 'fulfilled' ? migrations.value : null, uploadDir: 'ok' });
   });
   app.get('/build-info', async (_req, res) => {
     const schema = await migrationStatus().then((state) => state.schema, () => null);
@@ -38,7 +57,7 @@ export function mountMeta(app: Application, features: () => number) {
       realtime: config.OPENAI_REALTIME_MODEL,
     };
     res.json({
-      sha, lane: config.LANE, env: config.NODE_ENV, schema, modelMode: config.MODEL_MODE, models, featuresLoaded: features(),
+      sha: BUILD_SHA, startedAt, lane: config.LANE, env: config.NODE_ENV, schema, modelMode: config.MODEL_MODE, models, featuresLoaded: features(),
       providerModes: { line: providerMode('line'), meta: providerMode('meta'), google: providerMode('google'), payment: providerMode('payment'), slip: config.SLIP_VERIFY_MODE },
     });
   });
