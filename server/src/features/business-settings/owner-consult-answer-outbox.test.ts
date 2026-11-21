@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { flushOwnerConsultAnswerOutbox, registerOwnerConsultAnswerConsumer } from './owner-consult-answer-outbox';
 
 const mocks = vi.hoisted(() => ({ claim: vi.fn(), settle: vi.fn(), enqueue: vi.fn(), warn: vi.fn() }));
 vi.mock('../../core', () => ({
@@ -17,14 +16,22 @@ beforeEach(() => {
   mocks.claim.mockResolvedValue(null);
 });
 
+async function freshOutbox() {
+  vi.resetModules();
+  return import('./owner-consult-answer-outbox');
+}
+
 describe('owner answer queue', () => {
   it('keeps committed work available while the F10 consumer is unregistered', async () => {
+    const { flushOwnerConsultAnswerOutbox } = await freshOutbox();
+    mocks.claim.mockResolvedValueOnce({ ...job, conversationId, attempts: 1 });
     await flushOwnerConsultAnswerOutbox();
     expect(mocks.claim).not.toHaveBeenCalled();
     expect(mocks.enqueue).not.toHaveBeenCalled();
   });
 
   it('reuses one tenant-owned F10 job after an ambiguous enqueue', async () => {
+    const { flushOwnerConsultAnswerOutbox, registerOwnerConsultAnswerConsumer } = await freshOutbox();
     registerOwnerConsultAnswerConsumer();
     mocks.claim.mockResolvedValueOnce({ ...job, conversationId, attempts: 1 });
     mocks.enqueue.mockRejectedValueOnce(new Error('acknowledgement lost'));

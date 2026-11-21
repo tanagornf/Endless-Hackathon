@@ -272,8 +272,6 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
       'SELECT id,payload,dedup_key,lock_key FROM jobs WHERE business_id=$1 AND type=$2',
       [input.businessId, OWNER_CONSULT_ANSWER_JOB],
     );
-    await flushOwnerConsultAnswerOutbox();
-    expect((await jobsForShop()).rows).toEqual([]);
     registerOwnerConsultAnswerConsumer();
     await Promise.all([flushOwnerConsultAnswerOutbox(), flushOwnerConsultAnswerOutbox()]);
     await flushOwnerConsultAnswerOutbox();
@@ -282,8 +280,8 @@ describe('F04 owner consultation', { timeout: 20_000 }, () => {
       id: expect.any(String), payload: key, dedup_key: 'ai-owner-answer:' + input.businessId + ':' + key.answerReceiptId,
       lock_key: 'conversation:' + input.conversationId,
     }]);
-    expect(await db.one('SELECT job_id FROM owner_consult_answer_outbox WHERE business_id=$1 AND answer_receipt_id=$2',
-      [input.businessId, key.answerReceiptId])).toMatchObject({ job_id: (rows[0] as { id: string }).id });
+    expect(await db.one('SELECT job_id, queued_at IS NOT NULL AS queued FROM owner_consult_answer_outbox WHERE business_id=$1 AND answer_receipt_id=$2',
+      [input.businessId, key.answerReceiptId])).toEqual({ job_id: (rows[0] as { id: string }).id, queued: true });
     expect(await readOwnerConsultAnswer(key)).toMatchObject({
       answer, conversationId: input.conversationId, triggerMessageId: input.triggerMessageId,
     });
