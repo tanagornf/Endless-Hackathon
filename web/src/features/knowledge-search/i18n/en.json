@@ -120,6 +120,20 @@
     "unknown": "The previous run has no comparable scope information.",
     "scope_changed": "Indexed sources changed during this run. Comparison is unavailable."
   },
+  "fixture": {
+    "title": "Sample test set",
+    "load": "Load sample set",
+    "remove": "Remove sample set",
+    "confirmLoad": "Load and activate 12 synthetic knowledge items in this demo shop?",
+    "confirmRemove": "Archive the sample items in this demo shop?",
+    "queued": "Sample set queued",
+    "loading": "Loading sample items…",
+    "progress": "{{done}} of {{total}} sample items active",
+    "ready": "Sample items are active and ready to evaluate.",
+    "cancelled": "Sample loading was cancelled.",
+    "removed": "Archived {{count}} sample items.",
+    "error": "Could not complete the sample set operation."
+  },
   "group": {
     "all": "All groups",
     "th": "Thai",
