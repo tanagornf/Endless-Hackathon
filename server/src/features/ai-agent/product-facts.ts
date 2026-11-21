@@ -45,8 +45,8 @@ const compatibility = new RegExp(
   ')|(?:if|whether) (.+?) (?:supports|has) (' + standardNames +
   ')|(.+?)\\s*รองรับ\\s*(' + standardNames + ')\\s*(?:ไหม|มั้ย|หรือไม่))$', 'iu',
 );
-// Only recognizable consumer model families can be looked up without a tenant catalog match.
-const publicModel = /^(?:iphone \d{1,2}(?: pro(?: max)?| plus| mini|e)?|ipad (?:pro|air|mini)(?: m\d| \d{1,2})?|apple watch series \d{1,2}|(?:samsung )?galaxy [asz]\d{1,3}(?: ultra| plus| fe)?|(?:google )?pixel \d{1,2}(?: pro(?: xl)?|a)?|sony (?:wh|wf)-\d{4}xm\d|nintendo switch(?: 2| oled| lite)?)$/iu;
+// A tenant's display name is not a public identifier. This list covers known public consumer models.
+const publicModel = /^(?:(?:apple )?iphone (?:(?:12|13)(?: mini| pro(?: max)?)?|(?:14|15|16)(?: plus| pro(?: max)?)?|16e|17(?: pro(?: max)?)?)|ipad (?:pro|air|mini)|apple watch series (?:8|9|10|11)|(?:samsung )?galaxy s(?:22|23|24|25)(?: ultra| plus)?|(?:google )?pixel (?:7(?: pro|a)?|8(?: pro|a)?|9(?: pro(?: xl)?|a)?)|sony (?:wh-1000xm[3456]|wf-1000xm[345])|nintendo switch(?: 2| oled| lite)?)$/iu;
 
 // A single allowlisted fact request can go to the web. Unmatched subjects stay in tenant catalog lookup.
 interface FactQuestion {
@@ -89,13 +89,16 @@ const publicProductName = z.string().min(2).max(90)
 const publicSearchTerms = /^[\p{L}\p{M}\p{N} -]+$/u;
 const normalizeName = (value: string) => value.normalize('NFKC').trim().toLocaleLowerCase();
 const restricted = /ราคา|บาท|ส่วนลด|โปรโมชัน|โปรโมชั่น|ประกัน|รับคืน|คืนสินค้า|คืนเงิน|ค่าส่ง|จัดส่ง|ขนส่ง|พร้อมส่ง|สต็อก|สินค้าหมด|คงเหลือ|มีของ|มีสินค้า|ชำระ|รับออเดอร์|รับคำสั่งซื้อ|รับประกัน|จอง|\b(?:baht|thb|usd|eur|gbp|prices?|costs?|discounts?|promotions?|coupons?|stock|inventory|sold out|we have|we offer|our (?:shop|store)|currently available|shipping|delivery|warrant(?:y|ies)|guarantee[ds]?|refunds?|returns?|policy|policies|orders?|checkout|bookings?|payments?|purchase|buy|ships?)\b|[$€£¥฿]/iu;
+const commerceClaim = /ให้ฟรี|แจกฟรี|ได้ฟรี|ฟรี(?:ค่ะ|ครับ|คะ|นะ|[.!?,]|$)|ไม่มีค่าใช้จ่าย|ไม่เสียค่าใช้จ่าย|ซื้อได้|สั่งได้|\b(?:is|are|it's|they're|comes?)\s+(?:(?:still|now|currently|completely)\s+)?(?:free(?![-\w])|available(?=\s*(?:[.!?,]|$)))|\b(?:for free|free of charge|no (?:(?:extra|additional) )?charge|complimentary|available (?:now|today|for pickup|to order)|ready for pickup)\b/iu;
+const commerceSourceTitle = /\b(?:free|availability)\b|ฟรี/iu;
+const reassuranceOnly = /^(?:yes|no|sure|of course|certainly|ใช่(?:ค่ะ|ครับ)?|ได้(?:ค่ะ|ครับ)?)\s*[.!?。！？]*$/iu;
 const sourceHeader = { th: 'ข้อมูลจากแหล่งสาธารณะ', en: 'Information from public sources' };
 const sourceHeading = { th: 'แหล่งอ้างอิง', en: 'Source' };
 const inconclusive = /ไม่พบ(?:ข้อมูล|แหล่ง)|ยืนยันไม่ได้|\b(?:could(?:n't| not) verify|could(?:n't| not) find|no reliable source|not enough information)\b/iu;
 
 const sourceSchema = z.object({
   url: z.string().max(650),
-  title: z.string().trim().min(1).max(300),
+  title: z.string().trim(),
 });
 type Source = z.infer<typeof sourceSchema>;
 
@@ -109,8 +112,9 @@ function sourceList(citations: unknown): Source[] {
     if (!url || url.protocol !== 'https:' || url.username || url.password || url.port ||
         !url.hostname.includes('.') || url.hostname.endsWith('.') || isIP(url.hostname) ||
         /\.(?:local|internal|localhost)$/iu.test(url.hostname)) continue;
-    const title = parsed.data.title.replace(/[\p{C}\s]+/gu, ' ')
+    const cleanTitle = parsed.data.title.replace(/[\p{C}\s]+/gu, ' ')
       .replace(/\b(?:https?:\/\/|www\.)\S+/giu, '').trim() || url.hostname;
+    const title = cleanTitle.length > 300 || isCommerce(cleanTitle) || commerceSourceTitle.test(cleanTitle) ? url.hostname : cleanTitle;
     if (!sources.has(url.href)) sources.set(url.href, { url: url.href, title });
     if (sources.size === 3) break;
   }
@@ -118,12 +122,39 @@ function sourceList(citations: unknown): Source[] {
 }
 
 function factText(value: unknown, context: ReplyContext): string | null {
-  const parsed = z.string().trim().min(1).max(650).safeParse(value);
+  const parsed = z.string().trim().min(1).max(8_000).safeParse(value);
   if (!parsed.success) return null;
-  const checked = inspectReply(parsed.data, { ...context, contact: '', knowledge: [] });
-  const text = checked.text.replace(/\[\d+\]|【[^】]*】/gu, '').trim();
+  const display = parsed.data
+    .replace(/\s*\(\[[^\]\r\n]+\]\(https?:\/\/[^\s)]+\)\)/giu, '')
+    .replace(/\[([^\]\r\n]+)\]\(https?:\/\/[^\s)]+\)/giu, '$1')
+    .replace(/https?:\/\/[^\s<>]+|www\.[^\s<>]+|\[\d+\]|【[^】]*】/giu, '').trim();
+  const checked = inspectReply(stripCommerce(display), { ...context, contact: '', knowledge: [] });
+  const text = shortFact(checked.text, context.language);
   const hasLanguage = context.language === 'th' ? /\p{Script=Thai}/u.test(text) : /\p{Script=Latin}/u.test(text);
-  return checked.violations.length || restricted.test(text) || !hasLanguage ? null : text;
+  return checked.violations.length || isCommerce(text) || !hasLanguage ? null : text;
+}
+
+function stripCommerce(text: string): string {
+  if (!isCommerce(text)) return text;
+  return text.split(/\n+|(?<=[.!?。！？])\s+|(?<=ค่ะ|ครับ|คะ)\s+/u)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => !isCommerce(sentence) && !reassuranceOnly.test(sentence))
+    .join('\n');
+}
+
+function shortFact(text: string, language: CustomerLanguage): string {
+  if (text.length <= 650) return text;
+  let excerpt = '';
+  const sentences = new Intl.Segmenter(language, { granularity: 'sentence' }).segment(text);
+  for (const { segment } of sentences) {
+    if (excerpt.length + segment.trimEnd().length > 650) break;
+    excerpt += segment;
+  }
+  return excerpt.trim();
+}
+
+function isCommerce(text: string): boolean {
+  return restricted.test(text) || commerceClaim.test(text);
 }
 
 const localResult = z.object({ answer: z.string().nullable(), evidenceIds: z.array(z.string()).max(7) });
@@ -212,8 +243,8 @@ export async function replyWithProductFact(input: {
   const fail = () => fallback(language, 'no_answer', productRefs);
 
   const publicName = publicProductName.safeParse(variant ? variant.name : product ? product.nameEn || product.name : subject);
-  const publicQuestion = publicName.success && !restricted.test(publicName.data) &&
-    (standard || (product && !variant) || publicModel.test(publicName.data))
+  const publicQuestion = publicName.success && !isCommerce(publicName.data) &&
+    (standard || publicModel.test(publicName.data))
     ? publicName.data + ' · ' + topic + ' (' + language + ')' : null;
   let hasDraft = false;
   if (publicQuestion) {
@@ -309,9 +340,13 @@ export async function replyWithProductFact(input: {
   }
   const trace = { name: 'web_search', ok: false, ms: elapsed(searchStarted) };
   const sources = sourceList(web.citations);
+  if (!sources.length) {
+    context.tools.push({ ...trace, error: web.citations.length ? 'NO_VALID_WEB_CITATIONS' : 'NO_WEB_CITATIONS' });
+    return fail();
+  }
   const answer = factText(web.answer, context);
-  if (!answer || !sources.length || inconclusive.test(answer)) {
-    context.tools.push({ ...trace, error: 'NO_CITED_ANSWER' });
+  if (!answer || inconclusive.test(answer)) {
+    context.tools.push({ ...trace, error: 'NO_USABLE_WEB_ANSWER' });
     return fail();
   }
   context.tools.push({ ...trace, ok: true });
