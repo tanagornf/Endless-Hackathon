@@ -1,4 +1,20 @@
 {
+  "scope": "Live customer conversations and their orders in the selected Bangkok calendar period.",
+  "range": "Reporting period",
+  "days": "Last {{value}} days",
+  "customers": "Customers",
+  "conversations": "Active chats",
+  "orders": "Non-cancelled orders from these chats",
+  "handoffs": "Chats handed to staff",
+  "products": "Products referenced in AI replies",
+  "productCounts": "{{chats}} chats · {{pending}} without an order for this SKU in the same chat and period",
+  "noProducts": "No catalog-backed product replies in this period.",
+  "suggestion": "Review price, stock and delivery information for {{name}}. It appeared in {{chats}} chats without a matching order in this period.",
+  "handoffAdvice": "Review the questions in the {{chats}} chats handed to staff for answers worth adding to Knowledge.",
+  "loading": "Loading report",
+  "error": "Could not load the shop report.",
+  "retry": "Retry",
+  "empty": "No live customer chats in this period.",
   "menu": {
     "title": "Insights"
   },
