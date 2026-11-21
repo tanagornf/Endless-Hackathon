@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EffectiveAnswerRules } from '@nless/shared/features/business-settings/types';
 import type { AiReplyJobPayload, MessageRecord, SaveMessageResult } from '@nless/shared/features/inbox/types';
-import { AppError, db, model } from '../../core';
+import { AppError, db, drainJobs, model } from '../../core';
 import type { JobContext, ModelChatInput, ModelToolCall } from '../../core';
 import * as channels from '../../core/channels';
 import { closeDb } from '../../core/db';
@@ -100,6 +100,10 @@ const priceArguments = (sku: string | null, name: string | null, quantity: numbe
 
 beforeEach(() => {
   vi.spyOn(settings, 'getEffectiveAnswerRules').mockResolvedValue(allow);
+  vi.spyOn(settings, 'getBusinessOpenState').mockResolvedValue({
+    open: true, reason: 'open', timezone: 'Asia/Bangkok', nextOpenAt: null, closure: null,
+    localDate: '2026-11-21', localTime: '12:00',
+  });
   // These direct-handler tests share the lane DB with the real delivery integration.
   // Keep their unrelated sends out of the integration queue.
   vi.spyOn(channels, 'sendToCustomer').mockImplementation(async (conversationId, _parts, options) => ({
@@ -643,6 +647,21 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'takeover_during_generation', handoff_assignment_version: null });
     expect(await replies(inbound.conversation.id)).toEqual([]);
     expect(channels.sendToCustomer).not.toHaveBeenCalled();
+  });
+
+  it('sends the queued acknowledgement at its F11 version and suppresses it after a staff claim', async () => {
+    vi.spyOn(channels, 'sendToCustomer').mockImplementation(originalSend);
+    const current = await incoming('Can I talk to a real person please?');
+    const claimed = await incoming('Can I speak to a human?');
+    await execute(current);
+    await execute(claimed);
+    expect((await replies(current.conversation.id))[0].delivery.state).toBe('pending');
+    expect((await replies(claimed.conversation.id))[0].delivery.state).toBe('pending');
+
+    await assignConversation(claimed.conversation.id, seedId('staff_a'), { businessId });
+    await drainJobs({ type: 'core.deliver' });
+    expect((await replies(current.conversation.id))[0].delivery.state).toBe('sent');
+    expect((await replies(claimed.conversation.id))[0].delivery).toMatchObject({ state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' });
   });
 
   it('opens a scoped fallback wait and sends no version marker when F11 throws', async () => {
