@@ -98,6 +98,22 @@ describe('LINE channel sender', () => {
     expect(await sender.send(delivery(51_000))).toMatchObject({ state: 'sent', externalRef: 'prior-request' });
   });
 
+  it('keeps a reply with an ambiguous HTTP 5xx from being resent as Push', async () => {
+    let pending = false;
+    mocks.reserve.mockImplementation(async () => { pending = true; return true; });
+    mocks.clear.mockImplementation(async () => { pending = false; });
+    mocks.batch.mockImplementation(async () => pending ? { state: 'unknown' } : null);
+    mocks.request.mockResolvedValueOnce(response(502));
+
+    const initial = await sender.send(delivery());
+    const replay = await sender.send({ ...delivery(51_000), attempt: 2 });
+
+    expect(initial).toMatchObject({ state: 'unknown' });
+    expect(replay).toMatchObject({ state: 'unknown' });
+    expect(mocks.clear).not.toHaveBeenCalled();
+    expect(mocks.request.mock.calls.map(([path]) => path)).toEqual(['/v2/bot/message/reply']);
+  });
+
   it('splits batches at five messages and skips already accepted batches on retry', async () => {
     const input = { ...delivery(), parts: Array.from({ length: 7 }, (_, index) => ({ type: 'text' as const, text: String(index) })) };
     mocks.request.mockResolvedValueOnce(response(200)).mockResolvedValueOnce(response(500));
