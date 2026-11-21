@@ -17,3 +17,4 @@
 - npm test -- team passed 6 service and route tests on the reserved A1 test database with MODEL_MODE=fake. The suite covered concurrent takeover, forced takeover, stale versions, tenant isolation, permissions, handoff idempotency, audit and internal notes.
 - The job test observed a Thai reply, preserved an inbound message while takeover paused replies, then observed an English reply on the next customer message after handback.
 - npm run typecheck and npm run check:paths passed. The initial local run reached the five-second default timeout in two cases. Both passed with a remote database test timeout of twenty seconds.
+- The first GitHub check passed all six F11 tests and identified a missing web registry entry. The unlisted /team route now redirects to /chat while the team schedule page awaits its slice. The local web registry and i18n suites passed 32/32 and typecheck passed.
