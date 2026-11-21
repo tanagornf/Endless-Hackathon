@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { FEATURES } from '@nless/shared/core/features';
 import { StatusChip, useApiQuery } from '../ui';
 import { actionSize, dash, opsDate, opsPath, OpsSearch, OpsTable, platformScope, useSearchFilter } from './OpsControls';
-import type { OpsRouteRow, OpsScheduleRow } from './opsTypes';
+import type { OpsRouteRow, OpsScheduleRow } from '@nless/shared/core/ops';
 
 function missingSchedule(row: OpsScheduleRow) {
   return row.source === 'expected_missing' && row.status === 'declared';

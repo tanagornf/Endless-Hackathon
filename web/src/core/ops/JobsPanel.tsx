@@ -8,10 +8,10 @@ import {
   actionSize, dash, OpsError, OpsSearch, OpsTable, Pagination, opsDate, opsPath, platformScope,
   reportUnavailableAction, useSearchFilter, useVisiblePolling,
 } from './OpsControls';
-import { jobStates } from './opsTypes';
-import type { OpsJobDetail, OpsJobRow, OpsSummary } from './opsTypes';
+import type { OpsJobDetail, OpsJobRow, OpsSummary } from '@nless/shared/core/ops';
 
 type JobAction = { row: OpsJobRow; kind: 'retry' | 'cancel' | 'retryDead' };
+const jobStates = ['queued', 'running', 'succeeded', 'failed', 'dead', 'cancelled'] as const satisfies readonly OpsJobRow['state'][];
 const retryLimit = 100;
 const retryable = new Set<JobState>(['queued', 'failed', 'dead', 'cancelled']);
 

@@ -7,7 +7,7 @@ import { getFailure } from '../ui/toast';
 import {
   actionSize, opsDate, opsPath, OpsError, OpsSearch, OpsTable, Pagination, platformScope, useSearchFilter, useVisiblePolling,
 } from './OpsControls';
-import type { DemoResetResult, OpsAuditRow, OpsBuild, OpsSummary } from './opsTypes';
+import type { DemoResetResult, OpsAuditRow, OpsBuild, OpsSummary } from '@nless/shared/core/ops';
 
 const resetPhrase = 'RESET DEMO';
 

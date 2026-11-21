@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Page } from '@nless/shared/core/types';
 import { ConfirmDialog, useApiMutation, useApiQuery, useToast } from '../ui';
 import { actionSize, opsDate, opsPath, OpsTable, Pagination, platformScope, reportUnavailableAction } from './OpsControls';
-import type { OpsDeliveryRow } from './opsTypes';
+import type { OpsDeliveryRow } from '@nless/shared/core/ops';
 
 const resolutions = { sent: 'markSent', failed: 'markFailed', resend: 'resend' } as const;
 type Resolution = keyof typeof resolutions;

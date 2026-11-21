@@ -2,10 +2,10 @@ import { Alert, Button, Checkbox, Stack, Switch, TextField } from '@mui/material
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FEATURES } from '@nless/shared/core/features';
-import type { FeatureFlagView } from '@nless/shared/core/types';
+import type { FeatureFlagView, SetFeatureFlagBody } from '@nless/shared/core/types';
 import { ConfirmDialog, StatusChip, useApiMutation, useApiQuery, useToast } from '../ui';
 import { actionSize, OpsTable, platformScope } from './OpsControls';
-import type { OpsFeatureRow } from './opsTypes';
+import type { OpsFeatureRow } from '@nless/shared/core/ops';
 
 type FlagAction = { kind: 'single'; id: string } | { kind: 'bulk'; ids: string[] };
 const canHide = (row: OpsFeatureRow) => FEATURES.some((feature) => feature.id === row.featureId && feature.folder);
@@ -18,7 +18,7 @@ export function FeaturesPanel() {
   const [action, setAction] = useState<FlagAction | null>(null);
   const [singleId, setSingleId] = useState<string>();
   const query = useApiQuery<{ production: boolean; items: OpsFeatureRow[] }>('/ops/features', platformScope);
-  const single = useApiMutation<{ hidden: boolean; reason?: string }, FeatureFlagView>('PUT',
+  const single = useApiMutation<SetFeatureFlagBody, FeatureFlagView>('PUT',
     '/ops/features/' + encodeURIComponent(action?.kind === 'single' ? action.id : singleId ?? ''), platformScope);
   const bulk = useApiMutation<{ hide: string[]; show: string[]; reason?: string }, unknown>('POST', '/ops/features/bulk', platformScope);
   const rows = query.data?.items ?? [];
