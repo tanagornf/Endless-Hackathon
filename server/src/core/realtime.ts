@@ -86,7 +86,9 @@ export function attachRealtime(server: Server) {
 }
 
 export function publish(businessId: string, event: RealtimeEvent, opts?: { userIds?: string[] }): void {
-  const needsChatRead = event.type === 'message.created' || event.type === 'message.updated' || event.type === 'conversation.updated';
+  const needsChatRead = event.type === 'message.created' || event.type === 'message.updated' || event.type === 'conversation.updated'
+    || (event.type === 'custom' && ((event.featureId === 'F09' && event.name === 'inbox.read')
+      || (event.featureId === 'F10' && event.name === 'ai.turn')));
   let payload: string | undefined;
   for (const client of subscribers) {
     const subscription = client.subscription;

@@ -60,14 +60,13 @@ test('an open WebSocket drops revoked chat access and closes when membership is 
     const denied = message('Synthetic chat after grant removal');
     const update = { type: 'message.updated', conversationId, messageId: randomUUID(), delivery: { mode: 'real', state: 'sent' } } as const;
     const assignment = { type: 'conversation.updated', conversationId, handler: 'human', status: 'open', assigneeUserId: null, version: 2 } as const;
-    publish(businessId, denied);
-    publish(businessId, update);
-    publish(businessId, assignment);
+    const inboxRead = { type: 'custom', featureId: 'F09', name: 'inbox.read', data: { conversationId } } as const;
+    const aiTurn = { type: 'custom', featureId: 'F10', name: 'ai.turn', data: { turnId: randomUUID(), state: 'completed' } } as const;
+    const restricted = [denied, update, assignment, inboxRead, aiTurn];
+    for (const event of restricted) publish(businessId, event);
     publish(businessId, control('still-a-member'));
     await vi.waitFor(() => expect(sawControl('still-a-member')).toBe(true), { timeout: 3_000 });
-    expect(received).not.toContainEqual({ businessId, ...denied });
-    expect(received).not.toContainEqual({ businessId, ...update });
-    expect(received).not.toContainEqual({ businessId, ...assignment });
+    for (const event of restricted) expect(received).not.toContainEqual({ businessId, ...event });
 
     await db.query('DELETE FROM memberships WHERE business_id=$1 AND user_id=$2', [businessId, staff.id]);
     const closed = once(socket, 'close');
