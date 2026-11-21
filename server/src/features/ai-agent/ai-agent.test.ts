@@ -8,6 +8,7 @@ import { AppError, db, drainJobs, model } from '../../core';
 import type { JobContext, ModelChatInput, ModelToolCall } from '../../core';
 import * as channels from '../../core/channels';
 import { closeDb } from '../../core/db';
+import * as realtime from '../../core/realtime';
 import { seedId } from '../../core/seed';
 import * as settings from '../business-settings/service';
 import * as catalog from '../catalog/service';
@@ -18,6 +19,7 @@ import * as team from '../team/service';
 import { getHistory, saveMessage } from '../inbox/service';
 import { assignConversation } from '../team/service';
 import { fallbacks } from './fallbacks';
+import * as turnRepo from './repo';
 import { aiReplyJobHandler, generateReply, getTurnTrace } from './service';
 import { runTool } from './tools';
 import { runAiTurn } from './turn';
@@ -50,6 +52,7 @@ type TraceRow = {
   intent_confidence: string | null;
   handoff_offered: boolean;
   escalated: boolean;
+  handoff_expected_version: number | null;
   handoff_assignment_version: number | null;
 };
 
@@ -639,7 +642,7 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
   it('G9 and G19 acknowledge Thai once, stay silent for staff and resume after handback', async () => {
     const inbound = await incoming('ขอคุยกับพนักงานหน่อยครับ');
     const chat = vi.spyOn(model, 'chat');
-    const assignment = vi.spyOn(team, 'requestHumanHandoff');
+    const assignment = vi.spyOn(team, 'applyAiHandoff');
     const writes = vi.spyOn(inbox, 'saveMessage');
     const notify = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
     await execute(inbound);
@@ -690,7 +693,7 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
 
   it('retries delivery using the same saved acknowledgement and the same successful F11 version', async () => {
     const inbound = await incoming('Can I speak to a human?');
-    const assignment = vi.spyOn(team, 'requestHumanHandoff');
+    const assignment = vi.spyOn(team, 'applyAiHandoff');
     const writes = vi.spyOn(inbox, 'saveMessage');
     const sends = vi.spyOn(channels, 'sendToCustomer')
       .mockRejectedValueOnce(new AppError('SERVICE_NOT_READY', 'Synthetic retryable delivery error', { retryable: true }));
@@ -710,10 +713,10 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
 
   it('drops the acknowledgement when AI is disabled before its save', async () => {
     const inbound = await incoming('Can I speak to a human?');
-    const handoff = team.requestHumanHandoff;
+    const handoff = team.applyAiHandoff;
     let enabled = true;
     vi.spyOn(settings, 'getBusinessSettings').mockImplementation(async (id) => ({ ...(await originalSettings(id)), aiEnabled: enabled }));
-    vi.spyOn(team, 'requestHumanHandoff').mockImplementationOnce(async (...input) => {
+    vi.spyOn(team, 'applyAiHandoff').mockImplementationOnce(async (...input) => {
       const result = await handoff(...input);
       enabled = false;
       return result;
@@ -726,8 +729,8 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
 
   it('does not acknowledge a manual assignment that raced with the F11 handoff', async () => {
     const inbound = await incoming('Can I speak to a human?');
-    const handoff = team.requestHumanHandoff;
-    vi.spyOn(team, 'requestHumanHandoff').mockImplementationOnce(async (...input) => {
+    const handoff = team.applyAiHandoff;
+    vi.spyOn(team, 'applyAiHandoff').mockImplementationOnce(async (...input) => {
       await assignConversation(inbound.conversation.id, seedId('staff_a'), { businessId });
       return handoff(...input);
     });
@@ -764,7 +767,7 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
   it('opens a scoped fallback wait and sends no version marker when F11 throws', async () => {
     const inbound = await incoming('ขอคุยกับพนักงานค่ะ');
     const notify = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
-    vi.spyOn(team, 'requestHumanHandoff').mockRejectedValueOnce(new AppError('SERVICE_NOT_READY'));
+    vi.spyOn(team, 'applyAiHandoff').mockRejectedValueOnce(new AppError('SERVICE_NOT_READY'));
     const writes = vi.spyOn(inbox, 'saveMessage');
     await execute(inbound);
     const next = await incoming('A-GAME-01 ราคาเท่าไหร่', inbound);
@@ -782,7 +785,7 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
   it('G18 hands off once and sends a fixed apology after three failed model attempts', async () => {
     const inbound = await incoming('A-GAME-01 ราคาเท่าไหร่');
     const chat = vi.spyOn(model, 'chat').mockRejectedValue(new AppError('PROVIDER_UNAVAILABLE', 'Synthetic model error', { retryable: true }));
-    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    const handoff = vi.spyOn(team, 'applyAiHandoff');
     for (const attempt of [1, 2]) {
       expect(await execute(inbound)).toHaveProperty('retryAt');
       const failed = await trace(inbound.message.id);
@@ -791,26 +794,32 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     }
     await execute(inbound);
     expect(chat).toHaveBeenCalledTimes(3);
-    expect(handoff).toHaveBeenCalledExactlyOnceWith(inbound.conversation.id, { reason: 'ai_failed', actor: 'ai' }, { businessId });
+    expect(handoff).toHaveBeenCalledExactlyOnceWith({
+      businessId, conversationId: inbound.conversation.id, reason: 'ai_failed',
+      turnId: expect.any(String), expectedVersion: inbound.conversation.version,
+    });
     expect((await replies(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.ai_failed.th]);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', error_code: 'PROVIDER_UNAVAILABLE', attempts: 3, escalated: true });
   });
 
   it('uses the localized budget fallback and hands off without a repair call', async () => {
     const chat = vi.spyOn(model, 'chat').mockRejectedValue(new AppError('PROVIDER_BUDGET_EXHAUSTED'));
-    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    const handoff = vi.spyOn(team, 'applyAiHandoff');
     const inbound = await incoming('How much is A-GAME-01?');
     await execute(inbound);
     expect((await replies(inbound.conversation.id))[0].text).toBe(fallbacks.budget_handoff.en);
     expect(await trace(inbound.message.id)).toMatchObject({ state: 'handoff', error_code: 'PROVIDER_BUDGET_EXHAUSTED' });
-    expect(handoff).toHaveBeenCalledExactlyOnceWith(inbound.conversation.id, { reason: 'budget_exhausted', actor: 'ai' }, { businessId });
+    expect(handoff).toHaveBeenCalledExactlyOnceWith({
+      businessId, conversationId: inbound.conversation.id, reason: 'budget_exhausted',
+      turnId: expect.any(String), expectedVersion: inbound.conversation.version,
+    });
     expect(chat).toHaveBeenCalledTimes(1);
   });
 
   it('notifies the owners after a model failure when handoff is disabled', async () => {
     vi.spyOn(settings, 'getEffectiveAnswerRules').mockResolvedValue({ ...allow, handoff: false });
     vi.spyOn(model, 'chat').mockRejectedValue(new AppError('PROVIDER_UNAVAILABLE'));
-    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    const handoff = vi.spyOn(team, 'applyAiHandoff');
     const notify = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
     const inbound = await incoming('How much is A-GAME-01?');
     await execute(inbound);
@@ -822,6 +831,101 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
       businessId, to: { role: 'owners' }, type: 'system', dedupKey: 'ai-failed:' + turn.id,
     }));
     expect(handoff).not.toHaveBeenCalled();
+  });
+});
+
+describe('F10 F11 receipt recovery', { timeout: 20_000 }, () => {
+  it('recovers after assignment commits and before the F10 checkpoint, then sends one ACK', async () => {
+    const inbound = await incoming('ขอคุยกับพนักงานหน่อยค่ะ');
+    const { id: conversationId, version: expectedVersion } = inbound.conversation;
+    const apply = vi.spyOn(team, 'applyAiHandoff');
+    const checkpoint = vi.spyOn(turnRepo, 'recordHandoff').mockRejectedValueOnce(new Error('Synthetic worker exit before F10 checkpoint'));
+    const notify = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
+    const published = vi.spyOn(realtime, 'publish');
+    const enqueue = vi.spyOn(channels, 'sendToCustomer').mockImplementation(originalSend);
+    const chat = vi.spyOn(model, 'chat');
+
+    await expect(execute(inbound)).rejects.toThrow('Synthetic worker exit before F10 checkpoint');
+    const prepared = await trace(inbound.message.id);
+    expect(prepared).toMatchObject({
+      state: 'running', handoff_expected_version: expectedVersion, handoff_assignment_version: null,
+      escalated: false, reply_message_id: null,
+    });
+    const intent = { businessId, conversationId, turnId: prepared.id, reason: 'customer_request', expectedVersion };
+    expect(await team.getAiHandoffReceipt(intent)).toEqual({ ...intent, committedVersion: expectedVersion + 1 });
+    expect(await replies(conversationId)).toEqual([]);
+    expect(await generateReply(conversationId, { triggerMessageId: inbound.message.id })).toMatchObject({ state: 'pending' });
+
+    await execute(inbound);
+    await execute(inbound);
+    await drainJobs({ type: 'core.deliver' });
+
+    const [reply] = await replies(conversationId);
+    const history = (await getHistory(conversationId, { businessId })).items;
+    expect(history.filter(({ author }) => author === 'system')).toHaveLength(1);
+    expect(history.filter(({ author }) => author === 'ai')).toHaveLength(1);
+    expect(reply).toMatchObject({ text: fallbacks.escalation_ack.th, delivery: { state: 'sent' } });
+    expect(await trace(inbound.message.id)).toMatchObject({
+      id: prepared.id, state: 'handoff', handoff_assignment_version: expectedVersion + 1, reply_message_id: reply.id, attempts: 2,
+    });
+    expect(apply).toHaveBeenCalledExactlyOnceWith(intent);
+    expect(checkpoint).toHaveBeenCalledTimes(2);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(chat).not.toHaveBeenCalled();
+    expect(published.mock.calls.filter(([, event]) =>
+      event.type === 'conversation.updated' && event.conversationId === conversationId && event.handler === 'human',
+    )).toHaveLength(1);
+    expect(published.mock.calls.filter(([, event]) =>
+      event.type === 'message.updated' && event.messageId === reply.id && event.delivery.state === 'sent',
+    )).toHaveLength(1);
+  });
+
+  it('reconciles a lost F11 apply acknowledgement instead of opening a fallback', async () => {
+    const inbound = await incoming('Can I speak to a human?');
+    const realApply = team.applyAiHandoff;
+    const notify = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
+    const apply = vi.spyOn(team, 'applyAiHandoff').mockImplementationOnce(async (intent) => {
+      const receipt = await realApply(intent);
+      if (!receipt) throw new Error('Expected a committed F11 receipt');
+      throw new Error('Synthetic lost F11 response after commit');
+    });
+    const save = vi.spyOn(inbox, 'saveMessage');
+    await execute(inbound);
+    const finished = await trace(inbound.message.id);
+    expect(finished).toMatchObject({ state: 'handoff', handoff_assignment_version: inbound.conversation.version + 1, attempts: 1 });
+    expect((await replies(inbound.conversation.id)).map(({ text }) => text)).toEqual([fallbacks.escalation_ack.en]);
+    expect(save.mock.calls.filter(([input]) => input.author === 'ai').map(([input]) => input.providerMeta)).toEqual([
+      { nlessHandoffAckVersion: finished.handoff_assignment_version },
+    ]);
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['staff claim', 'handback and requeue', 'AI off'] as const)('suppresses a recovered ACK after %s', async (change) => {
+    const inbound = await incoming('Can I speak to a human?');
+    const { id: conversationId } = inbound.conversation;
+    const apply = vi.spyOn(team, 'applyAiHandoff');
+    const requeue = team.requestHumanHandoff;
+    const notification = vi.spyOn(notifications, 'notify').mockResolvedValue({ notificationIds: [], mode: 'real' });
+    vi.spyOn(turnRepo, 'recordHandoff').mockRejectedValueOnce(new Error('Synthetic worker exit before F10 checkpoint'));
+    await expect(execute(inbound)).rejects.toThrow('Synthetic worker exit before F10 checkpoint');
+    if (change === 'staff claim') {
+      await assignConversation(conversationId, seedId('staff_a'), { businessId });
+    } else if (change === 'handback and requeue') {
+      await assignConversation(conversationId, null, { businessId });
+      await requeue(conversationId, { reason: 'new staff request', actor: 'staff' }, { businessId });
+    } else {
+      vi.spyOn(settings, 'getBusinessSettings').mockImplementation(async (id) => ({ ...(await originalSettings(id)), aiEnabled: false }));
+    }
+    const notificationsBeforeRecovery = notification.mock.calls.length;
+
+    await execute(inbound);
+    expect(await trace(inbound.message.id)).toMatchObject({ state: 'skipped', reply_message_id: null, handoff_assignment_version: null });
+    expect(await replies(conversationId)).toEqual([]);
+    expect(channels.sendToCustomer).not.toHaveBeenCalled();
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(notification).toHaveBeenCalledTimes(notificationsBeforeRecovery);
   });
 });
 
@@ -845,7 +949,7 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
     const chat = vi.spyOn(model, 'chat').mockImplementation((input) => input.usage.purpose === 'classify'
       ? classifyAs(input, 'ESCALATION', 0.6)
       : originalChat({ ...input, fake: { text: 'I can check what happened.' } }));
-    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    const handoff = vi.spyOn(team, 'applyAiHandoff');
     const first = await incoming('I need more help with this.');
     await execute(first);
     expect((await replies(first.conversation.id))[0].parts.at(-1)).toEqual({ type: 'text', text: fallbacks.handoff_offer.en });
@@ -867,7 +971,7 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
       replySignal = input.signal;
       return new Promise(() => undefined);
     });
-    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    const handoff = vi.spyOn(team, 'applyAiHandoff');
     const inbound = await incoming('Can a member of your team help me directly?');
     await execute(inbound);
     expect(replySignal?.aborted).toBe(true);
@@ -877,7 +981,7 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
   });
 
   it('never treats the model tool as consent and suppresses a second offer after a decline', async () => {
-    const handoff = vi.spyOn(team, 'requestHumanHandoff');
+    const handoff = vi.spyOn(team, 'applyAiHandoff');
     scriptedModel(
       { toolCalls: [call('staff', 'handoff_to_staff', { reason: 'customer_request', note: 'Need staff.' })] },
       { text: 'I can help with shop questions.' },

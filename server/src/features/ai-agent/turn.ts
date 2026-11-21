@@ -7,7 +7,7 @@ import { notify } from '../notifications/service';
 import { fallbacks } from './fallbacks';
 import { finalSkipReason, isAiAllowed } from './gate';
 import { generateDraft } from './generation';
-import { beginHandoff, canRequestHandoff, staffHandoffTitle } from './handoff';
+import { beginHandoff, canRequestHandoff, persistHandoff, recoverHandoff, staffHandoffTitle } from './handoff';
 import { claimTurn, finishTurn, LEASE_RENEW_MS, MAX_ATTEMPTS, readDraft, releaseClaim, renewClaim, storeDraft } from './repo';
 import type { HandoffCheckpoint, TurnDraft, TurnLease } from './repo';
 
@@ -113,6 +113,7 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
   let handoff: HandoffCheckpoint | undefined = turn.escalated
     ? { turnId: turn.id, version: turn.handoff_assignment_version }
     : undefined;
+  let expectedHandoffVersion = turn.handoff_expected_version;
   const previousDraft = readDraft(turn);
   if (claim.status === 'finished') {
     const state = turn.state === 'completed' || turn.state === 'handoff' || turn.state === 'awaiting_confirmation' ? turn.state : 'failed';
@@ -130,10 +131,19 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
   heartbeat.unref();
   try {
     const start = performance.now();
-    const gate = await isAiAllowed(conversation, inbound, history, mode, handoff);
+    const preparedReason = previousDraft?.handoffReason;
+    const recovered = request.deliver && !handoff && expectedHandoffVersion !== null && preparedReason
+      ? await recoverHandoff(turn, preparedReason, expectedHandoffVersion) : null;
+    if (recovered) handoff = recovered;
+    const gate = recovered
+      ? await currentGate(conversation, inbound, mode, recovered)
+      : await isAiAllowed(conversation, inbound, history, mode, handoff);
     if (!gate.allowed) {
       await closeTurn(turn, { state: gate.reason === 'superseded' ? 'superseded' : 'skipped', reason: gate.reason, timings: { gate1Ms: elapsed(start) } });
       return { response: result(turn.id, 'failed') };
+    }
+    if (recovered && preparedReason && !(await persistHandoff(turn, preparedReason, recovered))) {
+      return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
     }
     const gate1Ms = elapsed(start);
     const generated = previousDraft
@@ -194,7 +204,10 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
     if (request.deliver) {
       if (draft.handoffReason && !handoff) {
         if (await canRequestHandoff(conversation.businessId).catch(() => false)) {
-          const transfer = await beginHandoff(turn, finalGate.conversation, draft.handoffReason, finalGate.settings.language, signal);
+          expectedHandoffVersion ??= finalGate.conversation.version;
+          const transfer = await beginHandoff(
+            turn, finalGate.conversation, draft.handoffReason, expectedHandoffVersion, finalGate.settings.language, signal,
+          );
           if (transfer.status === 'lost') return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
           if (transfer.status === 'stale') {
             await closeTurn(turn, { state: 'skipped', reason: 'takeover_during_generation', timings: draft.timings });
@@ -210,6 +223,11 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
         }
       }
       if (handoff && draft.handoffReason) {
+        if (handoff.version !== null && expectedHandoffVersion !== null &&
+            (await recoverHandoff(turn, draft.handoffReason, expectedHandoffVersion))?.version !== handoff.version) {
+          await closeTurn(turn, { state: 'skipped', reason: 'takeover_during_generation', timings: draft.timings });
+          return { response: result(turn.id, 'failed') };
+        }
         const ackGate = await currentGate(conversation, inbound, mode, handoff);
         if (!ackGate.allowed) {
           await closeTurn(turn, { state: 'skipped', reason: finalSkipReason(ackGate.reason), timings: draft.timings });
