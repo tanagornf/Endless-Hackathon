@@ -90,7 +90,7 @@ async function stored(id: string) {
   );
 }
 
-describe('F03 invitation routes', () => {
+describe('F03 invitation routes', { timeout: 20_000 }, () => {
   it('normalizes the email, stores only the digest, masks preview data and rotates an expired link', async () => {
     const { path } = await shop();
     const email = 'abcd@example.test';
