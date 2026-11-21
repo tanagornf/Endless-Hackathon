@@ -32,7 +32,7 @@ function InstructionText({ title, instruction, compareTo }: InstructionTextProps
   return (
     <Paper component="section" variant="outlined" aria-label={title} sx={{ minWidth: 0, p: 2 }}>
       <Stack spacing={1.5}>
-        <Typography component="h3" variant="subtitle1" fontWeight={600}>{title}</Typography>
+        <Typography component="h3" variant="subtitle1" sx={{ fontWeight: 600 }}>{title}</Typography>
         {instruction ? <>
           <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
             {instruction.versionLabel}

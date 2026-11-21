@@ -125,6 +125,24 @@ it('keeps a pending-replay candidate visible and disables publishing until repla
   expect((screen.getByRole('button', { name: 'shopInstructions.publish' }) as HTMLButtonElement).disabled).toBe(false);
 });
 
+it('refreshes a server replay rejection and displays the latest selected candidate’s replay state', async () => {
+  api.publish.mockRejectedValue(Object.assign(new Error('Replay required'), { failure: { error: { code: 'POLICY_BLOCKED' } } }));
+  api.reload.mockImplementationOnce(() => query({ ...view, candidates: [{ ...candidate, replayPassed: false }] }));
+  const { rerender } = render(<ShopInstructionReviewPanel />);
+  click('shopInstructions.publish');
+  click('shopInstructions.confirmPublish');
+
+  expect(await screen.findByText('shopInstructions.replayPending')).toBeTruthy();
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(api.publish).toHaveBeenCalledOnce();
+  expect(api.reload).toHaveBeenCalledOnce();
+
+  query({ ...view, candidates: [{ ...candidate, id: 'candidate-two' }] });
+  rerender(<ShopInstructionReviewPanel />);
+  expect(screen.queryByText('shopInstructions.replayPending')).toBeNull();
+  expect((screen.getByRole('button', { name: 'shopInstructions.publish' }) as HTMLButtonElement).disabled).toBe(false);
+});
+
 it('disables an outdated candidate and refreshes a conflict without resubmitting it', async () => {
   query({ ...view, candidates: [{ ...candidate, baseVersionId: previous.id }] });
   const { rerender } = render(<ShopInstructionReviewPanel />);

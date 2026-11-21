@@ -31,8 +31,7 @@ const actionText = {
   },
 } as const;
 
-type ReviewIssue = 'shopInstructions.conflict' | 'shopInstructions.replayPending';
-type ReviewNotice = typeof actionText[keyof typeof actionText]['success'] | ReviewIssue;
+type ReviewNotice = typeof actionText[keyof typeof actionText]['success'] | 'shopInstructions.conflict';
 
 export default function ShopInstructionReviewPanel() {
   const { currentBusiness, businesses } = useSession();
@@ -68,20 +67,24 @@ function InstructionReview() {
     setAction({ ...target, expectedActiveVersionId: view.activeVersionId });
   }
 
-  function refreshBlocked(issue: ReviewIssue) {
-    setNotice(issue);
+  function reloadReview() {
     setAction(null);
     query.reload();
+  }
+
+  function refreshConflict() {
+    setNotice('shopInstructions.conflict');
+    reloadReview();
   }
 
   async function confirm() {
     if (!action || submitting.current) return;
     if (!view || view.activeVersionId !== action.expectedActiveVersionId) {
-      refreshBlocked('shopInstructions.conflict');
+      refreshConflict();
       return;
     }
     if (action.kind === 'publish' && !view.candidates.find(({ id }) => id === action.id)?.replayPassed) {
-      refreshBlocked('shopInstructions.replayPending');
+      reloadReview();
       return;
     }
 
@@ -90,14 +93,13 @@ function InstructionReview() {
     try {
       await mutation.run({ expectedActiveVersionId: action.expectedActiveVersionId });
       setNotice(actionText[action.kind].success);
-      setAction(null);
-      query.reload();
+      reloadReview();
     } catch (error) {
       const code = apiFailure(error)?.error.code;
       if (code === 'VERSION_CONFLICT') {
-        refreshBlocked('shopInstructions.conflict');
+        refreshConflict();
       } else if (code === 'POLICY_BLOCKED' && action.kind === 'publish') {
-        refreshBlocked('shopInstructions.replayPending');
+        reloadReview();
       } else {
         setSaveError(true);
         throw error;
@@ -110,8 +112,7 @@ function InstructionReview() {
   return (
     <SectionCard title={t('shopInstructions.title')}>
       <Stack spacing={2}>
-        {notice && !(notice === 'shopInstructions.replayPending' && replayPending) && <Alert
-          severity={notice === 'shopInstructions.conflict' || notice === 'shopInstructions.replayPending' ? 'warning' : 'success'}>
+        {notice && <Alert severity={notice === 'shopInstructions.conflict' ? 'warning' : 'success'}>
           {t(notice)}
         </Alert>}
         {query.error && <EmptyState title={t('shopInstructions.loadError')}
