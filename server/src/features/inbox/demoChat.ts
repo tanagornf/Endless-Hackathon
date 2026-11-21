@@ -103,11 +103,13 @@ export async function conversationFor(identity: DemoIdentity, openOnly = false) 
     ORDER BY c.created_at DESC, c.id DESC LIMIT 1`, [identity.businessId, identity.externalId, openOnly]);
 }
 
-function customerMessage(message: MessageRecord): DemoChatMessage | null {
+function customerMessage(message: MessageRecord & { clientRequestId?: string | null }): DemoChatMessage | null {
   if (message.author === 'system' || (message.direction === 'outbound' && message.author === 'ai' && message.delivery.state !== 'sent')) return null;
   const { id, seq, direction, author, parts, createdAt, delivery } = message;
   return {
-    id, seq, direction, author, parts: parts.map((part) => {
+    id, seq, direction, author,
+    ...(direction === 'inbound' && author === 'customer' && message.clientRequestId ? { clientRequestId: message.clientRequestId } : {}),
+    parts: parts.map((part) => {
       if (part.type !== 'image' && part.type !== 'file') return part;
       const { url: _url, ...attachment } = part;
       return attachment;
@@ -138,7 +140,7 @@ async function persistDemoMessage(identity: DemoIdentity, text: string, clientRe
     customer: { channel: 'web', externalId: identity.externalId, displayName: 'ผู้ทดลอง ' + identity.externalId.slice(-4) },
     direction: 'inbound', author: 'customer', parts: [{ type: 'text', text }], origin: 'demo', clientRequestId,
   });
-  return { message: customerMessage(result.message)!, conversationId: result.conversation.id, created: result.created };
+  return { message: customerMessage({ ...result.message, clientRequestId })!, conversationId: result.conversation.id, created: result.created };
 }
 
 const activeTurns = new Map<string, Promise<unknown>>();

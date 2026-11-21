@@ -105,7 +105,7 @@
     "soldOut": "Sold out"
   },
   "public": {
-    "badge": "Demo shop · Endless",
+    "badge": "Internal test chat · Endless",
     "language": "Change chat language",
     "languageLabel": "EN | TH",
     "reset": "Start a new chat",
@@ -136,8 +136,8 @@
     }
   },
   "tester": {
-    "linkTitle": "Public Demo Chat link",
-    "enabled": "Enable public link",
+    "linkTitle": "Internal Demo Chat test link",
+    "enabled": "Enable test link",
     "slug": "Link slug",
     "welcomeTh": "Thai welcome message",
     "welcomeEn": "English welcome message",
