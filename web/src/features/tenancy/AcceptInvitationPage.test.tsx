@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 describe('public invitation acceptance', () => {
-  it('scrubs the URL and offers the existing-account sign-in path', () => {
+  it('scrubs the URL and offers sign-in and signup without putting the token in either link', () => {
     const token = 'a'.repeat(43);
     window.history.replaceState({ marker: true }, '', '/invitations/accept?token=' + token);
     render(<MemoryRouter><AcceptInvitationPage /></MemoryRouter>);
@@ -41,7 +41,8 @@ describe('public invitation acceptance', () => {
     expect(sessionStorage.getItem('nless.invite')).toBe(token);
     const signIn = screen.getByRole('link', { name: 'accept.signIn' });
     expect(signIn.getAttribute('href')).toBe('/login?next=/invitations/accept');
-    expect(screen.queryByRole('link', { name: 'accept.signUp' })).toBeNull();
+    const signUp = screen.getByRole('link', { name: 'accept.signUp' });
+    expect(signUp.getAttribute('href')).toBe('/signup?invite=1');
     expect(screen.getByRole('button', { name: 'accept.decline' })).toBeDefined();
   });
 });

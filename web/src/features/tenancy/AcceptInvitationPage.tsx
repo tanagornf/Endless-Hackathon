@@ -137,7 +137,10 @@ export default function AcceptInvitationPage() {
           {status === 'anonymous' && <Typography>{t('accept.needLogin')}</Typography>}
           <Stack direction={{ xs: 'column', sm: 'row' }} useFlexGap spacing={1} sx={{ flexWrap: 'wrap' }}>
             {status === 'anonymous'
-              ? <Button variant="contained" component={Link} to="/login?next=/invitations/accept">{t('accept.signIn')}</Button>
+              ? <>
+                  <Button variant="contained" component={Link} to="/login?next=/invitations/accept">{t('accept.signIn')}</Button>
+                  <Button variant="outlined" component={Link} to="/signup?invite=1">{t('accept.signUp')}</Button>
+                </>
               : <Button variant="contained" disabled={waiting} onClick={() => void respond('accept')}>{t('accept.accept')}</Button>}
             <Button disabled={waiting} onClick={() => void respond('decline')}>{t('accept.decline')}</Button>
           </Stack>
