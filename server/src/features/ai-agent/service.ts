@@ -5,6 +5,7 @@ import type { JobHandler } from '../../core';
 import type { AiReplyJobPayload } from '@nless/shared/features/inbox/types';
 
 export { readTurnTrace as getTurnTrace, listTurns, getAiTurnMetrics, listAiTurnTopics } from './trace';
+export { executeAgentTool } from './readTools';
 
 /**
  * @owner F10 ai-agent · B2 · consumers: B2 ai.reply handler, A1 (suggest), B2 voice
