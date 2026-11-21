@@ -1,82 +1,83 @@
-import { Suspense, lazy, useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined';
+import { Avatar, Box, Drawer, IconButton, LinearProgress, Menu, MenuItem, Paper, Select, Stack, Typography } from '@mui/material';
 import MenuOutlined from '@mui/icons-material/MenuOutlined';
-import { Box, Drawer, IconButton, LinearProgress, List, ListItemButton, ListItemIcon, ListItemText,
-  ListSubheader, Menu, MenuItem, Paper, Select, Stack, Typography } from '@mui/material';
-import { NavLink, useNavigate } from 'react-router-dom';
+import StorefrontOutlined from '@mui/icons-material/StorefrontOutlined';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { MenuEntry, MenuGroup } from '@nless/shared/core/loader';
+import type { MenuEntry, SlotContribution } from '@nless/shared/core/loader';
 import { useFeatures } from '../featureFlags';
-import { menuIcon } from '../icons';
 import { featurePages } from '../registry';
 import { useSession } from '../session';
 import { useSlot } from '../slots';
 import { LanguageSwitch } from '../ui/LanguageSwitch';
 import { useToast } from '../ui/toast';
+import { Navigation, groups } from './Navigation';
+import { menuIcon } from '../icons';
 
-const groups: MenuGroup[] = ['home', 'chat', 'customers', 'knowledge', 'ai', 'live', 'insights', 'commerce', 'settings', 'help', 'admin'];
 const ops: MenuEntry = { path: '/ops', labelKey: 'common:pages.jobs', group: 'admin', icon: 'WorkOutlineOutlined', order: 10, platformAdminOnly: true };
-const width = 260;
+export function SlotItem({ entry, props }: { entry: SlotContribution; props?: Record<string,unknown> }) {
+  const Component = useMemo(() => lazy(entry.load), [entry.load]);
+  return <Suspense fallback={null}><Component {...props} /></Suspense>;
+}
+export function useNavigation() {
+  const session = useSession();
+  const flags = useFeatures();
+  const entries = [...featurePages.filter(f => flags.visible(f.featureId)).flatMap(f => f.menu ?? []), ops]
+    .filter(item => (!item.platformAdminOnly || session.user?.isPlatformAdmin)
+      && (!item.permission || session.permissions.includes(item.permission))
+      && (session.currentBusiness || item.group === 'admin' || item.group === 'help' || item.path === '/businesses'))
+    .sort((a,b) => groups.indexOf(a.group) - groups.indexOf(b.group) || a.order - b.order);
+  return { entries, ...flags };
+}
 export function AppShell({ children }: { children: ReactNode }) {
   const session = useSession();
-  const { visible } = useFeatures();
-  const { t } = useTranslation(['common', 'nav', ...featurePages.map((entry) => entry.slug)]);
-  const [drawer, setDrawer] = useState(false);
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const { entries } = useNavigation();
+  const { t } = useTranslation('common');
+  const [drawer,setDrawer] = useState(false);
+  const [anchor,setAnchor] = useState<HTMLElement | null>(null);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const toast = useToast();
   const actions = useSlot('topbarActions');
-  const actionComponents = useMemo(() => actions.map((entry) => ({ id: entry.id, Component: lazy(entry.load) })), [actions]);
-  const entries = [...featurePages.filter((feature) => visible(feature.featureId)).flatMap((feature) => feature.menu ?? []), ops]
-    .filter((item) => (!item.platformAdminOnly || session.user?.isPlatformAdmin)
-      && (!item.permission || session.permissions.includes(item.permission))
-      && (session.currentBusiness || item.group === 'admin' || item.group === 'help'))
-    .sort((a, b) => a.order - b.order);
-
-  const navigation = <Box component="nav" aria-label={t('common:pages.menu')} sx={{ width, px: 1.5, pb: 2 }}>
-    <Typography component={NavLink} to="/" variant="h5" sx={{ display: 'block', py: 2.2, px: 1.4, color: 'primary.main', textDecoration: 'none' }}>Endless</Typography>
-    {groups.map((group) => {
-      const items = entries.filter((entry) => entry.group === group);
-      if (!items.length) return null;
-      return <List key={group} dense disablePadding subheader={<ListSubheader sx={{ lineHeight: '32px', px: 1.5 }}>{t('nav:' + group)}</ListSubheader>}>
-        {items.map((entry) => {
-          const Icon = menuIcon(entry.icon);
-          return <ListItemButton key={entry.path} component={NavLink} to={entry.path} end onClick={() => setDrawer(false)}
-            sx={{ borderRadius: 1, minHeight: 44, '&.active': { color: 'primary.main', bgcolor: 'action.selected', '& .MuiListItemText-primary': { fontWeight: 700 } } }}>
-            <ListItemIcon sx={{ minWidth: 36 }}><Icon fontSize="small" /></ListItemIcon><ListItemText primary={t(entry.labelKey)} />
-          </ListItemButton>;
-        })}
-      </List>;
-    })}
-  </Box>;
-
-  return <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-    <Paper square component="aside" variant="outlined" sx={{ display: { xs: 'none', md: 'block' }, width, flexShrink: 0, minHeight: '100vh' }}>{navigation}</Paper>
-    <Drawer open={drawer} onClose={() => setDrawer(false)} sx={{ display: { md: 'none' } }}>{navigation}</Drawer>
-    <Box sx={{ minWidth: 0, flex: 1 }}>
-      <Paper square component="header" variant="outlined" sx={{ height: 56, display: 'flex', alignItems: 'center', px: { xs: 1, sm: 2.5 }, gap: 1 }}>
-        <IconButton onClick={() => setDrawer(true)} aria-label={t('common:pages.menu')} sx={{ display: { md: 'none' } }}><MenuOutlined /></IconButton>
-        {session.businesses.length > 0 && <Select size="small" value={session.currentBusiness?.id ?? ''} aria-label={t('common:pages.shop')}
-          onChange={(event) => session.selectBusiness(event.target.value)} sx={{ maxWidth: { xs: 165, sm: 320 } }}>
-          {session.businesses.map(({ business }) => <MenuItem key={business.id} value={business.id}>{business.name}</MenuItem>)}
-        </Select>}
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', ml: 'auto' }}>
-          <LanguageSwitch compact />
-          <Suspense fallback={null}>{actionComponents.map(({ id, Component }) => <Component key={id} />)}</Suspense>
-          <IconButton aria-label={t('common:pages.account')} onClick={(event) => setAnchor(event.currentTarget)}><AccountCircleOutlined /></IconButton>
+  const current = entries.filter(e => pathname === e.path || pathname.startsWith(e.path + '/')).sort((a,b) => b.path.length - a.path.length)[0];
+  const mobile = entries.filter(e => e.mobileTab).sort((a,b) => a.order - b.order).slice(0,4);
+  const close = () => setDrawer(false);
+  return <Box sx={{ display:'flex', minHeight:'100dvh' }}>
+    <Box component="a" href="#workspace-main" sx={{position:'fixed',top:-80,left:8,zIndex:1500,p:1,bgcolor:'white','&:focus':{top:8}}}>{t('workspace.skip')}</Box>
+    <Box component="aside" sx={{bgcolor:'white',borderRight:1,borderColor:'divider',display:{xs:'none',md:'block'},position:'sticky',top:0,height:'100dvh',flexShrink:0}}>
+      <Navigation entries={entries} close={close} />
+    </Box>
+    <Drawer open={drawer} onClose={close} sx={{ display:{md:'none'} }}><Navigation entries={entries} close={close} /></Drawer>
+    <Box sx={{flex:1,minWidth:0}}>
+      <Paper square component="header" elevation={0} sx={{minHeight:56,px:{xs:.5,sm:2.5},gap:{xs:0,sm:1},display:'flex',alignItems:'center',borderBottom:1,borderColor:'divider'}}>
+        <IconButton onClick={() => setDrawer(true)} aria-label={t('pages.menu')} sx={{display:{md:'none'}}}><MenuOutlined /></IconButton>
+        {session.businesses.length > 0 && <>
+          <StorefrontOutlined sx={{color:'primary.main',display:{xs:'none',sm:'inline'}}} />
+          <Select variant="standard" disableUnderline value={session.currentBusiness?.id ?? ''} inputProps={{'aria-label':t('pages.shop')}}
+            onChange={e => session.selectBusiness(e.target.value)} sx={{minWidth:0,maxWidth:320,fontSize:'.9rem',fontWeight:600,'& .MuiSelect-select':{minHeight:44,display:'block',lineHeight:'44px',py:0}}}>
+            {session.businesses.map(({business}) => <MenuItem key={business.id} value={business.id}>{business.name}</MenuItem>)}
+          </Select></>}
+        <Stack direction="row" sx={{ml:'auto',alignItems:'center',flexShrink:0}}>
+          <LanguageSwitch compact />{actions.map(entry => <SlotItem key={entry.id} entry={entry} />)}
+          <IconButton aria-label={t('pages.account')} onClick={e => setAnchor(e.currentTarget)}>
+            <Avatar sx={{width:32,height:32,fontSize:'.9rem',bgcolor:'#DAE9DF',color:'#285346'}}>{Array.from(session.user?.displayName ?? '')[0] || '•'}</Avatar>
+          </IconButton>
           <Menu open={Boolean(anchor)} anchorEl={anchor} onClose={() => setAnchor(null)}>
-            <MenuItem onClick={() => { setAnchor(null); navigate('/account'); }}>{t('common:pages.account')}</MenuItem>
-            <MenuItem onClick={() => {
-              setAnchor(null);
-              void session.logout().then(() => navigate('/login'), toast.error);
-            }}>{t('common:actions.logout')}</MenuItem>
+            <MenuItem component={Link} to="/account" onClick={() => setAnchor(null)}>{t('pages.account')}</MenuItem>
+            <MenuItem onClick={() => {setAnchor(null); void session.logout().then(() => navigate('/login'),toast.error);}}>{t('actions.logout')}</MenuItem>
           </Menu>
         </Stack>
       </Paper>
-      <Box component="main" sx={{ maxWidth: 1280, mx: 'auto', p: { xs: 2, sm: 3 } }}>
-        <Suspense fallback={<LinearProgress aria-label={t('common:pages.loading')} />}>{children}</Suspense>
+      <Box id="workspace-main" component="main" tabIndex={-1} sx={{maxWidth:1280,mx:'auto',p:{xs:2,sm:3},pb:{xs:mobile.length ? 11 : 3,md:3}}}>
+        {current && <Typography variant="overline" sx={{color:'primary.main',fontWeight:700,letterSpacing:'.07em',textTransform:'none'}}>{t('nav:' + current.group)}</Typography>}
+        <Suspense fallback={<LinearProgress aria-label={t('pages.loading')} />}><Box key={session.currentBusiness?.id ?? 'account'}>{children}</Box></Suspense>
       </Box>
+      {!!mobile.length && <Box role="group" aria-label={t('workspace.shortcuts')} sx={{display:{xs:'flex',md:'none'},position:'fixed',bottom:0,insetInline:0,bgcolor:'white',borderTop:1,borderColor:'divider',pb:'env(safe-area-inset-bottom)',zIndex:10}}>
+        {mobile.map(item => {const Icon = menuIcon(item.icon);return <Box key={item.path} component={Link} to={item.path} aria-current={current?.path===item.path ? 'page' : undefined}
+          sx={{flex:1,textAlign:'center',textDecoration:'none',py:.8,fontSize:'.74rem',color:current?.path===item.path ? 'primary.main' : 'text.secondary'}}>
+          <Icon fontSize="small" sx={{display:'block',mx:'auto'}} />{t(item.labelKey)}</Box>;})}
+      </Box>}
     </Box>
   </Box>;
 }

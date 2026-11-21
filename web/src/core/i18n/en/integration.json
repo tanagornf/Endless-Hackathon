@@ -1,0 +1,438 @@
+{
+  "filter": "Filter this page",
+  "refresh": "Refresh",
+  "previous": "Previous page",
+  "next": "Next page",
+  "unavailable": "This service is unavailable",
+  "unavailableDetail": "Try again when the shop service is connected.",
+  "unavailablePreview": "This local preview has no shop data. The connected app loads this view from the shop’s service.",
+  "unavailableFormat": "The service returned data this screen could not display.",
+  "empty": "No records yet",
+  "noMatches": "No matching records on this page",
+  "yes": "Yes",
+  "no": "No",
+  "overview": "Overview",
+  "retry": "Try again",
+  "back": "Back",
+  "details": "Details",
+  "close": "Close",
+  "query": "Customer question",
+  "search": "Search",
+  "results": "Search results",
+  "password": "Password",
+  "email": "Email",
+  "displayName": "Your name",
+  "shopName": "Shop name",
+  "devLogin": "Development sign-in",
+  "checkMail": "Check your email for the next step.",
+  "verified": "Your email has been verified.",
+  "passwordSaved": "Your new password has been saved.",
+  "invalidLink": "This link is missing its token. Open the complete link from your email.",
+  "signInIntro": "Sign in to manage your shop’s conversations, products and team.",
+  "send": "Send",
+  "message": "Message",
+  "typing": "Preparing a reply…",
+  "closed": "This conversation is closed.",
+  "staff": "Staff",
+  "customer": "Customer",
+  "assistant": "Shop assistant",
+  "confirm": "Confirm",
+  "cancel": "Cancel",
+  "confirmed": "Decision recorded",
+  "attachSlip": "Upload transfer slip",
+  "paymentInfo": "Payment details",
+  "qr": "Payment QR code",
+  "sandboxPayment": "Sandbox payment. Use a test slip only.",
+  "receipt": "Receipt",
+  "receiver": "Receiver",
+  "newMessage": "Reply to customer",
+  "noMessages": "No messages yet",
+  "openChat": "Open conversation",
+  "thread": "Conversation history",
+  "openDemo": "Open public chat",
+  "selectConversation": "Select a conversation",
+  "period": "Date range",
+  "from": "From",
+  "to": "To",
+  "apply": "Apply",
+  "copyLink": "Copy link",
+  "copied": "Copied",
+  "readAll": "Mark all as read",
+  "read": "Mark as read",
+  "dateError": "Choose an end date on or after the start date, within 93 days.",
+  "unavailableVoice": "Voice calling will be available when the voice integration is connected.",
+  "unavailableAuth": "Account sign-in is awaiting the identity service.",
+  "replied": "Message sent",
+  "takeover": "Take over",
+  "release": "Return to AI",
+  "all": "All conversations",
+  "waiting": "Waiting for staff",
+  "active": "Active",
+  "archived": "Closed",
+  "actionComplete": "Saved",
+  "noAccess": "You don’t have permission to view this.",
+  "page": {
+    "dashboard": {
+      "title": "Shop overview",
+      "description": "See conversation activity and the customers waiting for a reply."
+    },
+    "usage": {
+      "title": "Model usage",
+      "description": "Review model calls and recorded costs."
+    },
+    "traces": {
+      "title": "Turn traces",
+      "description": "Inspect the decisions behind each reply."
+    },
+    "inbox": {
+      "title": "Shared inbox",
+      "description": "Read customer conversations and reply as a team."
+    },
+    "demo": {
+      "title": "Demo Chat",
+      "description": "Try the shop’s assistant and share its public chat with customers."
+    },
+    "team": {
+      "title": "Team availability",
+      "description": "See who can answer the next conversation."
+    },
+    "customers": {
+      "title": "Customers",
+      "description": "Find customer profiles across your connected channels."
+    },
+    "customer": {
+      "title": "Customer profile",
+      "description": "Review contact details and consent for this customer."
+    },
+    "broadcast": {
+      "title": "Broadcasts",
+      "description": "Review campaigns, schedules and delivery progress."
+    },
+    "templates": {
+      "title": "Message templates",
+      "description": "Browse the saved messages your team can use in chat."
+    },
+    "knowledge": {
+      "title": "Knowledge",
+      "description": "Manage the answers the assistant can use."
+    },
+    "imports": {
+      "title": "Knowledge imports",
+      "description": "Track source files, extracted rows and import results."
+    },
+    "importDetail": {
+      "title": "Import details",
+      "description": "Review the processing result for each source row."
+    },
+    "search": {
+      "title": "Knowledge search",
+      "description": "Try a customer question against the shop’s indexed knowledge."
+    },
+    "catalog": {
+      "title": "Product catalog",
+      "description": "Check the prices and stock the assistant uses in replies."
+    },
+    "feed": {
+      "title": "ChatGPT catalog",
+      "description": "Review the product feed and items excluded from export."
+    },
+    "agent": {
+      "title": "AI assistant",
+      "description": "Follow individual turns, timing and handoffs."
+    },
+    "quality": {
+      "title": "AI quality",
+      "description": "Review evaluation runs against the team’s test cases."
+    },
+    "follow": {
+      "title": "Follow-ups",
+      "description": "Track reminders, scheduled messages and customer responses."
+    },
+    "voice": {
+      "title": "Voice testing",
+      "description": "Review the conversations available for staff voice testing."
+    },
+    "call": {
+      "title": "Voice call",
+      "description": "Review conversations for customer voice calls."
+    },
+    "orders": {
+      "title": "Orders",
+      "description": "Track confirmed orders, totals and fulfilment."
+    },
+    "payments": {
+      "title": "Payments",
+      "description": "Review payment requests and transfers awaiting a check."
+    },
+    "booking": {
+      "title": "Appointments",
+      "description": "Review customer appointments by service and resource."
+    },
+    "calendar": {
+      "title": "Google Calendar",
+      "description": "Check the calendar connection and sync health."
+    },
+    "codes": {
+      "title": "Live product codes",
+      "description": "Find the codes customers can use during a live sale."
+    },
+    "live": {
+      "title": "Live selling",
+      "description": "Follow the current session and review its featured products."
+    },
+    "present": {
+      "title": "Live presentation",
+      "description": "Product codes for the current live sale."
+    },
+    "comments": {
+      "title": "Comment replies",
+      "description": "Review matching rules and replies sent from comments."
+    },
+    "insights": {
+      "title": "Conversation insights",
+      "description": "Explore AI summaries and conversations that need a follow-up."
+    },
+    "line": {
+      "title": "LINE channel",
+      "description": "Review the shop’s Official Account and incoming activity."
+    },
+    "meta": {
+      "title": "Messenger & Instagram",
+      "description": "Check both channel connections and recent deliveries."
+    },
+    "business": {
+      "title": "Shop profile",
+      "description": "Review the contact information and language used by the shop."
+    },
+    "bot": {
+      "title": "Bot settings",
+      "description": "Review the assistant’s availability and shop rules."
+    },
+    "members": {
+      "title": "Members",
+      "description": "Review access and roles for this shop."
+    },
+    "invitations": {
+      "title": "Invitations",
+      "description": "Track invitations and their expiry dates."
+    },
+    "shops": {
+      "title": "My shops",
+      "description": "See the shops available to your account."
+    },
+    "onboarding": {
+      "title": "Shop setup",
+      "description": "Choose a shop to continue setting up your workspace."
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Review updates, handoffs and issues that need attention."
+    },
+    "release": {
+      "title": "Release evidence",
+      "description": "Review feature status and evidence for this build."
+    },
+    "ops": {
+      "title": "Operations",
+      "description": "Inspect background processing and feature availability."
+    },
+    "login": {
+      "title": "Sign in"
+    },
+    "signup": {
+      "title": "Create an account"
+    },
+    "forgot": {
+      "title": "Reset password"
+    },
+    "reset": {
+      "title": "Set a new password"
+    },
+    "verify": {
+      "title": "Verify email"
+    },
+    "publicChat": {
+      "title": "Shop chat"
+    },
+    "publicPay": {
+      "title": "Payment"
+    },
+    "invite": {
+      "title": "Shop invitation"
+    }
+  },
+  "tabs": {
+    "overview": "Overview",
+    "activity": "Daily activity",
+    "channels": "Channels",
+    "usage": "Usage",
+    "history": "History",
+    "conversations": "Conversations",
+    "settings": "Settings",
+    "members": "Members",
+    "customers": "Customers",
+    "profile": "Profile",
+    "audience": "Audience",
+    "templates": "Templates",
+    "entries": "Knowledge entries",
+    "rows": "Rows",
+    "index": "Search index",
+    "products": "Products",
+    "excluded": "Excluded items",
+    "turns": "Recent turns",
+    "metrics": "Summary",
+    "runs": "Evaluation runs",
+    "cases": "Test cases",
+    "orders": "Orders",
+    "payments": "Payments",
+    "appointments": "Appointments",
+    "connection": "Connection",
+    "calendars": "Calendars",
+    "session": "Current session",
+    "rules": "Rules",
+    "deliveries": "Deliveries",
+    "events": "Events",
+    "invitations": "Invitations",
+    "shops": "Shops",
+    "notifications": "Notifications",
+    "features": "Features",
+    "jobs": "Job queue",
+    "schedules": "Schedules",
+    "build": "Build",
+    "routes": "Routes",
+    "audit": "Audit log"
+  },
+  "field": {
+    "name": "Name",
+    "id": "ID",
+    "title": "Title",
+    "status": "Status",
+    "state": "State",
+    "mode": "Mode",
+    "enabled": "Enabled",
+    "feature": "Feature",
+    "calls": "Calls",
+    "usdMicros": "Cost (USD)",
+    "turnId": "Turn",
+    "intent": "Intent",
+    "latencyMs": "Latency (ms)",
+    "customerName": "Customer",
+    "channel": "Channel",
+    "lastMessage": "Latest message",
+    "unreadCount": "Unread",
+    "lastMessageAt": "Last message",
+    "publicUrl": "Public chat link",
+    "todayTurns": "Turns today",
+    "dailyCap": "Daily limit",
+    "displayName": "Name",
+    "availability": "Availability",
+    "openConversations": "Open chats",
+    "role": "Role",
+    "autoAssign": "Automatic assignment",
+    "idlePolicy": "Idle policy",
+    "idleMinutes": "Idle time (min)",
+    "autoClose": "Automatic closing",
+    "tags": "Tags",
+    "lastSeenAt": "Last seen",
+    "email": "Email",
+    "scheduledAt": "Scheduled for",
+    "altText": "Message preview",
+    "updatedAt": "Updated",
+    "sourceLabel": "Source",
+    "kind": "Type",
+    "createdAt": "Created",
+    "rowNo": "Row",
+    "error": "Error",
+    "embedModel": "Embedding model",
+    "chunkCount": "Indexed chunks",
+    "ready": "Ready",
+    "failed": "Failed",
+    "sku": "SKU",
+    "priceMinor": "Price",
+    "stock": "Stock",
+    "feedEnabled": "Product feed",
+    "mcpEnabled": "MCP server",
+    "itemId": "Item ID",
+    "price": "Price",
+    "reason": "Reason",
+    "turns": "Turns",
+    "completed": "Completed",
+    "medianLatencyMs": "Median latency (ms)",
+    "score": "Score",
+    "costUsd": "Cost (USD)",
+    "category": "Category",
+    "productName": "Product",
+    "scheduledFor": "Scheduled for",
+    "scheduled": "Scheduled",
+    "sent": "Sent",
+    "recoveryRate": "Recovery rate",
+    "delayHours": "Delay (hours)",
+    "allowedChannels": "Channels",
+    "orderNumber": "Order",
+    "totalMinor": "Total",
+    "amountMinor": "Amount",
+    "expiresAt": "Expires",
+    "serviceName": "Service",
+    "resourceName": "Resource",
+    "startAt": "Start",
+    "calendarName": "Calendar",
+    "timezone": "Time zone",
+    "code": "Code",
+    "itemName": "Product",
+    "unitPriceMinor": "Unit price",
+    "startedAt": "Started",
+    "keywords": "Keywords",
+    "ruleName": "Rule",
+    "pending": "Pending",
+    "skipped": "Skipped",
+    "summary": "Summary",
+    "sentiment": "Sentiment",
+    "analysed": "Analysed",
+    "followUpOpen": "Open follow-ups",
+    "lastVerifiedAt": "Last verified",
+    "eventsTotal": "Events",
+    "eventType": "Event",
+    "receivedAt": "Received",
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+    "appConfigured": "App configured",
+    "description": "Description",
+    "language": "Language",
+    "phone": "Phone",
+    "invitedByName": "Invited by",
+    "body": "Message",
+    "readAt": "Read at",
+    "featureId": "Feature ID",
+    "lane": "Team lane",
+    "actualMode": "Verified mode",
+    "blocker": "Blocker",
+    "real": "Real",
+    "sandbox": "Sandbox",
+    "adapter": "Adapter",
+    "unimplemented": "Unimplemented",
+    "conversations": "Conversations",
+    "waiting": "Waiting for staff",
+    "replies": "AI replies",
+    "newCustomers": "New customers",
+    "date": "Date",
+    "customerMessages": "Customer messages",
+    "aiReplies": "AI replies",
+    "staffMessages": "Staff replies",
+    "slug": "Feature",
+    "visible": "Visible",
+    "type": "Type",
+    "attempts": "Attempts",
+    "runAt": "Run at",
+    "lastEnqueuedAt": "Last queued",
+    "deliveryState": "Delivery state",
+    "shortSha": "Build",
+    "env": "Environment",
+    "schema": "Schema",
+    "modelMode": "Model mode",
+    "method": "Method",
+    "path": "Path",
+    "permission": "Permission",
+    "action": "Action",
+    "targetType": "Target"
+  }
+}

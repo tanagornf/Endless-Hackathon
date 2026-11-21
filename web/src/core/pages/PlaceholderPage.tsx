@@ -1,3 +1,6 @@
+import { lazy } from 'react';
+import { matchPath, useLocation } from 'react-router-dom';
+import { screens } from '../../integration/screens';
 import { Button, Link } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -8,8 +11,11 @@ import { LanguageSwitch } from '../ui/LanguageSwitch';
 import { SectionCard } from '../ui/SectionCard';
 import { StatusChip } from '../ui/StatusChip';
 
+const PreparedPage = lazy(() => import('../../integration/PreparedPage'));
 export function PlaceholderPage({ featureId }: { featureId: FeatureId }) {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
+  if (screens.some(screen => screen.id === featureId && matchPath({path:screen.path,end:true},pathname))) return <PreparedPage />;
   const feature = FEATURES.find((item) => item.id === featureId)!;
   const title = t(feature.slug + ':page.title', { defaultValue: feature.title });
   const path = feature.slug.replace('/', '-');

@@ -1,3 +1,4 @@
+import { registerPreparedScreens } from '../integration/register';
 import { FEATURES } from '@nless/shared/core/features';
 import type { FeaturePages } from '@nless/shared/core/loader';
 
@@ -13,9 +14,10 @@ export const featurePages = modules.flatMap(([file, { default: pages }]) => {
     registryErrors.push('Invalid pages registration for ' + slug);
     return [];
   }
+  const integrated = registerPreparedScreens(pages);
   return [{
-    ...pages,
-    routes: pages.routes.filter(({ path }) => {
+    ...integrated,
+    routes: integrated.routes.filter(({ path }) => {
       const owner = prefixes.find((prefix) => path === prefix.path || path.startsWith(prefix.path + '/'));
       if (owner?.id !== feature.id || seen.has(path)) {
         registryErrors.push('Invalid or duplicate path ' + path);
