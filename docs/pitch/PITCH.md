@@ -24,7 +24,9 @@ Select-String -Path docs/pitch/*.md -Pattern '<<' -SimpleMatch
 
 - ตัวเลขที่ไม่ได้วัดในวันงานหรือไม่อยู่ใน brief (ยอดขาย, จำนวนผู้ใช้, เงินที่ประหยัด, ความแม่นยำที่ไม่ได้รัน eval) · ชื่อร้านจริงหรือข้อมูลลูกค้าจริง
 - "from zero", "built from scratch" ถ้าไม่จริง: ใช้ "built today from our own specs" (ทีมมี spec, prompt, contracts เป็น prior work ที่ประกาศแล้ว)
+<!-- claims:ignore -->
 - เรียก recording ว่า live · พูดว่ามี integration กับ Shopee (ไม่มี) · พูดว่าตรวจสลิปคือการยืนยันกับธนาคาร (ไม่ใช่) · พูดว่า Messenger/Instagram เปิดให้สาธารณะ (Meta development mode = เฉพาะ app roles/test users)
+<!-- /claims:ignore -->
 - เรียกฟีเจอร์ที่ไม่ใช่ R ว่าทำงานแล้ว (ถูกซ่อนด้วย feature flag ตั้งแต่ 15:30)
 
 ## 1. 5 มุมที่ใช้เล่า (D10) และแหล่งที่มา
@@ -114,9 +116,13 @@ Direction ที่เลือก: หลัก **AI-Native Products & Operatio
 
 **ข้อจำกัดที่ต้องพูดเอง ไม่รอให้ถาม**
 
+<!-- claims:ignore -->
 - ตรวจสลิป = อ่าน QR บนสลิป + กฎในโค้ด (ยอด ผู้รับ เลขรายการซ้ำ) + vision ช่วยอ่าน **ไม่ใช่การยืนยันกับธนาคาร** สลิปปลอมที่แก้ละเอียดอาจผ่านได้ ร้านยังต้องดูเงินเข้าบัญชี ([F14](../specs/F14-payments.md) §1) วันงานไม่มีเงินจริง
+<!-- /claims:ignore -->
 - Messenger และ Instagram ใช้ได้เฉพาะ app roles/test users ของ Meta developer app (development mode ยังไม่ผ่าน app review) กรรมการลองผ่าน LINE OA และ Demo Chat
+<!-- claims:ignore -->
 - ChatGPT-ready catalog (F39) คือ product feed ตามรูปแบบ ACP และ MCP server ที่เราเปิดเองและทดสอบด้วย MCP client เท่านั้น: **ห้ามพูดว่า** สินค้า "ขึ้นหรือขายอยู่ใน ChatGPT แล้ว", "OpenAI อนุมัติแล้ว" หรือ "จ่ายเงินใน ChatGPT ได้" (checkout ปิดไว้ และการส่ง feed เข้า OpenAI ยังไม่ได้ทำ)
+<!-- /claims:ignore -->
 - ชุด eval เล็กและเขียนโดยทีม เป็นสัญญาณ ไม่ใช่การรับประกัน ([F37](../specs/F37-evals.md) §1) ตัวเลข `จำลอง` ไม่ใช่คุณภาพจริง
 - ตัวเลขเวลาตอบที่วัดไว้ก่อนงาน: turn แชตที่มี tool 7–11.5 วินาทีบนหน้าเว็บกับ Sol (openai-api.md §15) ตัวเลขวันงานให้ใช้จาก `<<fill at 16:15 from /ai-quality and /dashboard>>`
 - ไม่ได้สร้างหน้า PDPA, ลบข้อมูลลูกค้า หรือ billing วันนี้ ([QA-PREP](QA-PREP.md) มีคำตอบ)

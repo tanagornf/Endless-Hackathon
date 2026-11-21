@@ -1,8 +1,8 @@
 # Codex development timeline
 
-All times are Asia/Bangkok. Baseline bf961c8d13ee26133f868d32a51d8627001e16f3, candidate c9d043c2776525eb19ed327b1265c6dc6ed49bf1.
+All times are Asia/Bangkok. Baseline bf961c8d13ee26133f868d32a51d8627001e16f3, candidate 926e5c09d7a723abe66adb5d532028b1cadece05.
 
-95 merged pull requests, 95 commits and 811 changed files. 67953 lines added and 173 removed.
+112 merged pull requests, 112 commits and 856 changed files. 72249 lines added and 173 removed.
 
 | Time | PR | Title | Branch | GitHub author | Diff | SHA |
 |---|---|---|---|---|---|---|
@@ -101,6 +101,23 @@ All times are Asia/Bangkok. Baseline bf961c8d13ee26133f868d32a51d8627001e16f3, c
 | 2026-11-21 15:13:55 | [#90](https://github.com/tanagornf/Endless-Hackathon/pull/90) | F31: in-app bell and opt-in iPhone notifications | lane/C3/notifications | tanagornf | +3526 / −28 | 1ba5f86 |
 | 2026-11-21 15:14:11 | [#88](https://github.com/tanagornf/Endless-Hackathon/pull/88) | Add Endless Home Screen installation metadata | lane/C1/core-pwa-install | tanagornf | +52 / −0 | d9dc612 |
 | 2026-11-21 15:14:31 | [#91](https://github.com/tanagornf/Endless-Hackathon/pull/91) | F07 S2: Load the synthetic retrieval fixture through the worker | lane/B1/knowledge-search-5 | RathaTart | +390 / −18 | c9d043c |
+| 2026-11-21 15:15:42 | [#110](https://github.com/tanagornf/Endless-Hackathon/pull/110) | F10 S4: Prepare canonical order reviews for explicit buyer requests | lane/B2/ai-agent-orders | RathaTart | +396 / −12 | 38a05d3 |
+| 2026-11-21 15:15:46 | [#112](https://github.com/tanagornf/Endless-Hackathon/pull/112) | F24: edit customer contacts from the staff Inbox | lane/A3/crm-2 | Ikkyuuuu | +406 / −21 | 2da656e |
+| 2026-11-21 15:16:21 | [#82](https://github.com/tanagornf/Endless-Hackathon/pull/82) | Keep LINE text deliverable when a product photo is unavailable | lane/C2/line-product-image-fallback | RathaTart | +78 / −6 | 794909f |
+| 2026-11-21 15:19:48 | [#99](https://github.com/tanagornf/Endless-Hackathon/pull/99) | F07 S2: Cache tenant-scoped query embeddings | lane/B1/knowledge-search-6 | RathaTart | +205 / −21 | 1b8c976 |
+| 2026-11-21 15:21:50 | [#117](https://github.com/tanagornf/Endless-Hackathon/pull/117) | F13: Print the shop packing list with destinations and deadlines | lane/A2/orders-printable-queue | RathaTart | +260 / −0 | 95c569b |
+| 2026-11-21 15:23:03 | [#65](https://github.com/tanagornf/Endless-Hackathon/pull/65) | F04 S4 \| Verify synthetic settings smoke restoration | lane/C3/business-settings-5 | tanagornf | +75 / −57 | 03906b4 |
+| 2026-11-21 15:23:26 | [#115](https://github.com/tanagornf/Endless-Hackathon/pull/115) | F14 S1: Issue bilingual PromptPay requests for confirmed orders | lane/A2/payments | Ikkyuuuu | +891 / −24 | e97e8e4 |
+| 2026-11-21 15:23:54 | [#114](https://github.com/tanagornf/Endless-Hackathon/pull/114) | F11: bind confirmed staff requests to the active handoff receipt | lane/A1/team-6 | Ikkyuuuu | +174 / −19 | 943cbcc |
+| 2026-11-21 15:27:22 | [#101](https://github.com/tanagornf/Endless-Hackathon/pull/101) | Mark validated inbound LINE messages as read | lane/C2/line-read-receipt | tanagornf | +276 / −2 | f6109fc |
+| 2026-11-21 15:28:33 | [#107](https://github.com/tanagornf/Endless-Hackathon/pull/107) | Simplify Auth password rules and remove email confirmation | lane/C3/auth-4 | tanagornf | +121 / −345 | ca77dd4 |
+| 2026-11-21 15:28:40 | [#80](https://github.com/tanagornf/Endless-Hackathon/pull/80) | F02/F03 \| Queue staff invitations in the sandbox mailbox | lane/C3/tenancy-invitation-mail | tanagornf | +129 / −5 | 752d130 |
+| 2026-11-21 15:28:49 | [#60](https://github.com/tanagornf/Endless-Hackathon/pull/60) | F03 S4 \| Synthetic invitation and shop lifecycle smoke | lane/C3/tenancy-4 | tanagornf | +140 / −1 | dcad5c5 |
+| 2026-11-21 15:28:57 | [#122](https://github.com/tanagornf/Endless-Hackathon/pull/122) | Require buyer consent before AI assigns staff | lane/B2/ai-agent-staff-consent-release | RathaTart | +572 / −55 | c097586 |
+| 2026-11-21 15:30:51 | [#124](https://github.com/tanagornf/Endless-Hackathon/pull/124) | F14 S2: Verify slip evidence and prevent duplicate reference claims | lane/A2/payments-2 | Ikkyuuuu | +435 / −39 | 81a777e |
+| 2026-11-21 15:32:33 | [#113](https://github.com/tanagornf/Endless-Hackathon/pull/113) | Meter owner-approved shop correction analysis | lane/C1/core-shop-analysis-model | tanagornf | +615 / −11 | 0cc6437 |
+| 2026-11-21 15:33:05 | [#125](https://github.com/tanagornf/Endless-Hackathon/pull/125) | F10: Ask the shop before giving unsupported washing instructions | lane/B2/ai-agent-shop-care | RathaTart | +20 / −1 | 1b4ca83 |
+| 2026-11-21 15:33:09 | [#121](https://github.com/tanagornf/Endless-Hackathon/pull/121) | Report worker handlers that ignore abort | lane/C1/core-jobs-worker-stall | tanagornf | +136 / −14 | 926e5c0 |
 
 ## Orchestrator fixes
 
@@ -617,3 +634,34 @@ All times are Asia/Bangkok. Baseline bf961c8d13ee26133f868d32a51d8627001e16f3, c
 | 2026-11-21 15:24:33 | A1 | STATUS | [#7059890820](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059890820) |
 | 2026-11-21 15:24:53 | B1 | FIX | [#7059894330](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059894330) |
 | 2026-11-21 15:25:20 | A1 | NEED | [#7059899095](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059899095) |
+| 2026-11-21 15:25:36 | B3 | NEED | [#7059902040](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059902040) |
+| 2026-11-21 15:25:44 | B3 | STATUS | [#7059903440](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059903440) |
+| 2026-11-21 15:27:00 | C3 | DONE | [#7059917136](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059917136) |
+| 2026-11-21 15:27:15 | C3 | STATUS | [#7059919733](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059919733) |
+| 2026-11-21 15:27:35 | B2 | DONE | [#7059923146](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059923146) |
+| 2026-11-21 15:28:15 | C2 | DONE | [#7059930266](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059930266) |
+| 2026-11-21 15:28:23 | C2 | STATUS | [#7059931533](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059931533) |
+| 2026-11-21 15:28:35 | B3 | NEED | [#7059933906](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059933906) |
+| 2026-11-21 15:28:57 | C0 | FIX | [#7059938057](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059938057) |
+| 2026-11-21 15:29:19 | B1 | STATUS | [#7059941856](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059941856) |
+| 2026-11-21 15:29:23 | B2 | DONE | [#7059942579](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059942579) |
+| 2026-11-21 15:29:28 | A0 | LEAD: | [#7059943520](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059943520) |
+| 2026-11-21 15:29:30 | B2 | STATUS | [#7059943853](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059943853) |
+| 2026-11-21 15:29:42 | B0 | STAGE | [#7059945853](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059945853) |
+| 2026-11-21 15:29:53 | C3 | DONE | [#7059947807](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059947807) |
+| 2026-11-21 15:30:01 | C3 | STATUS | [#7059949141](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059949141) |
+| 2026-11-21 15:30:01 | C3 | STATUS | [#7059949189](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059949189) |
+| 2026-11-21 15:30:09 | C3 | DONE | [#7059950641](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059950641) |
+| 2026-11-21 15:30:17 | C3 | STATUS | [#7059951900](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059951900) |
+| 2026-11-21 15:30:24 | C3 | DONE | [#7059953207](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059953207) |
+| 2026-11-21 15:30:26 | B3 | STATUS | [#7059953636](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059953636) |
+| 2026-11-21 15:30:31 | C3 | STATUS | [#7059954570](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059954570) |
+| 2026-11-21 15:30:56 | B0 | STAGE | [#7059958967](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059958967) |
+| 2026-11-21 15:31:20 | A2 | DONE | [#7059963515](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059963515) |
+| 2026-11-21 15:31:28 | A2 | STATUS | [#7059965078](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059965078) |
+| 2026-11-21 15:31:35 | A2 | NEED | [#7059966530](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059966530) |
+| 2026-11-21 15:32:08 | A0 | LEAD: | [#7059974192](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059974192) |
+| 2026-11-21 15:32:12 | A0 | STAGE | [#7059975129](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059975129) |
+| 2026-11-21 15:33:17 | C1 | DONE | [#7059987197](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059987197) |
+| 2026-11-21 15:33:30 | B2 | DONE | [#7059989421](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059989421) |
+| 2026-11-21 15:33:38 | B2 | STATUS | [#7059990924](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7059990924) |

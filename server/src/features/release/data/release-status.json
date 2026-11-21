@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-11-21T08:32:16.758Z",
-  "generatedFromSha": "c9d043c2776525eb19ed327b1265c6dc6ed49bf1",
+  "generatedAt": "2026-11-21T08:35:29.749Z",
+  "generatedFromSha": "62e02642afbfc9235b7c11733104a8ebe93f1ae6",
   "baselineSha": "bf961c8d13ee26133f868d32a51d8627001e16f3",
   "repoUrl": "https://github.com/tanagornf/Endless-Hackathon",
   "totals": {
     "R": 0,
     "S": 1,
-    "A": 16,
-    "U": 14
+    "A": 17,
+    "U": 13
   },
   "featureFlagsVerified": false,
   "rows": [
@@ -66,9 +66,9 @@
       "actualMode": "A",
       "providerGate": "none",
       "commitSha": "",
-      "testsEvidence": "37 F03 tests passed, typecheck and ownership passed, anonymous production invitation smoke passed",
-      "checkedAtBangkok": "2026-11-21 13:28",
-      "blocker": "Authenticated production smoke and shop lifecycle smoke pending",
+      "testsEvidence": "37 focused tests, ownership, production anonymous invitation smoke and authenticated member/invitation reads passed",
+      "checkedAtBangkok": "2026-11-21 14:14",
+      "blocker": "Synthetic invitation/shop lifecycle writes pending",
       "evidenceFile": "server/src/features/tenancy/EVIDENCE.md",
       "downgradedFrom": null,
       "downgradeReason": null,
@@ -88,9 +88,9 @@
       "actualMode": "A",
       "providerGate": "none",
       "commitSha": "",
-      "testsEvidence": "36 F04 tests passed and 40 with tenancy isolation, typecheck and ownership passed, four Playwright smoke cases discovered",
-      "checkedAtBangkok": "2026-11-21 13:13",
-      "blocker": "Production smoke and core-loop gate evidence pending",
+      "testsEvidence": "40 F04 + isolation tests, ownership, and authenticated production business/AI settings reads passed",
+      "checkedAtBangkok": "2026-11-21 14:14",
+      "blocker": "Synthetic closure/answer-policy write and restoration smoke pending",
       "evidenceFile": "server/src/features/business-settings/EVIDENCE.md",
       "downgradedFrom": null,
       "downgradeReason": null,
@@ -303,9 +303,9 @@
       "name": "QR การชำระและตรวจสลิป",
       "lane": "A2",
       "tier": "P1",
-      "status": "UNIMPLEMENTED",
+      "status": "PARTIAL",
       "targetMode": "S",
-      "actualMode": "U",
+      "actualMode": "A",
       "providerGate": "S: slip checks (QR decode + code checks + vision) are not bank verification; R is not claimable without a bank API",
       "commitSha": "",
       "testsEvidence": "",
@@ -483,16 +483,16 @@
       "targetMode": "R",
       "actualMode": "A",
       "providerGate": "None",
-      "commitSha": "c2f991d874a66b5716ba9362ef79807355b552b3",
-      "testsEvidence": "Six database and route tests and three web tests passed.",
-      "checkedAtBangkok": "2026-11-21 14:51",
+      "commitSha": "d32b00d61d909944ebc33d96c26d4d907ddbc625",
+      "testsEvidence": "Seven database and route tests and seven web tests passed.",
+      "checkedAtBangkok": "2026-11-21 15:07",
       "blocker": "Production smoke awaits deployment and the synthetic merchant window.",
       "evidenceFile": "server/src/features/crm/EVIDENCE.md",
       "downgradedFrom": null,
       "downgradeReason": null,
       "links": {
         "evidence": "https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/crm/EVIDENCE.md",
-        "commit": "https://github.com/tanagornf/Endless-Hackathon/commit/c2f991d874a66b5716ba9362ef79807355b552b3"
+        "commit": "https://github.com/tanagornf/Endless-Hackathon/commit/d32b00d61d909944ebc33d96c26d4d907ddbc625"
       }
     },
     {

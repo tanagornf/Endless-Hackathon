@@ -1,14 +1,14 @@
 # Feature release status
 
-Total: 0 R, 1 S, 16 A, 14 U.
+Total: 0 R, 1 S, 17 A, 13 U.
 Production flags were not supplied for this roll-up.
 
 | ID | Feature | Lane | Tier | Mode | Evidence | Blocker |
 |---|---|---|---|---|---|---|
 | F01 | ฐานโปรเจกต์และการรัน | C1 | P0 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/core/EVIDENCE.md) |  |
 | F02 | ตัวตนและ session | C3 | P1 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/auth/EVIDENCE.md) | Seeded production login, cutover and recovery production smoke pending |
-| F03 | บัญชี ธุรกิจ สมาชิก และสิทธิ์ | C3 | P0 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/tenancy/EVIDENCE.md) | Authenticated production smoke and shop lifecycle smoke pending |
-| F04 | การตั้งค่าธุรกิจ | C3 | P0 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/business-settings/EVIDENCE.md) | Production smoke and core-loop gate evidence pending |
+| F03 | บัญชี ธุรกิจ สมาชิก และสิทธิ์ | C3 | P0 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/tenancy/EVIDENCE.md) | Synthetic invitation/shop lifecycle writes pending |
+| F04 | การตั้งค่าธุรกิจ | C3 | P0 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/business-settings/EVIDENCE.md) | Synthetic closure/answer-policy write and restoration smoke pending |
 | F05 | คลังความรู้และวงจรข้อมูล | B1 | P0 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/knowledge/EVIDENCE.md) | Production smoke and S3 remain pending. |
 | F06 | นำเข้าและสกัดข้อมูล | B3 | P1 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/knowledge-import/EVIDENCE.md) | Production deploy and smoke, three-run pitch metric, and real F31 completion notification pending. |
 | F07 | ค้นคืน RAG และประเมิน revision | B1 | P0 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/knowledge-search/EVIDENCE.md) | Remaining saved-case editing, cache, rerank and production source-drawer smoke pending. |
@@ -18,7 +18,7 @@ Production flags were not supplied for this roll-up.
 | F11 | ทีมและ human handoff | A1 | P0 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/team/EVIDENCE.md) | F10 restart-to-delivery integration and shared production gate pending |
 | F12 | Rich messages และ templates | A1 | P2 | U | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/message-templates/EVIDENCE.md) |  |
 | F13 | Commerce และ orders | A2 | P1 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/orders/EVIDENCE.md) | Staff orders screen and authenticated production smoke pending. |
-| F14 | QR การชำระและตรวจสลิป | A2 | P1 | U | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/payments/EVIDENCE.md) |  |
+| F14 | QR การชำระและตรวจสลิป | A2 | P1 | A | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/payments/EVIDENCE.md) |  |
 | F15 | Booking และ reminders | A3 | P2 | U | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/booking/EVIDENCE.md) |  |
 | F16 | Google Calendar | A3 | P2 | U | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/calendar/EVIDENCE.md) |  |
 | F17 | LINE | C2 | P0 | S | [Evidence](https://github.com/tanagornf/Endless-Hackathon/blob/main/server/src/features/line/EVIDENCE.md) | NLess Demo activation and on-device receipt, bilingual production smoke and LINE device evidence |
