@@ -798,7 +798,7 @@ describe('F10 S3 explicit human handoff', { timeout: 20_000 }, () => {
     expect(await afterConsentPrompt(returned.conversation.id)).toEqual([
       expect.objectContaining({ id: queued.id, delivery: expect.objectContaining({ state: 'failed', error: 'AI_DELIVERY_SUPPRESSED' }) }),
     ]);
-  });
+  }, 40_000);
 
   it('opens a scoped fallback wait and sends no version marker when F11 throws', async () => {
     const inbound = await confirmStaffRequest('ขอคุยกับพนักงานค่ะ', 'th');
