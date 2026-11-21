@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Box, Button, Chip, CircularProgress, Stack, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { BookingReviewPart, ConfirmRequest, MessagePart, OrderReviewPart } from '@nless/shared/core/types';
@@ -8,6 +9,7 @@ type Review = OrderReviewPart | BookingReviewPart;
 export type ReviewAction = Omit<ConfirmRequest, 'clientRequestId'> & { kind: 'order' | 'booking' };
 type Props = {
   parts: MessagePart[];
+  linkSources: boolean;
   fileUrl: (id: string) => string;
   onReview?: (action: ReviewAction) => Promise<void>;
   onPostback?: (text: string) => void;
@@ -27,6 +29,28 @@ function safeLink(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+function sourceLinks(text: string): ReactNode {
+  const content: ReactNode[] = [];
+  let cursor = 0;
+  for (const match of text.matchAll(/\bhttps:\/\/[^\s<>"“”‘’]+/giu)) {
+    // Keep balanced brackets inside URLs, but leave surrounding prose punctuation as text.
+    const brackets: string[] = [];
+    const closer: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
+    let end = 0;
+    for (const char of match[0]) {
+      if (closer[char]) brackets.push(closer[char]);
+      else if (')]}'.includes(char) && brackets.pop() !== char) break;
+      end += char.length;
+    }
+    const url = match[0].slice(0, end).replace(/[.,;:!?'…。、，！？ฯ]+$/u, '');
+    if (/^https:\/\/\//iu.test(url) || /[\\\p{C}]/u.test(url) || !safeLink(url)) continue;
+    content.push(text.slice(cursor, match.index), <Box component="a" key={match.index} href={url}
+      target="_blank" rel="noopener noreferrer" sx={{ color: 'inherit', textDecoration: 'underline' }}>{url}</Box>);
+    cursor = match.index + url.length;
+  }
+  return content.length ? [...content, text.slice(cursor)] : text;
 }
 
 function ReviewCard({ part, onReview }: { part: Review; onReview?: Props['onReview'] }) {
@@ -83,13 +107,15 @@ function ReviewCard({ part, onReview }: { part: Review; onReview?: Props['onRevi
   </Stack>;
 }
 
-export function MessageParts({ parts, fileUrl, onReview, onPostback }: Props) {
+export function MessageParts({ parts, linkSources, fileUrl, onReview, onPostback }: Props) {
   const { t } = useTranslation('inbox');
   return <Stack spacing={1}>
     {parts.map((part, index) => {
       switch (part.type) {
         case 'text':
-          return <Typography key={index} sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{part.text}</Typography>;
+          return <Typography key={index} sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+            {linkSources ? sourceLinks(part.text) : part.text}
+          </Typography>;
         case 'image': {
           const url = fileUrl(part.fileId);
           return <Box key={index} component="a" href={url} target="_blank" rel="noopener noreferrer"

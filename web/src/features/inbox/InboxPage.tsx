@@ -171,7 +171,7 @@ function StaffMessage({ message, onRetry }: { message: MessageRecord; onRetry?: 
     data-direction={message.direction} data-origin={message.origin} sx={{ minWidth: 0 }}>
     <Stack spacing={0.5}>
       <Typography variant="caption" color="text.secondary">{t('author.' + message.author)} · {formatDateTime(message.createdAt)}</Typography>
-      <MessageParts parts={message.parts}
+      <MessageParts parts={message.parts} linkSources={message.direction === 'outbound'}
         fileUrl={(fileId) => '/api/v1/businesses/' + encodeURIComponent(message.businessId) + '/chat/files/' + encodeURIComponent(fileId)} />
       {message.origin !== 'demo' && message.origin !== 'live' && <Typography variant="caption">{t('origin.' + message.origin)}</Typography>}
       {message.direction === 'outbound' && message.delivery.state !== 'not_required' &&
