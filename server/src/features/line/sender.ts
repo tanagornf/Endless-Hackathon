@@ -89,7 +89,8 @@ export function makeLineSender(now = Date.now): ChannelSender {
             mode = 'reply';
             mayHaveReplied = true;
             response = await lineRequest('/v2/bot/message/reply', { method: 'POST', token, timeoutMs: 10_000, json: { replyToken, messages: batch } });
-            if (!response) return unknown;
+            // An upstream 5xx can arrive after LINE accepted a Reply. Keep the reservation and never fall back to Push.
+            if (!response || response.status >= 500) return unknown;
             if (response.status !== 200) {
               mayHaveReplied = false;
               await clearReplyBatch(key);
