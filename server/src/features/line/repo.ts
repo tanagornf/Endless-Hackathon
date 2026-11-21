@@ -136,13 +136,13 @@ export async function reserveReplyBatch(key: BatchKey, tokenHash: string) {
   });
 }
 
-export async function reservePushBatch(key: BatchKey) {
-  return db.maybeOne<{ retry_key: string; created_at: Date }>(
-    "INSERT INTO line_delivery_batches (message_id, batch_index, mode, retry_key, state) " +
-      "SELECT id, $2, 'push', $3, 'pending' FROM messages WHERE id = $1 AND business_id = $4 AND direction = 'outbound' " +
+export async function reservePushBatch(key: BatchKey, requestDigest: string) {
+  return db.maybeOne<{ retry_key: string; created_at: Date; request_digest: string | null }>(
+    "INSERT INTO line_delivery_batches (message_id, batch_index, mode, retry_key, state, request_digest) " +
+      "SELECT id, $2, 'push', $3, 'pending', $5 FROM messages WHERE id = $1 AND business_id = $4 AND direction = 'outbound' " +
       "ON CONFLICT (message_id, batch_index) DO UPDATE SET retry_key = line_delivery_batches.retry_key " +
-      "WHERE line_delivery_batches.mode = 'push' AND line_delivery_batches.state = 'pending' RETURNING retry_key, created_at",
-    [key.messageId, key.index, key.retryKey, key.businessId],
+      "WHERE line_delivery_batches.mode = 'push' AND line_delivery_batches.state = 'pending' RETURNING retry_key, created_at, request_digest",
+    [key.messageId, key.index, key.retryKey, key.businessId, requestDigest],
   );
 }
 

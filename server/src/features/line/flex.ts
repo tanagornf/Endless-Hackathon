@@ -1,6 +1,8 @@
 import { formatMoneyText, type CustomerLanguage } from '@nless/shared/core/language';
 import type { ActionButtonsPart, BookingReviewPart, MessagePart, OrderReviewPart, ProductCardPart } from '@nless/shared/core/types';
 
+import { lineFlexLabels as labels } from './labels';
+
 const FLEX_MAX_BYTES = 45_000;
 const BUBBLE_MAX_BYTES = 30_000;
 const CAROUSEL_MAX_BUBBLES = 10;
@@ -15,48 +17,6 @@ const SOLD_OUT_COLOR = '#B91C1C';
 const PRIMARY_COLOR = '#0F766E';
 const POSTBACK_DATA = /^nl:a:[A-Za-z0-9]{12}$/;
 
-const labels = {
-  th: {
-    catalog: 'สินค้า',
-    soldOut: 'สินค้าหมด',
-    lowStock: (quantity: number) => `เหลือ ${quantity} ชิ้น`,
-    interested: 'สนใจ',
-    interestText: (name: string) => `สนใจ ${name}`,
-    order: 'สรุปออเดอร์',
-    orderAlt: (total: string) => `สรุปออเดอร์ รวม ${total} เปิดดูในแอป LINE เพื่อยืนยัน`,
-    more: (quantity: number) => `และอีก ${quantity} รายการ`,
-    subtotal: 'ยอดสินค้า',
-    delivery: 'ค่าส่ง',
-    total: 'รวม',
-    deadline: (time: string) => `ยืนยันได้ถึง ${time}`,
-    confirmOrder: 'ยืนยันสั่งซื้อ',
-    booking: 'สรุปนัดหมาย',
-    bookingAlt: (time: string) => `สรุปนัดหมาย ${time} เปิดดูในแอป LINE เพื่อยืนยัน`,
-    confirmBooking: 'ยืนยันนัดหมาย',
-    cancel: 'ยกเลิก',
-    choose: 'เลือกได้เลยค่ะ',
-  },
-  en: {
-    catalog: 'Catalog',
-    soldOut: 'Sold out',
-    lowStock: (quantity: number) => `${quantity} left`,
-    interested: 'Interested',
-    interestText: (name: string) => `Interested in ${name}`,
-    order: 'Order summary',
-    orderAlt: (total: string) => `Order summary, total ${total}. Open in the LINE app to confirm.`,
-    more: (quantity: number) => `and ${quantity} more`,
-    subtotal: 'Items',
-    delivery: 'Delivery',
-    total: 'Total',
-    deadline: (time: string) => `Confirm before ${time}`,
-    confirmOrder: 'Confirm order',
-    booking: 'Booking summary',
-    bookingAlt: (time: string) => `Booking summary ${time}. Open in the LINE app to confirm.`,
-    confirmBooking: 'Confirm booking',
-    cancel: 'Cancel',
-    choose: 'Please choose an option.',
-  },
-};
 
 type Awaitable<T> = T | Promise<T>;
 type ReviewPart = OrderReviewPart | BookingReviewPart;

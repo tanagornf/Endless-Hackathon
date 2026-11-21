@@ -100,16 +100,18 @@ export function makeLineSender(now = Date.now): ChannelSender {
           }
           if (mode === 'push') {
             // A reservation pins the batch to Push before LINE can accept it.
-            const pending = await reservePushBatch(key);
+            const payload = { to: delivery.customerExternalId, messages: batch };
+            const requestDigest = createHash('sha256').update(JSON.stringify([connection.channel_id, connection.bot_user_id, payload])).digest('hex');
+            const pending = await reservePushBatch(key, requestDigest);
             if (!pending) return unknown;
             key.retryKey = pending.retry_key;
-            if (now() - pending.created_at.getTime() >= PUSH_RETRY_TTL_MS) {
+            if (pending.request_digest !== requestDigest || now() - pending.created_at.getTime() >= PUSH_RETRY_TTL_MS) {
               ambiguousDelivery = true;
               await completeDeliveryBatch(key, mode, { state: 'unknown', sent_ids: [], request_id: null });
               return unknown;
             }
             response = await lineRequest('/v2/bot/message/push', {
-              method: 'POST', token, timeoutMs: 10_000, retryKey: key.retryKey, json: { to: delivery.customerExternalId, messages: batch },
+              method: 'POST', token, timeoutMs: 10_000, retryKey: key.retryKey, json: payload,
             });
             if (!response) {
               ambiguousDelivery = true;
