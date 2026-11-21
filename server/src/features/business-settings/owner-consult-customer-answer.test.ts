@@ -37,6 +37,27 @@ describe('reviewed owner reply', () => {
     expect(prepareCustomerAnswer({ answer, answerParts: replies, customerReady: true }, prompts.length, language).answer).toBe(answer);
   });
 
+  it.each([
+    {
+      question: 'Can I exchange this opened game and who pays for shipping?',
+      parts: ['Can I exchange this opened game', 'who pays for shipping?'],
+      partial: 'Yes, you can exchange this game.', language: 'en',
+    },
+    {
+      question: 'เปลี่ยนเกมที่แกะแล้วได้ไหม แล้วใครออกค่าส่ง',
+      parts: ['เปลี่ยนเกมที่แกะแล้วได้ไหม', 'ใครออกค่าส่ง'],
+      partial: 'ร้านเปลี่ยนเกมให้ได้ค่ะ', language: 'th',
+    },
+  ] as const)('keeps a natural $language compound question pending after only the first answer', ({ question, parts, partial, language }) => {
+    const prompts = ownerAnswerPrompts(question);
+    expect(prompts).toEqual(parts);
+    expect(() => prepareCustomerAnswer({ answer: partial, customerReady: true }, prompts.length, language)).toThrow();
+  });
+
+  it('keeps a compound object in one question', () => {
+    const question = 'Can I exchange this game and its spare parts?';
+    expect(ownerAnswerPrompts(question)).toEqual([question]);
+  });
   it('requires explicit review and the customer language', () => {
     const answer = 'We can replace this.';
     expect(() => prepareCustomerAnswer({ answer, customerReady: false }, 1, 'en')).toThrow();
