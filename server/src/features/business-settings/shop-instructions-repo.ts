@@ -1,0 +1,172 @@
+import type { AuthScope } from '@nless/shared/core/types';
+import type {
+  ActiveShopInstruction, ShopInstructionCandidate, ShopInstructionReview, ShopInstructionVersion,
+} from '@nless/shared/features/business-settings/shop-instructions-types';
+import { AppError, auditInTransaction, config, db, type DbExecutor } from '../../core';
+import { instructionReplayPassed, instructionReplaySchema, type InstructionReplay } from './shop-instructions-replay';
+
+const versionFields = `id,instruction,parent_version_id AS "parentVersionId",candidate_id AS "candidateId",
+  restored_from_version_id AS "restoredFromVersionId",actor_user_id AS "actorUserId",
+  to_jsonb(created_at)#>>'{}' AS "createdAt"`;
+const candidateDigest = "encode(sha256(convert_to(c.instruction,'UTF8')),'hex')";
+const candidateFields = `c.id,c.base_version_id AS "baseVersionId",c.instruction,c.reason,
+  to_jsonb(c.created_at)#>>'{}' AS "createdAt",${candidateDigest} AS "candidateDigest",
+  EXISTS (SELECT 1 FROM shop_instruction_replays r
+    WHERE (r.business_id,r.candidate_id)=(c.business_id,c.id)
+      AND r.base_version_id IS NOT DISTINCT FROM c.base_version_id
+      AND r.candidate_digest=${candidateDigest} AND r.mode=$2 AND r.passed) AS "replayPassed"`;
+
+function requireShopInstructionOwner(scope: AuthScope): asserts scope is AuthScope & { businessId: string; accountId: string } {
+  if (scope.role !== 'owner' || !scope.businessId || !scope.accountId) {
+    throw new AppError('PERMISSION_DENIED', 'An active shop owner is required');
+  }
+}
+
+export async function lockShopInstructionRevisions(tx: DbExecutor, businessId: string): Promise<void> {
+  await tx.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['shop-instructions:' + businessId]);
+}
+
+export function readLatestShopInstruction(tx: DbExecutor, businessId: string) {
+  return tx.maybeOne<ShopInstructionVersion & { revision: number }>(`
+    SELECT ${versionFields},revision FROM shop_instruction_versions WHERE business_id=$1 ORDER BY revision DESC LIMIT 1`, [businessId]);
+}
+
+export function readActiveShopInstruction(businessId: string): Promise<ActiveShopInstruction | null> {
+  return db.maybeOne<ActiveShopInstruction>(`
+    SELECT id,instruction
+    FROM (SELECT id,instruction FROM shop_instruction_versions WHERE business_id=$1 ORDER BY revision DESC LIMIT 1) active
+    WHERE instruction IS NOT NULL`, [businessId]);
+}
+
+export async function listShopInstructions(scope: AuthScope): Promise<ShopInstructionReview> {
+  requireShopInstructionOwner(scope);
+  return db.one<ShopInstructionReview>(`
+    WITH versions AS (
+      SELECT revision,${versionFields} FROM shop_instruction_versions WHERE business_id=$1
+    ), candidates AS (
+      SELECT ${candidateFields} FROM shop_instruction_candidates c
+      WHERE c.business_id=$1 AND NOT EXISTS (SELECT 1 FROM versions v WHERE v."candidateId"=c.id)
+    )
+    SELECT (SELECT id FROM versions ORDER BY revision DESC LIMIT 1) AS "activeVersionId",
+      COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c."createdAt" DESC,c.id) FROM candidates c),'[]') AS candidates,
+      COALESCE((SELECT jsonb_agg(to_jsonb(v)-'revision' ORDER BY v.revision DESC) FROM versions v),'[]') AS versions`,
+  [scope.businessId, config.MODEL_MODE]);
+}
+
+async function findCandidate(tx: DbExecutor, businessId: string, id: string): Promise<ShopInstructionCandidate> {
+  const candidate = await tx.maybeOne<ShopInstructionCandidate>(`
+    SELECT ${candidateFields} FROM shop_instruction_candidates c WHERE c.business_id=$1 AND c.id=$3`,
+  [businessId, config.MODEL_MODE, id]);
+  if (!candidate) throw new AppError('NOT_FOUND', 'Shop instruction candidate not found');
+  return candidate;
+}
+
+export async function getShopInstructionCandidate(scope: AuthScope, id: string): Promise<ShopInstructionCandidate> {
+  requireShopInstructionOwner(scope);
+  return findCandidate(db, scope.businessId, id);
+}
+
+/** Internal evaluator entry point. Owner HTTP handlers cannot attest replay outcomes. */
+export function getShopInstructionReplayTarget(businessId: string, candidateId: string) {
+  return findCandidate(db, businessId, candidateId);
+}
+
+export async function recordInstructionReplay(input: InstructionReplay): Promise<{ passed: boolean }> {
+  const parsed = instructionReplaySchema.safeParse(input);
+  if (!parsed.success || parsed.data.mode !== config.MODEL_MODE) {
+    throw new AppError('VALIDATION_ERROR', 'Replay report must match the current evaluation mode');
+  }
+  const {
+    businessId, candidateId, baseVersionId, candidateDigest, replayRunId, fixtureSetDigest, mode, outcomes,
+  } = parsed.data;
+  const passed = instructionReplayPassed(outcomes);
+  return db.tx(async (tx) => {
+    await lockShopInstructionRevisions(tx, businessId);
+    const candidate = await findCandidate(tx, businessId, candidateId);
+    const active = await readLatestShopInstruction(tx, businessId);
+    if (candidate.candidateDigest !== candidateDigest || candidate.baseVersionId !== baseVersionId
+      || (active?.id ?? null) !== baseVersionId) {
+      throw new AppError('VERSION_CONFLICT', 'Replay does not match the candidate and active base revision');
+    }
+    const values = [businessId, replayRunId, candidateId, baseVersionId, candidateDigest, fixtureSetDigest, mode, JSON.stringify(outcomes), passed];
+    const inserted = await tx.query(`
+      INSERT INTO shop_instruction_replays
+        (business_id,replay_run_id,candidate_id,base_version_id,candidate_digest,fixture_set_digest,mode,outcomes,passed)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (business_id,replay_run_id) DO NOTHING`, values);
+    if (!inserted.rowCount && !await tx.maybeOne(`
+      SELECT 1 FROM shop_instruction_replays WHERE business_id=$1 AND replay_run_id=$2 AND candidate_id=$3
+        AND base_version_id IS NOT DISTINCT FROM $4::uuid AND candidate_digest=$5 AND fixture_set_digest=$6
+        AND mode=$7 AND outcomes=$8::jsonb AND passed=$9`, values)) {
+      throw new AppError('VERSION_CONFLICT', 'Replay run already has a different report');
+    }
+    return { passed };
+  });
+}
+
+type Activation = { expectedActiveVersionId: string | null } & (
+  | { kind: 'publish'; targetId: string }
+  | { kind: 'rollback'; targetId: string | null }
+);
+
+async function activate(scope: AuthScope, { kind, targetId, expectedActiveVersionId }: Activation): Promise<ShopInstructionVersion> {
+  requireShopInstructionOwner(scope);
+  return db.tx(async (tx) => {
+    const { businessId, userId, accountId } = scope;
+    await lockShopInstructionRevisions(tx, businessId);
+    const owner = await tx.maybeOne(`
+      SELECT 1 FROM memberships m JOIN businesses b ON b.id=m.business_id
+      JOIN accounts a ON a.id=b.account_id JOIN users u ON u.id=m.user_id
+      WHERE m.business_id=$1 AND m.user_id=$2 AND a.id=$3
+        AND m.status='active' AND m.role='owner' AND b.status='active' AND a.status='active' AND u.status='active'
+      FOR SHARE OF m,b,a,u`, [businessId, userId, accountId]);
+    if (!owner) throw new AppError('PERMISSION_DENIED', 'An active shop owner is required');
+
+    const active = await readLatestShopInstruction(tx, businessId);
+    const candidate = kind === 'publish' ? await findCandidate(tx, businessId, targetId) : null;
+    const restoringBaseline = kind === 'rollback' && targetId === null;
+    const previous = kind === 'rollback' && targetId !== null
+      ? await tx.maybeOne<Pick<ShopInstructionVersion, 'id' | 'instruction'>>(`
+          SELECT id,instruction FROM shop_instruction_versions WHERE business_id=$1 AND id=$2`, [businessId, targetId])
+      : null;
+    const target = candidate ?? previous;
+    if (!target && !restoringBaseline) throw new AppError('NOT_FOUND', 'Shop instruction version not found');
+
+    const candidateId = candidate?.id ?? null;
+    const restoredFrom = previous?.id ?? null;
+    if (active && active.actorUserId === userId && active.parentVersionId === expectedActiveVersionId
+      && active.candidateId === candidateId && active.restoredFromVersionId === restoredFrom) {
+      const { revision: _revision, ...version } = active;
+      return version;
+    }
+    if ((active?.id ?? null) !== expectedActiveVersionId || targetId === active?.id
+      || (restoringBaseline && (!active || active.instruction === null))
+      || (candidate && candidate.baseVersionId !== expectedActiveVersionId)) {
+      throw new AppError('VERSION_CONFLICT', 'The active shop instruction changed');
+    }
+    if (candidate && !candidate.replayPassed) {
+      throw new AppError('POLICY_BLOCKED', 'A trusted bilingual replay must pass before publication');
+    }
+
+    const version = await tx.one<ShopInstructionVersion>(`
+      INSERT INTO shop_instruction_versions
+        (business_id,revision,parent_version_id,candidate_id,restored_from_version_id,instruction,actor_user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING ${versionFields}`,
+    [businessId, (active?.revision ?? 0) + 1, expectedActiveVersionId, candidateId, restoredFrom, target?.instruction ?? null, userId]);
+    await auditInTransaction(tx, [{
+      action: 'business_settings.shop_instruction.' + kind,
+      actorUserId: userId,
+      businessId,
+      accountId,
+      targetType: 'shop_instruction_version',
+      targetId: version.id,
+      details: { parentVersionId: expectedActiveVersionId, candidateId, restoredFromVersionId: restoredFrom, restoringBaseline },
+    }]);
+    return version;
+  });
+}
+
+export const publishShopInstruction = (scope: AuthScope, targetId: string, expectedActiveVersionId: string | null) =>
+  activate(scope, { kind: 'publish', targetId, expectedActiveVersionId });
+
+export const rollbackShopInstruction = (scope: AuthScope, targetId: string | null, expectedActiveVersionId: string | null) =>
+  activate(scope, { kind: 'rollback', targetId, expectedActiveVersionId });

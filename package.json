@@ -32,6 +32,14 @@
     "e2e": "playwright test",
     "evals": "tsx server/src/features/evals/run.ts",
     "demo:reset": "tsx scripts/db.ts demo-reset",
+    "release:status": "tsx scripts/release/status.ts",
+    "release:status:check": "tsx scripts/release/status.ts --check",
+    "release:timeline": "tsx scripts/release/timeline.ts",
+    "release:verify": "tsx scripts/release/verify.ts",
+    "release:claims": "tsx scripts/release/claims.ts",
+    "release:pack": "tsx scripts/release/pack.ts",
+    "release:readme": "tsx scripts/release/readme.ts",
+    "release:readme:check": "tsx scripts/release/readme.ts --check",
     "check": "npm run typecheck && npm run check:paths && npm test"
   },
   "devDependencies": {

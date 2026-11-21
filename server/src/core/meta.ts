@@ -20,6 +20,20 @@ const startedAt = new Date().toISOString();
 let draining = false;
 export function markDraining(): void { draining = true; }
 
+export async function getBuildMetadata() {
+  const schema = await migrationStatus().then((state) => state.schema, () => null);
+  return {
+    sha: BUILD_SHA, startedAt, lane: config.LANE, env: config.NODE_ENV, schema, modelMode: config.MODEL_MODE,
+    models: {
+      chat: config.OPENAI_CHAT_MODEL, fast: config.OPENAI_CHAT_MODEL_FAST, strong: config.OPENAI_CHAT_MODEL_STRONG,
+      embed: config.OPENAI_EMBED_MODEL, moderate: config.OPENAI_MODERATION_MODEL, transcribe: config.OPENAI_TRANSCRIBE_MODEL,
+      realtime: config.OPENAI_REALTIME_MODEL,
+    },
+    providerModesScope: 'environment_bootstrap',
+    providerModes: { line: providerMode('line'), meta: providerMode('meta'), google: providerMode('google'), payment: providerMode('payment'), slip: config.SLIP_VERIFY_MODE },
+  };
+}
+
 export function mountMeta(app: Application, features: () => number) {
   app.get(['/healthz', '/health/live'], async (_req, res) => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -50,16 +64,7 @@ export function mountMeta(app: Application, features: () => number) {
     res.json({ status: 'ready', worker, scheduler, migrations: migrations.status === 'fulfilled' ? migrations.value : null, uploadDir: 'ok' });
   });
   app.get('/build-info', async (_req, res) => {
-    const schema = await migrationStatus().then((state) => state.schema, () => null);
-    const models = {
-      chat: config.OPENAI_CHAT_MODEL, fast: config.OPENAI_CHAT_MODEL_FAST, strong: config.OPENAI_CHAT_MODEL_STRONG,
-      embed: config.OPENAI_EMBED_MODEL, moderate: config.OPENAI_MODERATION_MODEL, transcribe: config.OPENAI_TRANSCRIBE_MODEL,
-      realtime: config.OPENAI_REALTIME_MODEL,
-    };
-    res.json({
-      sha: BUILD_SHA, startedAt, lane: config.LANE, env: config.NODE_ENV, schema, modelMode: config.MODEL_MODE, models, featuresLoaded: features(),
-      providerModesScope: 'environment_bootstrap',
-      providerModes: { line: providerMode('line'), meta: providerMode('meta'), google: providerMode('google'), payment: providerMode('payment'), slip: config.SLIP_VERIFY_MODE },
-    });
+    const { providerModesScope, providerModes, ...metadata } = await getBuildMetadata();
+    res.json({ ...metadata, featuresLoaded: features(), providerModesScope, providerModes });
   });
 }

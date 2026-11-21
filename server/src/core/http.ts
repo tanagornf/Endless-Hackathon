@@ -8,6 +8,7 @@ import type { FeatureId } from '@nless/shared/core/features';
 import { getBusiness, getUser, requirePermission, requirePlatformAdmin, SESSION_COOKIE } from './auth';
 import { config } from './config';
 import { AppError, apiMeta, toApiFailure } from './errors';
+import { featureFlags } from './features';
 import { log, requestContext } from './log';
 import type { FeatureApi, HttpResponse, RouteContext, RouteHandler, RouteOptions } from './types';
 
@@ -156,6 +157,7 @@ export function createHttpApp() {
       });
     };
     return {
+      readFeatureFlags: () => featureFlags(routes),
       get: (...args) => register('get', ...args),
       post: (...args) => register('post', ...args),
       put: (...args) => register('put', ...args),
