@@ -1,13 +1,14 @@
 import { assertRateLimit, defineFeatureRoutes } from '../../core';
-import { listRetrievalCases, listRetrievalRuns, runRetrievalEvaluation } from './eval';
+import { createRetrievalCase, deleteRetrievalCase, listRetrievalCases, listRetrievalRuns, runRetrievalEvaluation } from './eval';
 import { indexJobHandler } from './index-job';
 import { INDEX_JOB } from './indexing';
-import { EvalRunBody, RunsQuery, SearchBody } from './schema';
+import { CaseBody, EvalRunBody, RunsQuery, SearchBody } from './schema';
 import { searchWorkbench } from './search';
 import { readIndexStatus, readSource } from './workbench';
 
 const root = '/businesses/:businessId/knowledge-search';
 const read = { auth: 'business', permission: 'product.read' } as const;
+const write = { auth: 'business', permission: 'product.write' } as const;
 
 export default defineFeatureRoutes({
   featureId: 'F07',
@@ -29,6 +30,13 @@ export default defineFeatureRoutes({
       ({ business, query }) => listRetrievalRuns(business!.id, query.limit));
     api.get(root + '/eval/cases', { ...read, summary: 'List saved retrieval cases' },
       ({ business }) => listRetrievalCases(business!.id));
+    api.post(root + '/eval/cases', { ...write, body: CaseBody, summary: 'Save a retrieval case' }, async ({ business, user, body }) => ({
+      kind: 'json', status: 201, data: await createRetrievalCase(business!.id, user!.id, body),
+    }));
+    api.delete(root + '/eval/cases/:caseId', { ...write, summary: 'Delete a saved retrieval case' }, async ({ business, user, params }) => {
+      await deleteRetrievalCase(business!.id, user!.id, params.caseId);
+      return { kind: 'no_content' };
+    });
   },
   jobs: { [INDEX_JOB]: indexJobHandler },
 });
