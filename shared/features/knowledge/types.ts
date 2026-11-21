@@ -1,3 +1,5 @@
+import type { KnowledgeIndexState, KnowledgeStatus } from '../../core/types';
+
 export interface KnowledgeDraftInput {
   businessId: string;
   kind?: 'faq' | 'article';
@@ -19,4 +21,70 @@ export interface KnowledgeDraftResult {
   revision: number;
   created: boolean;
   warnings: { code: 'duplicate_title' | 'duplicate_content'; itemId: string }[];
+}
+
+export interface KnowledgeFileTag {
+  fileId: string;
+  description: string;
+  sendToUser: boolean;
+  flagged: boolean;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
+}
+export interface KnowledgeModeration {
+  status: 'ok' | 'flagged' | 'unchecked';
+  categories: string[];
+  revision: number;
+  checkedAt: string;
+}
+export interface KnowledgeIndexView {
+  state: KnowledgeIndexState;
+  revision: number;
+  error: string | null;
+  indexedAt: string | null;
+}
+export interface KnowledgeItemRow {
+  id: string;
+  kind: 'faq' | 'article';
+  title: string;
+  snippet: string;
+  status: KnowledgeStatus;
+  revision: number;
+  folderId: string | null;
+  folderName: string | null;
+  indexState: KnowledgeIndexState;
+  updatedAt: string;
+  source: 'manual' | 'import' | 'seed' | 'fixture';
+}
+export interface KnowledgeItemDetail extends Omit<KnowledgeItemRow, 'snippet'> {
+  body: string;
+  files: KnowledgeFileTag[];
+  moderation: KnowledgeModeration | null;
+  index: KnowledgeIndexView;
+  mutable: boolean;
+  warnings: { code: 'duplicate_title' | 'duplicate_content'; itemId: string; title: string }[];
+  createdAt: string;
+  submittedAt: string | null;
+  activatedAt: string | null;
+  deletedAt: string | null;
+}
+export interface KnowledgeRevisionRow {
+  revision: number;
+  title: string;
+  createdAt: string;
+  createdByName: string | null;
+  isCurrent: boolean;
+}
+export interface KnowledgeRevisionDetail extends KnowledgeRevisionRow {
+  kind: 'faq' | 'article';
+  body: string;
+  folderId: string | null;
+}
+export interface KnowledgeFolderRow {
+  id: string;
+  name: string;
+  itemCount: number;
+  createdAt: string;
 }

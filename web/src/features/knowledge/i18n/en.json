@@ -3,6 +3,90 @@
     "title": "Knowledge"
   },
   "page": {
-    "title": "Knowledge"
+    "title": "Knowledge base",
+    "subtitle": "What the AI uses to answer customers. Review and activate items before use.",
+    "untitled": "Untitled",
+    "revision": "Revision {{n}}"
+  },
+  "actions": {
+    "add": "Add knowledge",
+    "save": "Save",
+    "submit": "Submit for review",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "delete": "Delete",
+    "reindex": "Rebuild index",
+    "loadMore": "Load more",
+    "reload": "Load latest version",
+    "back": "Back to knowledge",
+    "leave": "Leave page"
+  },
+  "tabs": {
+    "all": "All",
+    "draft": "Draft",
+    "reviewed": "Reviewed",
+    "active": "Active",
+    "inactive": "Inactive",
+    "deleted": "Deleted"
+  },
+  "filter": {
+    "search": "Search title or ID"
+  },
+  "table": {
+    "title": "Title",
+    "kind": "Type",
+    "status": "Status",
+    "index": "Index",
+    "folder": "Folder",
+    "updated": "Last edited",
+    "unfiled": "No folder"
+  },
+  "kind": {
+    "faq": "Q&A",
+    "article": "Article"
+  },
+  "form": {
+    "question": "Question",
+    "answer": "Answer",
+    "title": "Title",
+    "body": "Content",
+    "count": "{{n}}/20,000 characters",
+    "unsaved": "Leave without saving your changes?",
+    "unsavedMessage": "Your edits to this item will be lost."
+  },
+  "empty": {
+    "title": "No knowledge yet",
+    "description": "Add questions customers often ask, then activate them for the AI."
+  },
+  "warn": {
+    "duplicate_title": "An item with the same title already exists",
+    "duplicate_content": "An item with the same content already exists"
+  },
+  "moderation": {
+    "flagged": "Review content flagged as potentially unsuitable before activating.",
+    "confirmTitle": "Activate flagged content?",
+    "confirmMessage": "Confirm that you reviewed this content and it can be used to answer customers."
+  },
+  "index": {
+    "indexing": "Activate will be available when the index is ready.",
+    "failed": "Indexing failed. Rebuild the index to try again.",
+    "pendingRevision": "The AI uses the previous revision until the new index is ready."
+  },
+  "error": {
+    "load": "Could not load knowledge",
+    "conflict": "Someone else changed this item",
+    "notReady": "The index is still preparing. Try again shortly."
+  },
+  "toast": {
+    "saved": "Saved",
+    "submit": "Submitted for review",
+    "activate": "Activated",
+    "deactivate": "Deactivated",
+    "reindex": "Index rebuild requested",
+    "deleted": "Deleted"
+  },
+  "confirm": {
+    "deleteTitle": "Delete this item?",
+    "deleteMessage": "The AI will stop using this item. Chat history that cites it stays viewable."
   }
 }
