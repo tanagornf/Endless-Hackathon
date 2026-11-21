@@ -145,3 +145,55 @@ export interface InboxCounts {
   active: number;
   closed: number;
 }
+
+export interface DemoChatMessage {
+  id: string;
+  seq: number;
+  direction: MessageDirection;
+  author: 'customer' | 'ai' | 'staff';
+  parts: MessagePart[];
+  createdAt: string;
+  delivery: DeliveryState | null;
+}
+
+export interface DemoChatPoll {
+  conversationId: string | null;
+  items: DemoChatMessage[];
+  cursor: string | null;
+  pending: null | { since: string; state: 'typing' | 'failed' };
+  closed: boolean;
+}
+
+export interface DemoChatSendResult {
+  message: DemoChatMessage;
+  conversationId: string;
+  created: boolean;
+}
+
+export interface DemoChatActionResult {
+  decision: 'confirm' | 'cancel';
+  replayed: boolean;
+}
+
+export interface DemoChatShopView {
+  shopName: string;
+  language: 'th' | 'en';
+  welcomeText: string | null;
+  suggestedQuestions: string[];
+  welcomeTextEn: string | null;
+  suggestedQuestionsEn: string[];
+  aiEnabled: boolean;
+  capReached: boolean;
+}
+
+export interface DemoChatSettingsView {
+  enabled: boolean;
+  publicSlug: string;
+  publicUrl: string;
+  welcomeText: string | null;
+  suggestedQuestions: string[];
+  welcomeTextEn: string | null;
+  suggestedQuestionsEn: string[];
+  todayTurns: number;
+  dailyCap: number;
+}

@@ -5,6 +5,7 @@ import { AI_REPLY_JOB } from '@nless/shared/features/inbox/types';
 import type { ConversationRecord, HistoryOptions, MessageRecord, SaveMessageInput, SaveMessageResult } from '@nless/shared/features/inbox/types';
 import { AppError, db, jobs, log, publish } from '../../core';
 import type { DbExecutor } from '../../core';
+import { signalDemoConversation } from './demoSignal';
 import { GROUP_EXTEND_MAX, HISTORY_DEFAULT, HISTORY_MAX, PREVIEW_CHARS, REPLAY_HEAL_MS } from './limits';
 import { conversationColumns, formatConversation, formatMessage, messageColumns, partsToText } from './mappers';
 import type { DbConversation, DbMessage } from './mappers';
@@ -172,6 +173,7 @@ export async function persistMessage(input: SaveMessageInput): Promise<SaveMessa
     type: 'conversation.updated', conversationId: conversation.id, handler: conversation.handler,
     assigneeUserId: conversation.assigneeUserId, status: conversation.status, version: conversation.version,
   });
+  signalDemoConversation(message.conversationId);
   const aiJobId = shouldReply(input, message) ? await enqueueReply(message, false) : null;
   return { ...result, aiJobId };
 }

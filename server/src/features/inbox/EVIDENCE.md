@@ -23,3 +23,9 @@
 - Added the authenticated staff inbox with queue filters, search, cursor pagination, conversation history, live refresh, and staff replies. Staff sends take over before delivery when the user has permission, and display the recorded delivery state.
 - `npm test -- inbox` passed 13/13 on A1's test database with the model in fake mode. Includes tied conversation timestamps, literal search, tenant checks, staff takeover and send replay.
 - `npm run typecheck` passed. F09 remains A while the public Demo Chat slice and production smoke are pending.
+
+### S3 public Demo Chat and staff tester
+
+- Customers can open a shop link in Thai or English, send a message, see typing and receive persisted updates by long poll. The staff tester uses the signed-in user and business. The public route uses a signed visitor session, text limits, IP and visitor throttles, moderation, and a daily shop cap.
+- A1 ran all 18 inbox integration tests against its test database with `MODEL_MODE=fake`. The cases cover signed visitor sessions, tenant isolation, duplicate sends, length and moderation rejection, visitor and daily shop limits, staff replies during long poll, and a fresh conversation after reset.
+- Full workspace typecheck and whitespace checks passed before rebase. Migration and seed ran on the A1 development database. F09 remains A pending production verification with the deployed AI worker. No live model or production smoke result is claimed here.
