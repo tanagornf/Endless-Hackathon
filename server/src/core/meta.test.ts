@@ -16,8 +16,8 @@ test('reports health and deployment identity without server credentials', async 
     migrations: { pending: 0 }, uploadDir: 'ok',
   });
   const info = (await agent.get('/build-info')).body;
-  expect(info).toMatchObject({ env: 'test', modelMode: 'fake', featuresLoaded: 31, sha: expect.any(String) });
-  expect(Object.keys(info)).toEqual(['sha', 'startedAt', 'lane', 'env', 'schema', 'modelMode', 'models', 'featuresLoaded', 'providerModes']);
+  expect(info).toMatchObject({ env: 'test', modelMode: 'fake', featuresLoaded: 31, sha: expect.any(String), providerModesScope: 'environment_bootstrap' });
+  expect(Object.keys(info)).toEqual(['sha', 'startedAt', 'lane', 'env', 'schema', 'modelMode', 'models', 'featuresLoaded', 'providerModesScope', 'providerModes']);
 }, 15_000);
 
 test('readiness rejects pending schema work', async () => {

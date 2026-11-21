@@ -58,6 +58,7 @@ export function mountMeta(app: Application, features: () => number) {
     };
     res.json({
       sha: BUILD_SHA, startedAt, lane: config.LANE, env: config.NODE_ENV, schema, modelMode: config.MODEL_MODE, models, featuresLoaded: features(),
+      providerModesScope: 'environment_bootstrap',
       providerModes: { line: providerMode('line'), meta: providerMode('meta'), google: providerMode('google'), payment: providerMode('payment'), slip: config.SLIP_VERIFY_MODE },
     });
   });
