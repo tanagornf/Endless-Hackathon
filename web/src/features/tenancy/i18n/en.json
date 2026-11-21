@@ -1,7 +1,8 @@
 {
   "menu": {
     "title": "Members",
-    "members": "Members"
+    "members": "Members",
+    "invitations": "Invitations"
   },
   "page": {
     "title": "Members"
@@ -118,5 +119,79 @@
   "restore": {
     "title": "Restore this member?",
     "message": "The member will regain access with their previous permissions."
+  },
+  "invitations": {
+    "title": "Invitations",
+    "invite": "Invite staff",
+    "email": "Staff email",
+    "col": {
+      "expires": "Expires",
+      "invitedBy": "Invited by"
+    },
+    "resend": "Send a new link",
+    "revoke": "Cancel invitation",
+    "state": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "revoked": "Cancelled",
+      "declined": "Declined",
+      "expired": "Expired"
+    },
+    "link": {
+      "title": "Invitation link",
+      "copy": "Copy link",
+      "copied": "Copied",
+      "selected": "Link selected. Copy it to share.",
+      "link_only": "Share this link with the staff member. It works once, until {{when}}.",
+      "email_sandbox": "The email is in the sandbox mailbox. The link works until {{when}}.",
+      "email_sent": "The invitation email was sent. The link works until {{when}}."
+    },
+    "block": {
+      "already_member": "Already a member of this business",
+      "member_revoked": "This person was revoked. Use Restore access.",
+      "already_invited": "An invitation is already pending. Send a new link.",
+      "user_in_other_account": "This email already belongs to another account",
+      "too_many_pending": "Cancel a pending invitation before inviting more staff.",
+      "not_pending": "This invitation is no longer pending.",
+      "already_accepted": "This invitation has already been accepted."
+    },
+    "error": "Could not complete the invitation request",
+    "rateLimited": "Too many invitations. Try again later.",
+    "unknownInviter": "Unavailable",
+    "filter": "Invitation status",
+    "all": "All statuses",
+    "empty": "No invitations",
+    "create": "Create invitation",
+    "invalidEmail": "Enter a valid email address",
+    "revokeConfirm": "Cancel the invitation for {{email}}? The link will stop working."
+  },
+  "accept": {
+    "title": "Invitation to join a business",
+    "body": "You are invited to join “{{name}}” as staff ({{email}})",
+    "accept": "Accept",
+    "decline": "Decline",
+    "needLogin": "Sign in or sign up with the invited email to accept",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "done": "You have joined the business",
+    "declined": "Invitation declined",
+    "openBusiness": "Open business",
+    "expires": "Expires {{when}}",
+    "loading": "Loading invitation",
+    "error": {
+      "expired": "This invitation has expired. Ask the owner for a new link.",
+      "revoked": "This invitation was cancelled",
+      "accepted": "This invitation was already used",
+      "declined": "This invitation was declined",
+      "email_mismatch": "The signed-in email is not the invited email",
+      "user_in_other_account": "This email belongs to another account and cannot accept",
+      "already_member": "You already belong to this business",
+      "business_inactive": "This business is no longer active",
+      "notFound": "Invitation not found",
+      "timeout": "The invitation took too long to load. Try again.",
+      "request": "Could not complete the invitation request",
+      "rateLimited": "Too many requests. Try again later.",
+      "accountDisabled": "This account is disabled"
+    }
   }
 }
