@@ -925,3 +925,82 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
     expect(await trace(returns.message.id)).toMatchObject({ intent: 'QUESTION', handoff_offered: true, evidence_ids: [] });
   });
 });
+
+describe('F10 catalog reference scope', { timeout: 20_000 }, () => {
+  it('rejects an obsolete SKU price after an intervening Thai hours question and an explicit unknown multi-hyphen SKU', async () => {
+    scriptedModel(
+      { text: 'Demo Quest board game costs 1,490 baht.' },
+      { text: 'ร้านเปิด 10:00–20:00 น. ค่ะ' },
+      { text: 'Demo Quest ราคา 1,490 บาทค่ะ' },
+      { text: fallbacks.product_not_found.th },
+    );
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    const hours = await incoming('ร้านเปิดกี่โมงคะ', known);
+    await execute(hours);
+    const unknown = await incoming('ขอราคาสินค้ารหัส ZZZ-SMOKE-UNKNOWN-914 ค่ะ', known);
+    await execute(unknown);
+
+    const sent = await replies(known.conversation.id);
+    expect(sent[0].text).toContain('1,490 baht');
+    expect(sent[1].text).toContain('10:00–20:00');
+    expect(sent[2].text).not.toMatch(/1[,.]?490|Demo Quest/iu);
+    expect(sent[2].parts.every(({ type }) => type === 'text')).toBe(true);
+    const current = await trace(unknown.message.id);
+    expect(current.evidence_ids).not.toEqual(expect.arrayContaining([expect.stringMatching(/^catalog:/)]));
+    expect(current.product_refs).toEqual([]);
+  });
+
+  it('retains a current catalog quote for an immediate, unambiguous price follow-up', async () => {
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    const followup = await incoming('How much is it?', known);
+    await execute(followup);
+    expect((await replies(known.conversation.id)).at(-1)!.text).toContain('1,490 baht');
+    expect(await trace(followup.message.id)).toMatchObject({
+      evidence_ids: [expect.stringMatching(/^catalog:/)], product_refs: [expect.objectContaining({ sku: 'A-GAME-01' })],
+    });
+  });
+
+  it('does not rescue a fresh missing product lookup with the previous SKU price', async () => {
+    scriptedModel(
+      { text: 'Demo Quest board game costs 1,490 baht.' },
+      { toolCalls: [call('missing-new-product', 'get_price', priceArguments(null, 'Nebula Prototype 884'))] },
+      { text: 'Nebula Prototype 884 costs 1,490 baht.' },
+      { text: fallbacks.product_not_found.en },
+    );
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    const missing = await incoming('How much is the Nebula Prototype 884?', known);
+    await execute(missing);
+
+    const [prior, current] = await replies(known.conversation.id);
+    expect(prior.text).toContain('1,490 baht');
+    expect(current.text).toContain(fallbacks.product_not_found.en);
+    expect(current.text).not.toMatch(/1[,.]?490|Demo Quest/iu);
+    expect(current.parts.every(({ type }) => type === 'text')).toBe(true);
+    expect(await trace(missing.message.id)).toMatchObject({
+      product_refs: [], tools: expect.arrayContaining([expect.objectContaining({ name: 'get_price', ok: false, error: 'NOT_FOUND' })]),
+    });
+  });
+
+  it('rejects a model tool lookup for the old SKU when the current request explicitly names another SKU', async () => {
+    const spy = scriptedModel(
+      { text: 'Demo Quest board game costs 1,490 baht.' },
+      { toolCalls: [call('old-sku', 'get_price', priceArguments('A-GAME-01', null))] },
+      { text: 'Demo Quest costs 1,490 baht.' },
+      { text: fallbacks.product_not_found.en },
+    );
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    const unknown = await incoming('How much is ZZZ-SMOKE-UNKNOWN-914?', known);
+    await execute(unknown);
+
+    const result = replyCalls(spy)[2].messages.find(({ role }) => role === 'tool');
+    expect(JSON.parse(result!.content as string)).toEqual({ ok: false, error: 'UNRELATED_PRODUCT' });
+    const reply = (await replies(known.conversation.id)).at(-1)!;
+    expect(reply.text).not.toMatch(/1[,.]?490|Demo Quest/iu);
+    expect(reply.parts.every(({ type }) => type === 'text')).toBe(true);
+    expect(await trace(unknown.message.id)).toMatchObject({ product_refs: [] });
+  });
+});
