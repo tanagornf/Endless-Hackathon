@@ -11,6 +11,22 @@ import { AnswerPolicySchema, CapabilitiesSchema } from './schemas';
 
 type SettingsRow = Awaited<ReturnType<typeof readSettings>>;
 
+const StoredCapabilitiesSchema = CapabilitiesSchema.partial();
+const RESTRICTIVE_CAPABILITIES: MerchantCapabilities = {
+  canQuotePrices: false,
+  canTakeOrders: false,
+  canTakeBookings: false,
+  canHandoffToHuman: false,
+  canShareContact: false,
+};
+
+function parseCapabilities(value: unknown, businessId: string): MerchantCapabilities {
+  const parsed = StoredCapabilitiesSchema.safeParse(value ?? {});
+  if (parsed.success) return { ...DEFAULT_CAPABILITIES, ...parsed.data };
+  log.error({ businessId }, 'Invalid stored business capabilities');
+  return { ...RESTRICTIVE_CAPABILITIES };
+}
+
 function parsePolicy(policy: unknown, businessId: string): AnswerPolicy | null {
   if (policy === null) return null;
   const parsed = AnswerPolicySchema.safeParse(policy);
@@ -49,8 +65,7 @@ export async function getSettingsView(businessId: string, ex: DbExecutor = db): 
   const row = await readSettings(businessId, ex);
   const settings = toSettings(businessId, row);
   const profile = await readProfile(businessId, ex);
-  const storedCapabilities = CapabilitiesSchema.partial().safeParse(row.capabilities ?? {});
-  const capabilities = { ...DEFAULT_CAPABILITIES, ...(storedCapabilities.success ? storedCapabilities.data : {}) };
+  const capabilities = parseCapabilities(row.capabilities, businessId);
 
   return {
     settings,
@@ -92,7 +107,8 @@ export async function ensureBusinessSettings(businessId: string): Promise<Busine
 }
 
 export async function getEffectiveAnswerRules(businessId: string): Promise<EffectiveAnswerRules> {
-  throw new AppError('SERVICE_NOT_READY', 'getEffectiveAnswerRules is not implemented');
+  const row = await readSettings(businessId);
+  return resolveRules(parseCapabilities(row.capabilities, businessId), parsePolicy(row.answer_policy, businessId));
 }
 
 export async function getBusinessOpenState(businessId: string, at?: string): Promise<BusinessOpenState> {
