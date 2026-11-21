@@ -1,5 +1,6 @@
+import { findItem, itemDetail } from './repo';
 import { AppError } from '../../core';
-import type { KnowledgeDraftInput, KnowledgeDraftResult } from '@nless/shared/features/knowledge/types';
+import type { KnowledgeDraftInput, KnowledgeDraftResult, KnowledgeItemDetail } from '@nless/shared/features/knowledge/types';
 
 /**
  * @owner F05 knowledge · B1 · consumer: B3 (F06 knowledge-import)
@@ -22,4 +23,16 @@ export async function ensureKnowledgeFolder(
   businessId: string, name: string, actorUserId: string | null,
 ): Promise<{ id: string; name: string; created: boolean }> {
   throw new AppError("SERVICE_NOT_READY", "ensureKnowledgeFolder is not implemented");
+}
+
+
+export {
+  createKnowledgeItem, patchKnowledgeItem, submitKnowledgeItem, activateKnowledgeItem,
+  deactivateKnowledgeItem, deleteKnowledgeItem, reindexKnowledgeItem,
+} from './lifecycle';
+export { findRevision as getKnowledgeRevision, listItems as listKnowledgeItems, listRevisions } from './repo';
+
+export async function getKnowledgeItem(businessId: string, itemId: string): Promise<KnowledgeItemDetail | null> {
+  const item = await findItem(businessId, itemId);
+  return item ? itemDetail(item) : null;
 }
