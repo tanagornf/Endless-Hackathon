@@ -75,3 +75,12 @@ export async function setFeatureFlag(actorUserId: string, featureId: string, hid
       updated_by=excluded.updated_by,updated_at=now()`, [featureId, hidden, reason ?? null, actorUserId]);
   await audit({ action: 'core.feature.toggle', actorUserId, targetType: 'feature', targetId: featureId, details: { featureId, hidden, reason: reason ?? null } });
 }
+
+export async function visiblePublicFeatures(routes: ReturnType<typeof createHttpApp>['routes']): Promise<string[]> {
+  const publicIds = new Set<string>(routes.filter((route) =>
+    route.auth === 'none' && route.path.startsWith('/api/v1/') && route.summary !== 'placeholder status',
+  ).map((route) => route.featureId));
+  return (await featureFlags(routes))
+    .filter(({ featureId, visible }) => visible && publicIds.has(featureId))
+    .map(({ featureId }) => featureId);
+}

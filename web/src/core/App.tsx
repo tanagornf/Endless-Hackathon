@@ -71,7 +71,7 @@ function SessionHome({ children }: { children: ReactNode }) {
   return <Guard auth="user"><AppShell>{children}</AppShell></Guard>;
 }
 export default function App() {
-  const flags = useFeatures();
+  const flags = useFeatures(true);
   const { t } = useTranslation('common');
   useRealtimeConnection();
   return <>
@@ -86,8 +86,12 @@ export default function App() {
         <Route path="/forbidden" element={<SessionHome><MessagePage label="pages.forbidden" /></SessionHome>} />
         <Route path="/dev-login" element={<DevLogin />} />
         {routes.map(({ id, path, auth, permission, layout, Component }) => {
-          const available = id === 'F02' || flags.visible(id);
-          const content = <Guard auth={auth} permission={permission}>{available ? <Component /> : <NotFound />}</Guard>;
+          const publicRoute = layout === 'public' && auth === 'none';
+          const available = id === 'F02' || flags.visible(id, publicRoute);
+          const loading = id !== 'F02' && publicRoute && flags.publicLoading;
+          const content = <Guard auth={auth} permission={permission}>
+            {loading ? <LinearProgress aria-label={t('pages.loading')} /> : available ? <Component /> : <NotFound />}
+          </Guard>;
           const bare = layout === 'public' || layout === 'bare';
           return <Route key={path} path={path} element={bare ? <Box component="main" sx={{ p: 2 }}>{content}</Box> : <AppShell>{content}</AppShell>} />;
         })}
