@@ -15,8 +15,10 @@ import { codeFallback, inspectReply, isPriceQuestion, mentionsProduct, receiptTe
 import { canRequestHandoff } from './handoff';
 import { explicitlyRequestsStaff, replyToStaffOffer } from './intents';
 import { runModelLoop } from './loop';
+import type { LoopState } from './loop';
 import { arabicDigits, maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
+import { explicitOrderMethod, prepareOrder, safeUnreviewedOrderText, soldOutOrderText, typedOrderDecision } from './orderProposal';
 import { currentAvailabilityReply, currentPhotoRequest, getReplyProductImages } from './productMedia';
 import { repairPrompt } from './prompt';
 import { customerInboundsHeldByStaff, priorSavedReply } from './repo';
@@ -152,6 +154,13 @@ export async function generateDraft(
     const prior = mode === 'reply' ? await withinDeadline(priorSavedReply(conversation, inbound), signal) : null;
     const previousAnswer = history.findLast((message) => message.seq < inbound.seq && message.direction === 'outbound' &&
       (message.author === 'ai' || message.author === 'staff'));
+    if (mode === 'reply' && previousAnswer?.author === 'ai' && previousAnswer.parts.some(({ type }) => type === 'order_review')) {
+      const typed = typedOrderDecision(unanswered.at(-1) ?? '', language);
+      if (typed) {
+        draft.parts = shapeReply(typed);
+        return { state: 'completed', draft };
+      }
+    }
     const matchingPrior = previousAnswer && previousAnswer.id === prior?.replyMessageId && previousAnswer.delivery.state !== 'failed'
       ? prior : null;
     const offerPending = matchingPrior?.offeredHandoff === true;
@@ -220,8 +229,16 @@ export async function generateDraft(
         modelMs.push(elapsed(requestedAt));
       }
     };
-    const loop = { messages: [...context.messages], executedCalls: 0 };
-    const toolOptions = { tools: !casual, handoff: canEscalate };
+    const loop: LoopState = { messages: [...context.messages], executedCalls: 0 };
+    const orderText = context.catalogRequest.text;
+    const isPurchase = mode === 'reply' && context.rules.orders && context.rules.price === 'always' && explicitOrderMethod(orderText);
+    const purchaseIntent: IntentScore | null = isPurchase ? { label: 'REQUEST', source: 'regex', confidence: 1 } : null;
+    const toolOptions = {
+      tools: !casual, handoff: canEscalate,
+      preparePurchase: mode === 'reply' ? (args: Parameters<typeof prepareOrder>[0]['args']) => purchaseIntent
+        ? prepareOrder({ args, text: orderText, businessId: conversation.businessId, language })
+        : Promise.resolve({ error: 'NOT_A_PURCHASE_REQUEST' }) : undefined,
+    };
     const firstReply = runModelLoop(loop, context, conversation.businessId, call('reply'), started, modelSignal, toolOptions)
       .then((response) => ({ response } as const), (error: unknown) => ({ error } as const));
     const priceText = context.catalogRequest.linkedSameProduct
@@ -229,8 +246,8 @@ export async function generateDraft(
       : context.catalogRequest.text;
     const price = catalogPriceIntent(priceText, context.prices.map(({ quote }) => quote));
     const classifierTimeout = Math.min(8000, config.MODEL_TIMEOUT_MS - elapsed(started) - 1500);
-    let score = casual ?? price ?? unknownIntent;
-    if (!casual && !price && classifierTimeout > 0) {
+    let score = casual ?? purchaseIntent ?? price ?? unknownIntent;
+    if (!casual && !purchaseIntent && !price && classifierTimeout > 0) {
       const classifyStarted = performance.now();
       const classifierSignal = AbortSignal.any([signal, AbortSignal.timeout(classifierTimeout)]);
       score = await withinDeadline(classifyIntent({
@@ -249,6 +266,16 @@ export async function generateDraft(
     }
     const first = await firstReply;
     if ('error' in first) throw first.error;
+    if (loop.order && score.label === 'REQUEST') {
+      const quotes = loop.order.evidence;
+      draft.order = loop.order.draft;
+      draft.evidenceIds = [...new Set(quotes.map(({ id }) => id))];
+      draft.productRefs = quotes.map(({ quote, name }) => ({ itemId: quote.itemId, sku: quote.sku, name }));
+      // Keep the staged draft available on worker recovery. The final F10 gate
+      // and F13 replace this text with the canonical review and its prompt.
+      draft.parts = shapeReply(fallbacks.no_answer[language]);
+      return { state: 'completed', draft };
+    }
     let raw = draftText(first.response);
     const guardStart = performance.now();
     let checked = inspectReply(raw, context);
@@ -292,6 +319,10 @@ export async function generateDraft(
     )) {
       text = fallbacks.product_not_found[language];
     }
+    if (purchaseIntent && context.tools.some(({ name, error }) => name === 'propose_order' && error === 'SOLD_OUT')) {
+      text = soldOutOrderText(language);
+    }
+    text = safeUnreviewedOrderText(text, language);
     const oneCatalogQuestion = context.unanswered.length === 1 && !isPriceQuestion(context) &&
       !/\b(?:and|also)\b|และ|อีกอย่าง/iu.test(context.unanswered[0]);
     const availability = currentAvailabilityReply(context);
