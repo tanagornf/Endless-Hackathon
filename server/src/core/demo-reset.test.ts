@@ -3,6 +3,7 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { SEED } from '@nless/shared/core/fixtures';
 import { config } from './config';
 import { closeDb, db, dbPool } from './db';
+import { DEMO_RESET_LOCK } from './demo-scope';
 import { createTestAgent, loginAs } from './test-utils';
 
 const observed = vi.hoisted(() => ({ hooks: [] as string[], jobId: '' }));
@@ -85,12 +86,16 @@ it('locks, safely resets and re-seeds only the demo businesses, and enforces the
     observed.jobId = (await db.one<{ id: string }>("INSERT INTO jobs (business_id,type) VALUES ($1,'test.ops.reset') RETURNING id", [fixture.id])).id;
     const client = await dbPool().connect();
     try {
-      await client.query("SELECT pg_advisory_lock(hashtext('nless.demo-reset'))");
+      await client.query('SELECT pg_advisory_lock(hashtext($1))', [DEMO_RESET_LOCK]);
+      const summary = await admin.get(base + '/summary').expect(200);
+      expect(summary.body.data.demoResetting).toBe(true);
       expect((await reset().expect(422)).body.error.details.reason).toBe('reset_in_progress');
     } finally {
-      await client.query("SELECT pg_advisory_unlock(hashtext('nless.demo-reset'))");
+      await client.query('SELECT pg_advisory_unlock(hashtext($1))', [DEMO_RESET_LOCK]);
       client.release();
     }
+    const summary = await admin.get(base + '/summary').expect(200);
+    expect(summary.body.data.demoResetting).toBe(false);
     const running = await db.one<{ id: string }>(`INSERT INTO jobs (business_id,type,state,locked_until)
       VALUES ($1,'test.ops.reset','running',now() + interval '2 minutes') RETURNING id`, [fixture.id]);
     const busy = await reset().expect(422);
