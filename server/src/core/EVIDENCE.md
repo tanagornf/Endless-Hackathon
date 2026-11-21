@@ -45,3 +45,9 @@
 - Local typecheck and 22 focused tests passed across six files. Production verification and operator review and resend controls are pending.
 - Review extended atomic reconciliation to ordinary dead-job settlement and claims expiring before dispatch. An ambiguous LINE retry stays unknown unless a later provider acknowledgement resolves it.
 - Recording the pending message and enqueueing its delivery now share a transaction. New tests exercise both dead-job paths and an enqueue rollback followed by an idempotent retry.
+
+### F35 scheduler and readiness
+
+- The C1 test database verified two-session scheduler leadership, overlapping-job suppression, slot deduplication, retention and takeover after release.
+- Readiness checks cover loaded features, pending migrations, upload write access, freshness of an enabled worker, and scheduler leadership. The scheduler, readiness and shutdown files passed 9 checks locally.
+- The first broad local run found a synthetic queued test row leaking between files. The scheduler test now removes its own rows. Integrated and production verification are tracked on the pull request.

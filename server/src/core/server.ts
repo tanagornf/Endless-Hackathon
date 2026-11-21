@@ -2,19 +2,15 @@ import { createServer } from 'node:http';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createApp } from './app';
 import { config } from './config';
-import { closeDb, db } from './db';
-import { registerSchedule, startScheduler, stopScheduler } from './jobs';
+import { closeDb } from './db';
+import { registerCoreSchedules, startScheduler, stopScheduler } from './scheduler';
 import { JOBS_SHUTDOWN_GRACE_MS } from './jobs-config';
 import { log } from './log';
 import { markDraining } from './meta';
 import { attachRealtime } from './realtime';
 import { startWorker, stopWorker } from './worker';
 
-registerSchedule({
-  name: 'core.sessions.purge',
-  everySeconds: 3600,
-  async handler() { await db.query('DELETE FROM sessions WHERE expires_at < now()'); },
-});
+registerCoreSchedules();
 const server = createServer(await createApp());
 const closeRealtime = attachRealtime(server);
 const port = config.PORT ?? config.API_PORT;
