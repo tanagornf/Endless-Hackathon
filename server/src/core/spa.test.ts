@@ -14,7 +14,7 @@ test('token-bearing documents suppress referrers even before browser routing sta
     const app = express();
     mountSpa(app, dist);
     const agent = request(app);
-    for (const path of ['/invitations/accept', '/invitations/accept/', '/verify-email', '/verify-email/']) {
+    for (const path of ['/invitations/accept', '/invitations/accept/', '/verify-email', '/verify-email/', '/reset-password', '/reset-password/']) {
       const document = await agent.get(path + '?token=synthetic-test-value');
       expect(document.status, path).toBe(200);
       expect(document.headers['content-type'], path).toMatch(/^text\/html/);
