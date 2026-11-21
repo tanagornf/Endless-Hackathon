@@ -324,7 +324,7 @@ const correctionCase = z.object({
   targetId: z.string().min(1).max(200).nullable(),
   expectedVersion: z.number().int().nonnegative(),
 });
-type AnalysisValue = Pick<ModelChatResult, 'text' | 'json' | 'requestId' | 'toolCalls' | 'finishReason'>;
+type AnalysisValue = Pick<ModelChatResult, 'text' | 'json' | 'requestId' | 'toolCalls' | 'finishReason'> & { failure?: AppError };
 
 export const model: ModelApi = {
   chat(input) {
@@ -369,7 +369,7 @@ export const model: ModelApi = {
     // F04 populates these top-level fields from its authorized case and target version.
     const scope = correctionCase.safeParse(parsed(input.redactedInput));
     if (!scope.success) throw new AppError('VALIDATION_ERROR', 'Shop correction case and expected version are required');
-    const result = await tracked<AnalysisValue>('chat', prepared.usage, id, () =>
+    const { failure, ...result } = await tracked<AnalysisValue>('chat', prepared.usage, id, () =>
       runShopCorrectionAnalysis<{ value: AnalysisValue; record?: ModelRecord }>(prepared, {
         mode,
         fake: () => {
@@ -382,17 +382,20 @@ export const model: ModelApi = {
           const timeout = AbortSignal.timeout(config.MODEL_TIMEOUT_MS);
           const signal = caller ? AbortSignal.any([caller, timeout]) : timeout;
           const response = await provider.responses.create(request, { signal, maxRetries: 0 });
-          const output = (response.output ?? []).map((item) => item.type === 'message'
+          const output = (Array.isArray(response.output) ? response.output : []).map((item) => item?.type === 'message'
             ? { type: item.type, status: item.status, content: item.content }
-            : { type: item.type });
+            : { type: item?.type ?? '' });
           const checked = validateShopCorrectionResponse(request, id, { ...response, output }, scope.data);
-          const mapped = mapResponse(response);
+          const incompleteReason = response.incomplete_details?.reason;
+          const finishReason = checked.reason === 'refusal' || incompleteReason === 'content_filter' ? 'content_filter'
+            : incompleteReason === 'max_output_tokens' ? 'length' : 'stop';
+          const failure = checked.reason === 'failed_response'
+            ? new AppError('PROVIDER_UNAVAILABLE', 'Shop correction provider failed') : undefined;
           const requestId = response._request_id ?? null;
           return {
-            value: { text: checked.json ? mapped.text : '', json: checked.json, requestId, toolCalls: [], finishReason: mapped.finishReason },
+            value: { text: checked.json ? response.output_text : '', json: checked.json, requestId, toolCalls: [], finishReason, failure },
             record: {
-              finishReason: checked.reason ?? mapped.finishReason, requestId, responseId: response.id,
-              error: checked.reason === 'failed_response' ? new AppError('PROVIDER_UNAVAILABLE', 'Shop correction provider failed') : undefined,
+              finishReason: checked.reason ?? finishReason, requestId, responseId: response.id, error: failure,
               providerModel: response.model || null, providerServiceTier: response.service_tier,
               reasoningEffort: response.reasoning?.effort ?? null, usage: responseUsage(response),
             },
@@ -403,6 +406,7 @@ export const model: ModelApi = {
             record: { ...received.record, finishReason: 'cancelled_after_response' } };
         },
       }), { reasoningEffort: 'high', requestedServiceTier: 'ultrafast' });
+    if (failure) throw failure;
     return input.signal?.aborted ? { ...result, text: '', json: undefined } : result;
   },
   embed(input) {

@@ -37,7 +37,7 @@ function providerResponse() {
   return {
     model: 'requested-test-model', service_tier: 'ultrafast', reasoning: { effort: 'high' },
     status: 'completed', id: 'resp_synthetic', _request_id: 'req_synthetic',
-    output: [], output_text: JSON.stringify(draft),
+    output: [{ type: 'message', status: 'completed', content: [{ type: 'output_text' }] }], output_text: JSON.stringify(draft),
     usage: { input_tokens: 100, output_tokens: 20, output_tokens_details: { reasoning_tokens: 8 } },
   };
 }
@@ -68,12 +68,13 @@ it('sanitizes a failed response with no token counts while metering observed pro
     model: 'observed-failed-model', service_tier: 'priority', reasoning: { effort: 'medium' },
     error: { message: 'Raw provider error text' } });
 
-  const result = await model.analyzeShopCorrection(input);
+  await expect(model.analyzeShopCorrection(input)).rejects.toMatchObject({
+    code: 'PROVIDER_UNAVAILABLE', message: 'Shop correction provider failed', retryable: false,
+  });
 
-  expect(result).toMatchObject({ text: '', model: 'observed-failed-model',
-    usage: { inputTokens: null, outputTokens: null, costUsdMicros: null, costReason: 'provider_error' } });
-  expect(result.json).toBeUndefined();
+  expect(stubs.record).toHaveBeenCalledTimes(1);
   const [, values] = stubs.record.mock.calls[0];
+  expect(values.slice(8, 16)).toEqual(['observed-failed-model', null, null, null, null, null, null, 'provider_error']);
   expect(values.slice(17, 21)).toEqual(['failed_response', 'PROVIDER_UNAVAILABLE', 'req_synthetic', 'resp_synthetic']);
   expect(values.slice(23)).toEqual(['medium', 'ultrafast', 'priority']);
   expect(JSON.stringify(values)).not.toContain('Raw provider error text');
@@ -109,11 +110,22 @@ it('retains reported tokens even when a failed response omits token details', as
   stubs.create.mockResolvedValue({ ...providerResponse(), status: 'failed', output: undefined,
     usage: { input_tokens: 100, output_tokens: 20 } });
 
+  await expect(model.analyzeShopCorrection(input)).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+
+  expect(stubs.record).toHaveBeenCalledTimes(1);
+  const [, values] = stubs.record.mock.calls[0];
+  expect(values.slice(8, 16)).toEqual(['requested-test-model', 100, 20, null, null, null, 520, 'priced']);
+  expect(values.slice(17, 21)).toEqual(['failed_response', 'PROVIDER_UNAVAILABLE', 'req_synthetic', 'resp_synthetic']);
+});
+
+it('meters an otherwise completed response with malformed message content and withholds its draft', async () => {
+  stubs.create.mockResolvedValue({ ...providerResponse(), output: [{ type: 'message', status: 'completed' }] });
+
   const result = await model.analyzeShopCorrection(input);
 
   expect(result.json).toBeUndefined();
-  expect(result.usage).toMatchObject({ inputTokens: 100, outputTokens: 20, reasoningTokens: null,
-    costUsdMicros: 520, costReason: 'priced' });
+  expect(result.text).toBe('');
+  expect(result.usage).toMatchObject({ inputTokens: 100, outputTokens: 20, costUsdMicros: 520 });
   const [, values] = stubs.record.mock.calls[0];
-  expect(values.slice(17, 21)).toEqual(['failed_response', 'PROVIDER_UNAVAILABLE', 'req_synthetic', 'resp_synthetic']);
+  expect(values.slice(17, 21)).toEqual(['invalid_draft', null, 'req_synthetic', 'resp_synthetic']);
 });

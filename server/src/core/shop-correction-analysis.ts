@@ -143,14 +143,14 @@ export function validateShopCorrectionResponse(
       || (returnedEffort != null && returnedEffort !== 'high')) {
     return { reason: 'unexpected_profile' };
   }
-  if (response.status !== 'completed' || response.incomplete_details
-      || response.output.some((item) => item.type === 'message' && item.status !== undefined && item.status !== 'completed')) {
-    return { reason: 'incomplete_response' };
-  }
-  if (response.output.some((item) => item.type === 'message' && item.content?.some((part) => part.type === 'refusal'))) {
+  if (response.status !== 'completed' || response.incomplete_details) return { reason: 'incomplete_response' };
+  const messages = response.output.filter((item) => item.type === 'message');
+  if (messages.some(({ content }) => Array.isArray(content) && content.some((part) => part?.type === 'refusal'))) {
     return { reason: 'refusal' };
   }
-  if (response.output.some((item) => item.type !== 'message' && item.type !== 'reasoning')) {
+  if (messages.some((message) => message.status !== 'completed')) return { reason: 'incomplete_response' };
+  if (!messages.length || response.output.some((item) => item.type !== 'message' && item.type !== 'reasoning')
+      || messages.some(({ content }) => !Array.isArray(content) || !content.some((part) => part?.type === 'output_text'))) {
     return { reason: 'invalid_draft' };
   }
   let body: unknown;
@@ -159,8 +159,11 @@ export function validateShopCorrectionResponse(
   const result = correctionDraft.safeParse(body);
   if (!result.success) return { reason: 'invalid_draft' };
   const draft = result.data;
-  if (draft.caseId !== scope.caseId || draft.targetId !== scope.targetId || draft.expectedVersion !== scope.expectedVersion
-      || (draft.action === 'no_change' && (draft.textTh !== null || draft.textEn !== null))) {
+  const draftTexts = [draft.textTh, draft.textEn];
+  const badText = draft.action === 'no_change'
+    ? draftTexts.some((text) => text !== null)
+    : draftTexts.some((text) => !text?.trim() || text.length > 5000);
+  if (draft.caseId !== scope.caseId || draft.targetId !== scope.targetId || draft.expectedVersion !== scope.expectedVersion || badText) {
     return { reason: 'invalid_draft' };
   }
   return { json: draft };
