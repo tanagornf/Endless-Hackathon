@@ -16,6 +16,8 @@
 - Final C1 typecheck passed. The full test suite passed with 79 tests across 16 files, including the ownership checks and the English/Thai registry and UI checks.
 - Browser flag check passed. The admin API hid F13. Orders disappeared from owner navigation after reload, and the direct route rendered Page not found. The C1 development flag was restored afterward.
 
+- Synthetic SPA unit coverage verified no-referrer on the initial email verification and invitation documents, including trailing slash and token query variants. The Home document retains its usual header behavior.
+
 ### F35 S1 worker
 
 - Migration 002 applied on the C1 Neon development database. A second run applied zero migrations.
