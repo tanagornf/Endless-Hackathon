@@ -4,5 +4,60 @@
   },
   "page": {
     "title": "Notifications"
+  },
+  "bell": {
+    "title": "Notifications",
+    "markAll": "Mark all read",
+    "viewAll": "View all",
+    "empty": "No notifications yet",
+    "elsewhere": "{{count}} unread in other shops",
+    "error": "Could not load notifications"
+  },
+  "tabs": {
+    "all": "All",
+    "unread": "Unread",
+    "settings": "Settings"
+  },
+  "col": {
+    "type": "Type",
+    "message": "Message",
+    "time": "Time",
+    "state": "Status"
+  },
+  "state": {
+    "read": "Read",
+    "unread": "Unread"
+  },
+  "loadMore": "Load more",
+  "empty": {
+    "title": "No notifications yet",
+    "description": "Handoff requests, new orders and other alerts will appear here."
+  },
+  "type": {
+    "chat": {
+      "handoff": "Chats needing a human",
+      "mention": "Mentions"
+    },
+    "order": {
+      "created": "New orders"
+    },
+    "payment": {
+      "verifying": "Payments"
+    },
+    "booking": {
+      "created": "New bookings",
+      "cancelled": "Cancelled bookings"
+    },
+    "invitation": "Invitations and members",
+    "report": "Reports",
+    "system": "System"
+  },
+  "settings": {
+    "sendTest": "Send myself a test notification",
+    "testSent": "Test notification sent",
+    "testFailed": "Could not create a test notification"
+  },
+  "common": {
+    "retry": "Retry"
   }
 }
