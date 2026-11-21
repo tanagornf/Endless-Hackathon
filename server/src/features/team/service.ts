@@ -4,7 +4,7 @@ import type { AssignmentResult, ConversationTeamState } from '@nless/shared/feat
 import { notifyHandoff } from './handoffNotification';
 import { uuid } from './validation';
 
-export { applyAiHandoff, getAiHandoffReceipt } from './aiHandoff';
+export { applyAiHandoff, getAiHandoffReceipt, getExplicitStaffRequestForNotification } from './aiHandoff';
 
 interface Member {
   userId: string;
