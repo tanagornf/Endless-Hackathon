@@ -156,6 +156,48 @@ describe('F09 public Demo Chat', { timeout: 30000 }, () => {
     expect(Date.now() - start).toBeLessThan(6500);
   }, 45000);
 
+  it('waits on successive polls between two unresolved replies without echoing the sent middle reply', async () => {
+    const agent = await createTestAgent();
+    const token = freshToken();
+    const first = await agent.post(demoA + '/messages').set('X-Demo-Visitor', token).send(input('Retry cadence'));
+    const { conversationId, message } = first.body.data;
+    const after = Buffer.from(String(message.seq)).toString('base64url');
+    const ai = () => saveMessage({ businessId: bizA, conversationId, direction: 'outbound', author: 'ai',
+      parts: [{ type: 'text', text: 'Synthetic output' }] });
+    await ai();
+    const middle = await ai();
+    await db.query("UPDATE messages SET delivery_state='sent' WHERE id=$1 AND business_id=$2", [middle.message.id, bizA]);
+    await ai();
+    const poll = (cursor: string, waitMs: number) => agent.get(demoA + '/poll').set('X-Demo-Visitor', token)
+      .query({ after: cursor, waitMs });
+    let page = (await poll(after, 0)).body.data;
+    expect(page.items.map((row: { id: string }) => row.id)).toEqual([middle.message.id]);
+    for (let i = 0; i < 2; i++) {
+      const started = Date.now();
+      page = (await poll(page.cursor, 1100)).body.data;
+      expect(page.items).toEqual([]);
+      expect(Date.now() - started).toBeGreaterThanOrEqual(950);
+    }
+  });
+
+  it('reloads the recent visible history and revisits older delivery among 31 unresolved replies', async () => {
+    const agent = await createTestAgent();
+    const token = freshToken();
+    const first = await agent.post(demoA + '/messages').set('X-Demo-Visitor', token).send(input('Cold history'));
+    const { conversationId, message } = first.body.data;
+    const staff = await saveMessage({ businessId: bizA, conversationId, direction: 'outbound', author: 'staff',
+      parts: [{ type: 'text', text: 'Retained staff reply' }] });
+    const ai = () => saveMessage({ businessId: bizA, conversationId, direction: 'outbound', author: 'ai',
+      parts: [{ type: 'text', text: 'Unresolved fixture' }] });
+    const older = await ai();
+    for (let i = 0; i < 5; i++) await Promise.all(Array.from({ length: 6 }, ai));
+    const poll = (after?: string) => agent.get(demoA + '/poll').set('X-Demo-Visitor', token).query({ after, waitMs: 0 });
+    const initial = (await poll()).body.data;
+    expect(initial.items.map((row: { id: string }) => row.id)).toEqual([message.id, staff.message.id]);
+    await db.query("UPDATE messages SET delivery_state='sent' WHERE id=$1 AND business_id=$2", [older.message.id, bizA]);
+    expect((await poll(initial.cursor)).body.data.items.map((row: { id: string }) => row.id)).toContain(older.message.id);
+  }, 45000);
+
   it('rejects an extra visitor before creating a message when the shop cap is reached', async () => {
     const agent = await createTestAgent();
     const prior = process.env.DEMO_CHAT_DAILY_TURN_CAP;

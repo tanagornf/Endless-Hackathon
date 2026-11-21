@@ -228,28 +228,29 @@ async function pending(identity: DemoIdentity, conversationId: string): Promise<
     state: row.state === 'dead' || Date.now() - row.since.getTime() > pendingAge ? 'failed' : 'typing' };
 }
 
-async function readPoll(identity: DemoIdentity, conversation: { id: string; status: 'open' | 'closed' }, after?: string): Promise<DemoChatPoll> {
+async function readPoll(identity: DemoIdentity, conversation: { id: string; status: 'open' | 'closed' }, after?: string) {
   const [history, ai] = await Promise.all([
     readDemoHistory(identity.businessId, conversation.id, after), pending(identity, conversation.id),
   ]);
-  const { waiting } = history;
-  const recentWait = waiting && Date.now() - waiting.createdAt.getTime() < pendingAge;
+  const { waitingSince } = history;
+  const recentWait = waitingSince && Date.now() - Date.parse(waitingSince) < pendingAge;
   const page: DemoChatPoll = {
     conversationId: conversation.id, items: history.items.flatMap((message) => customerMessage(message) ?? []),
-    cursor: history.cursor, pending: recentWait ? { since: waiting.createdAt.toISOString(), state: 'typing' } : ai,
+    cursor: history.cursor, pending: recentWait ? { since: waitingSince, state: 'typing' } : ai,
     closed: conversation.status === 'closed',
   };
-  return page;
+  return { page, immediate: history.immediate, revisiting: history.revisiting };
 }
 
 export async function demoPoll(identity: DemoIdentity, after: string | undefined, waitMs: number): Promise<DemoChatPoll> {
   const conversation = await conversationFor(identity);
   if (!conversation) return { conversationId: null, items: [], cursor: null, pending: null, closed: false };
   const first = await readPoll(identity, conversation, after);
-  if (first.items.length || first.cursor !== (after ?? null) || first.pending?.state === 'failed' || first.closed || waitMs === 0) return first;
-  // Delivery updates are published to staff WebSockets. Public visitors also recheck the DB while typing.
-  await waitForDemoUpdate(identity.businessId + ':' + identity.externalId, conversation.id, first.pending ? Math.min(waitMs, 1000) : waitMs);
+  if (first.immediate || first.page.closed || waitMs === 0) return first.page;
+  // Replayed rows from a broad retry scan alone do not wake an otherwise idle visitor.
+  const recheckMs = first.page.pending?.state === 'typing' ? (first.revisiting ? 2000 : 1000) : waitMs;
+  await waitForDemoUpdate(identity.businessId + ':' + identity.externalId, conversation.id, Math.min(waitMs, recheckMs));
   const current = await conversationFor(identity);
   if (!current) return { conversationId: null, items: [], cursor: null, pending: null, closed: false };
-  return readPoll(identity, current, current.id === conversation.id ? after : undefined);
+  return (await readPoll(identity, current, current.id === conversation.id ? after : undefined)).page;
 }
