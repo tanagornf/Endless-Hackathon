@@ -66,5 +66,23 @@
   },
   "common": {
     "retry": "Retry"
+  },
+  "push": {
+    "title": "Phone notifications",
+    "unsupported": "Phone notifications are unavailable here. On iPhone or iPad, add Endless to your Home Screen in Safari, then open it from the Home Screen.",
+    "notConfigured": "The server has not enabled device notifications yet. In-app alerts are available.",
+    "denied": "Notifications are blocked for Endless on this device. Allow them in your device's notification settings to turn them on.",
+    "off": "Phone notifications are off on this device.",
+    "enable": "Turn on phone notifications",
+    "disable": "Turn off on this device",
+    "on": "Phone notifications are enabled on this device. Enrolled devices: {{count}}.",
+    "test": "Send a test to this device",
+    "testResult": "Provider accepted {{accepted}} · expired {{gone}} · failed {{failed}}. Check below for device confirmation.",
+    "noSubscription": "This device is no longer enrolled. Turn on notifications to enroll it again.",
+    "acked": "This device confirmed displaying a notification at {{when}}.",
+    "notAcked": "Waiting for device display confirmation.",
+    "endpointNotAllowed": "This browser's push service is unsupported.",
+    "setupError": "Could not set up or send phone notifications. Try again.",
+    "openUnavailable": "This notification is unavailable or no longer needs action."
   }
 }

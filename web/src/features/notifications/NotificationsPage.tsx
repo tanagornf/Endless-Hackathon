@@ -8,6 +8,7 @@ import {
 } from '../../core';
 import { notificationsChanged } from './events';
 import NotificationPreferences from './NotificationPreferences';
+import NotificationPushCard from './NotificationPushCard';
 
 function NotificationsList({ unreadOnly }: { unreadOnly: boolean }) {
   const { t } = useTranslation('notifications');
@@ -92,6 +93,6 @@ export default function NotificationsPage() {
       <Tab value="unread" label={t('tabs.unread')} />
       <Tab value="settings" label={t('tabs.settings')} />
     </Tabs>
-    {tab === 'settings' ? <NotificationPreferences /> : <NotificationsList key={tab} unreadOnly={tab === 'unread'} />}
+    {tab === 'settings' ? <Stack spacing={2}><NotificationPreferences /><NotificationPushCard /></Stack> : <NotificationsList key={tab} unreadOnly={tab === 'unread'} />}
   </>;
 }

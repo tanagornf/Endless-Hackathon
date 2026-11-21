@@ -1,5 +1,8 @@
 import { beforeEach, expect, test, vi } from 'vitest';
+import { enqueueNotificationPush } from './push/delivery';
 import { notify } from './service';
+
+vi.mock('./push/delivery', () => ({ enqueueNotificationPush: vi.fn() }));
 
 const { query, publish, logError } = vi.hoisted(() => ({ query: vi.fn(), publish: vi.fn(), logError: vi.fn() }));
 vi.mock('../../core', () => ({
@@ -22,7 +25,7 @@ const input = {
   link: '/chat?c=synthetic', dedupKey: 'handoff:synthetic:v2',
 } as const;
 
-beforeEach(() => { query.mockReset(); publish.mockReset(); logError.mockReset(); });
+beforeEach(() => { query.mockReset(); publish.mockReset(); logError.mockReset(); vi.mocked(enqueueNotificationPush).mockReset(); });
 
 test('publishes only new notification rows to eligible shop recipients across retries', async () => {
   const members = [
@@ -71,6 +74,31 @@ test.each([
   const [sql, args] = query.mock.lastCall!;
   expect(sql).toContain("NOT $9::boolean OR m.role = 'owner'");
   expect(sql).toContain('$10 = ANY(m.permissions)');
-  expect(args.slice(8)).toEqual([ownersOnly, permission]);
+  expect(args.slice(8, 10)).toEqual([ownersOnly, permission]);
   expect(publish).not.toHaveBeenCalled();
+});
+
+
+const consentKey = 'staff-offer-accepted:' + businessId + ':' + outsiderId + ':v4';
+
+test('only the new eligible row for a confirmed staff receipt schedules phone delivery', async () => {
+  query.mockResolvedValueOnce({ rows: [{ userId: staffId, role: 'owner', permissions: [] }] });
+  query.mockResolvedValueOnce({ rows: [{ id: notificationId, userId: staffId, pushEligible: true }] });
+  const event = { ...input, to: { permission: 'chat.takeover' } as const, dedupKey: consentKey };
+  expect(await notify(event)).toEqual({ notificationIds: [notificationId], mode: 'real' });
+  expect(query.mock.lastCall?.[1][6]).toBe('handoff:' + outsiderId + ':v4');
+  expect(enqueueNotificationPush).toHaveBeenCalledExactlyOnceWith(notificationId, businessId);
+  query.mockResolvedValueOnce({ rows: [{ userId: staffId, role: 'owner', permissions: [] }] });
+  query.mockResolvedValueOnce({ rows: [] });
+  expect(await notify(event)).toEqual({ notificationIds: [], mode: 'real' });
+  expect(enqueueNotificationPush).toHaveBeenCalledTimes(1);
+});
+
+test('an in-app handoff key without consent provenance cannot enqueue a phone alert', async () => {
+  query.mockResolvedValueOnce({ rows: [{ userId: staffId, role: 'owner', permissions: [] }] });
+  query.mockResolvedValueOnce({ rows: [{ id: notificationId, userId: staffId, pushEligible: true }] });
+  const event = { ...input, to: { permission: 'chat.takeover' } as const, dedupKey: 'handoff:' + outsiderId + ':v4' };
+  expect(await notify(event)).toEqual({ notificationIds: [notificationId], mode: 'real' });
+  expect(query.mock.lastCall?.[1][10]).toBeNull();
+  expect(enqueueNotificationPush).not.toHaveBeenCalled();
 });

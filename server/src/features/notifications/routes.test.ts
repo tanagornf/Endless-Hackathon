@@ -114,3 +114,17 @@ test('stores preferences only for the caller and honors their in-app opt-out', a
     await db.query("DELETE FROM notification_preferences WHERE user_id = $1 AND type = 'report'", [owner.id]);
   }
 });
+
+
+test('serves the inline worker at its narrow scope and requires sign-in for device operations', async () => {
+  const anonymous = await createTestAgent();
+  const prefix = '/api/v1/notifications';
+  const worker = await anonymous.get(prefix + '/sw.js').expect(200);
+  expect(worker.header['content-type']).toContain('text/javascript');
+  expect(worker.header['content-disposition']).toBe('inline');
+  expect(worker.header['service-worker-allowed']).toBe(prefix + '/');
+  await anonymous.get(prefix + '/push/status').expect(401);
+  await anonymous.post(prefix + '/push/ack').send({ ref: randomUUID() }).expect(401);
+  const owner = await ownerAgent.get(prefix + '/push/status').expect(200);
+  expect(owner.body.data).toMatchObject({ subscriptions: 0, lastAckAt: null });
+});
