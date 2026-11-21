@@ -80,6 +80,14 @@ function Initialize-BoardHook {
     }
     $root = Find-HookLaneRoot -Start $start
     if ($null -eq $root) { return $null }
+    # A worktree can host several chats. Only the bound chat may consume its lane inbox.
+    $sessionFile = [IO.Path]::Combine($root, '.team-board', 'hook-session.txt')
+    if ([IO.File]::Exists($sessionFile)) {
+        $owner = [IO.File]::ReadAllText($sessionFile).Trim()
+        if ([string]::IsNullOrWhiteSpace($owner) -or $null -eq $hookInput -or
+            [string]$hookInput.session_id -cne $owner -or
+            ($hookInput.agent_id -and [string]$hookInput.agent_id -cne $owner)) { return $null }
+    }
     $lane = ([IO.File]::ReadAllText([IO.Path]::Combine($root, '.lane'))).Trim().ToUpperInvariant()
     if ($lane -notmatch '^[ABC][0-3]$') {
         $shown = $lane; if ($shown.Length -gt 12) { $shown = $shown.Substring(0, 12) }
