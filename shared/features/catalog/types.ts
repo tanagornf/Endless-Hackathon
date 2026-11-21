@@ -79,3 +79,44 @@ export interface CatalogImportResult {
   errors: CatalogImportError[];
   items: { rowNo: number; sku: string; itemId: string | null; action: 'created' | 'updated' | 'skipped' | 'error' }[];
 }
+
+export interface CatalogItemRow {
+  id: string;
+  sku: string;
+  kind: CatalogItem['kind'];
+  name: string;
+  nameEn: string | null;
+  category: string | null;
+  priceMinor: number;
+  hasVariantPrices: boolean;
+  minPriceMinor: number;
+  unit: string;
+  stock: number | null;
+  active: boolean;
+  version: number;
+  imageUrl: string | null;
+  variantCount: number;
+  updatedAt: string;
+}
+
+export interface CatalogImage {
+  id: string;
+  fileId: string;
+  position: number;
+  alt: string;
+  flagged: boolean;
+  url: string;
+}
+
+export interface CatalogItemAdminDetail extends CatalogItem {
+  description: string | null;
+  category: string | null;
+  unit: string;
+  images: CatalogImage[];
+  source: 'manual' | 'import' | 'seed';
+  sourceRef: string | null;
+  priceChangedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  variants: (CatalogVariant & { active: boolean; position: number; effectivePriceMinor: number; effectiveStock: number | null })[];
+}
