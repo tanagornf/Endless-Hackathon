@@ -17,10 +17,10 @@ import { explicitlyRequestsStaff, replyToStaffOffer } from './intents';
 import { runModelLoop } from './loop';
 import { arabicDigits, maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
-import { productFactQuestion, replyWithProductFact } from './product-facts';
 import { repairPrompt } from './prompt';
 import { customerInboundsHeldByStaff, priorSavedReply } from './repo';
 import type { TurnDraft } from './repo';
+import { productFactQuestion, replyWithProductFact } from './product-facts';
 
 type Generation =
   | { state: 'completed' | 'handoff'; draft: TurnDraft }
