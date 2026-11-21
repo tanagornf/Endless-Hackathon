@@ -1,12 +1,21 @@
+import { z } from 'zod';
 import { AppError, assertRateLimit, defineFeatureRoutes } from '../../core';
 import { ActivateBody, CreateBody, ExpectedRevision, ListQuery, PatchBody, RevisionQuery } from './schema';
 import {
-  activateKnowledgeItem, createKnowledgeItem, deactivateKnowledgeItem, deleteKnowledgeItem, getKnowledgeItem,
-  getKnowledgeRevision, listKnowledgeItems, listRevisions, patchKnowledgeItem, reindexKnowledgeItem, submitKnowledgeItem,
+  activateKnowledgeItem, createFolder, createKnowledgeItem, deactivateKnowledgeItem, deleteFolder, deleteKnowledgeItem, getKnowledgeItem,
+  getKnowledgeRevision, listFolders, listKnowledgeItems, listRevisions, patchKnowledgeItem, reindexKnowledgeItem, renameFolder, submitKnowledgeItem,
 } from './service';
 
 const items = '/businesses/:businessId/knowledge/items';
 const item = items + '/:itemId';
+const folders = '/businesses/:businessId/knowledge/folders';
+const FolderId = z.string().uuid();
+const FolderBody = z.object({ name: z.string() }).strict();
+function checkedFolderId(value: string): string {
+  if (!FolderId.safeParse(value).success) throw new AppError('NOT_FOUND', 'Knowledge folder not found');
+  return value;
+}
+
 const read = { auth: 'business', permission: 'product.read' } as const;
 const write = { auth: 'business', permission: 'product.write' } as const;
 const remove = { auth: 'business', permission: 'product.delete' } as const;
@@ -15,6 +24,17 @@ export default defineFeatureRoutes({
   featureId: 'F05',
   slug: 'knowledge',
   register(api) {
+    api.get(folders, { ...read, summary: 'List knowledge folders' }, async ({ business }) => listFolders(business!.id));
+    api.post(folders, { ...write, body: FolderBody, summary: 'Create knowledge folder' }, async ({ business, user, body }) => ({
+      kind: 'json', status: 201, data: await createFolder(business!.id, { userId: user!.id }, body.name),
+    }));
+    api.patch(folders + '/:folderId', { ...write, body: FolderBody, summary: 'Rename knowledge folder' },
+      async ({ business, user, params, body }) => renameFolder(business!.id, { userId: user!.id }, checkedFolderId(params.folderId), body.name));
+    api.delete(folders + '/:folderId', { ...remove, summary: 'Delete knowledge folder' }, async ({ business, user, params }) => {
+      await deleteFolder(business!.id, { userId: user!.id }, checkedFolderId(params.folderId));
+      return { kind: 'no_content' };
+    });
+
     api.get(items, { ...read, query: ListQuery, summary: 'List knowledge' },
       async ({ business, query }) => listKnowledgeItems(business!.id, query));
     api.post(items, { ...write, body: CreateBody, summary: 'Create knowledge draft' },

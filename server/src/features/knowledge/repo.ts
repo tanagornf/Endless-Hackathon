@@ -120,7 +120,7 @@ export async function snapshot(tx: DbExecutor, item: Item, actorUserId: string |
   );
 }
 
-async function duplicateWarnings(item: Item): Promise<KnowledgeItemDetail['warnings']> {
+export async function duplicateWarnings(item: Item): Promise<KnowledgeItemDetail['warnings']> {
   const title = normalizeContent(item.title).toLowerCase();
   if (!title && !normalizeContent(item.body)) return [];
   const { rows } = await db.query<Pick<Item, 'id' | 'title' | 'content_hash'>>(
