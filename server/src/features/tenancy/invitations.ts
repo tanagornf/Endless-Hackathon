@@ -38,7 +38,7 @@ async function delivery(row: InvitationRecord, token: string): Promise<Invitatio
   const link = new URL('/invitations/accept', config.APP_BASE_URL);
   link.searchParams.set('token', token);
   const url = link.toString();
-  return { invitation, link: url, delivery: await deliverInvitation(invitation, url) };
+  return { invitation, link: url, delivery: await deliverInvitation(row.business_id, row.id, url) };
 }
 
 function auditInvitation(action: string, row: InvitationRecord, actorUserId: string | null,

@@ -1,4 +1,4 @@
-import type { InvitationCreated, InvitationRow } from '@nless/shared/features/tenancy/types';
+import type { InvitationCreated } from '@nless/shared/features/tenancy/types';
 import { config, db, log } from '../../core';
 import { queueEmail } from '../auth/service';
 import { hashInvitationToken } from './tokens';
@@ -12,7 +12,7 @@ type MailContext = {
   timezone: string;
 };
 
-export async function deliverInvitation(invitation: InvitationRow, link: string): Promise<InvitationCreated['delivery']> {
+export async function deliverInvitation(businessId: string, invitationId: string, link: string): Promise<InvitationCreated['delivery']> {
   try {
     const url = new URL(link);
     const token = url.searchParams.get('token');
@@ -25,9 +25,9 @@ export async function deliverInvitation(invitation: InvitationRow, link: string)
       'i.expires_at AS "expiresAt",b.language,b.timezone ' +
       'FROM invitations i JOIN businesses b ON b.id=i.business_id JOIN accounts a ON a.id=b.account_id ' +
       'LEFT JOIN users inviter ON inviter.id=i.invited_by ' +
-      "WHERE i.id=$1 AND i.token_hash=$2 AND i.status='pending' AND i.expires_at>statement_timestamp() " +
+      "WHERE i.id=$1 AND i.token_hash=$2 AND i.business_id=$3 AND i.status='pending' AND i.expires_at>statement_timestamp() " +
       "AND b.status='active' AND a.status='active'",
-      [invitation.id, hashInvitationToken(token)],
+      [invitationId, hashInvitationToken(token), businessId],
     );
     if (!mail) return 'link_only';
 
@@ -48,7 +48,7 @@ export async function deliverInvitation(invitation: InvitationRow, link: string)
     return receipt.outboxId ? receipt.delivery : 'link_only';
   } catch {
     // The invitation is already committed. Leave its copy link usable and avoid replaying a possibly committed write.
-    log.warn({ invitationId: invitation.id }, 'Invitation sandbox mail was not confirmed');
+    log.warn({ invitationId }, 'Invitation sandbox mail was not confirmed');
     return 'link_only';
   }
 }

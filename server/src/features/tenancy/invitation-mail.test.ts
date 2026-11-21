@@ -31,10 +31,10 @@ beforeEach(() => {
 });
 
 describe('sandbox invitation mail', () => {
-  it('uses the committed recipient and reports a confirmed F02 sandbox row', async () => {
-        const altered = { ...invitation, email: 'other-recipient@example.test', invitedByName: 'Other owner' };
-    expect(await deliverInvitation(altered, link)).toBe('email_sandbox'); expect(mocks.lookup).toHaveBeenCalledWith(expect.stringContaining('i.token_hash=$2'), [
-      invitation.id, hashInvitationToken(token),
+  it('uses the tenant-scoped committed recipient and reports a confirmed F02 sandbox row', async () => {
+    expect(await deliverInvitation(scoped.businessId, invitation.id, link)).toBe('email_sandbox');
+    expect(mocks.lookup).toHaveBeenCalledWith(expect.stringContaining('i.token_hash=$2 AND i.business_id=$3'), [
+      invitation.id, hashInvitationToken(token), scoped.businessId,
     ]);
     expect(mocks.queue).toHaveBeenCalledExactlyOnceWith({
       to: scoped.email, template: 'invitation', locale: 'en', actionUrl: link,
@@ -44,7 +44,7 @@ describe('sandbox invitation mail', () => {
 
   it('uses the shop language and localized inviter fallback', async () => {
     mocks.lookup.mockResolvedValue({ ...scoped, language: 'th', inviterName: null });
-    expect(await deliverInvitation(invitation, link)).toBe('email_sandbox');
+    expect(await deliverInvitation(scoped.businessId, invitation.id, link)).toBe('email_sandbox');
     expect(mocks.queue).toHaveBeenCalledWith(expect.objectContaining({
       locale: 'th', vars: expect.objectContaining({ business: scoped.businessName, inviter: 'ทีมงานร้าน' }),
     }));
@@ -52,15 +52,15 @@ describe('sandbox invitation mail', () => {
 
   it('does not queue a superseded, revoked, or foreign link', async () => {
     mocks.lookup.mockResolvedValue(null);
-    expect(await deliverInvitation(invitation, link)).toBe('link_only');
+    expect(await deliverInvitation(scoped.businessId, invitation.id, link)).toBe('link_only');
     expect(mocks.queue).not.toHaveBeenCalled();
-    await deliverInvitation(invitation, link.replace('endless.example.test', 'other.example.test'));
+    await deliverInvitation(scoped.businessId, invitation.id, link.replace('endless.example.test', 'other.example.test'));
     expect(mocks.lookup).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the manual link on outbox failure and does not repeat an ambiguous write', async () => {
     mocks.queue.mockRejectedValue(new Error('outbox failure: ' + link + ' ' + scoped.email));
-    expect(await deliverInvitation(invitation, link)).toBe('link_only');
+    expect(await deliverInvitation(scoped.businessId, invitation.id, link)).toBe('link_only');
     expect(mocks.queue).toHaveBeenCalledTimes(1);
     expect(mocks.warn).toHaveBeenCalledWith({ invitationId: invitation.id }, 'Invitation sandbox mail was not confirmed');
     expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain(token);
@@ -69,6 +69,6 @@ describe('sandbox invitation mail', () => {
 
   it('uses manual delivery when the port has no persisted receipt', async () => {
     mocks.queue.mockResolvedValue({ outboxId: '', delivery: 'email_sandbox' });
-    expect(await deliverInvitation(invitation, link)).toBe('link_only');
+    expect(await deliverInvitation(scoped.businessId, invitation.id, link)).toBe('link_only');
   });
 });
