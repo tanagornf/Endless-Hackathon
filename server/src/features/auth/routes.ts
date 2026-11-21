@@ -1,13 +1,16 @@
 import type { AuthStatus } from '@nless/shared/features/auth/types';
 import { audit, db, defineFeatureRoutes, destroySession, log } from '../../core';
+import { acceptInvitation, completeInvitationAcceptance, provisionAccountForUser } from '../tenancy/service';
 import { assertSameOriginRequest } from './csrf';
 import { resendVerification, verifyEmail } from './email-verification';
 import { login } from './login';
 import { PASSWORD_MIN } from './password';
 import { syncSeedPasswords } from './seed-passwords';
 import { revokeAllSessions } from './sessions-port';
+import { signup } from './signup';
 
 let bootSync: Promise<void> | undefined;
+const signupTenancy = { acceptInvitation, completeInvitationAcceptance, provisionAccountForUser };
 
 export default defineFeatureRoutes({
   featureId: 'F02',
@@ -22,6 +25,12 @@ export default defineFeatureRoutes({
       async () => ({ emailMode: 'sandbox' as const, passwordMinLength: PASSWORD_MIN }));
     api.post('/auth/login', { auth: 'none', summary: 'Sign in with email and password' },
       ({ req, res, body }) => login(req, res, body));
+    api.post('/auth/signup', { auth: 'none', summary: 'Create an account or join an invited business' },
+      async ({ req, res, body }) => ({
+        kind: 'json' as const,
+        status: 201 as const,
+        data: await signup(req, res, body, signupTenancy),
+      }));
     api.post('/auth/email/verify', { auth: 'none', summary: 'Confirm an email address from a one-time link' },
       ({ req, body }) => verifyEmail(req, body));
     api.post('/auth/email/resend', { auth: 'user', summary: 'Queue a new email confirmation link' },
