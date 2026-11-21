@@ -67,6 +67,10 @@ export function turnLanguage(history: readonly MessageRecord[], inbound: Message
   return detectReplyLanguage(context.unanswered.map(textOf), context.previous.map(textOf), language);
 }
 
+export function unansweredCustomerText(history: readonly MessageRecord[], inbound: MessageRecord): string {
+  return contextHistory(history, inbound).unanswered.map(textOf).filter(Boolean).join('\n');
+}
+
 function quantityFor(text: string): number {
   const normalized = arabicDigits(text).normalize('NFKC');
   const match = /(?:^|[^\d-])(\d{1,2})\s*(?:ชิ้น|กล่อง|ชุด|อัน|เกม|ใบ|\b(?:items?|boxes?|sets?|copies?)\b|[x×])|(?:[x×])\s*(\d{1,2})(?!\d)/iu.exec(normalized);

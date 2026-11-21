@@ -5,10 +5,13 @@ import type { BusinessSettings } from '@nless/shared/features/business-settings/
 import type { ConversationRecord, MessageRecord } from '@nless/shared/features/inbox/types';
 import { AppError, config, model } from '../../core';
 import type { ModelChatInput, ModelChatResult } from '../../core';
-import { buildReplyContext, turnLanguage } from './context';
+import { getBusinessOpenState } from '../business-settings/service';
+import { buildReplyContext, turnLanguage, unansweredCustomerText } from './context';
 import type { ReplyContext } from './context';
 import { fallbacks } from './fallbacks';
 import { codeFallback, inspectReply, isPriceQuestion, mentionsProduct, receiptText, renderCatalogQuotes, shapeReply, stripUnsafeSentences } from './guards';
+import { canRequestHandoff } from './handoff';
+import { explicitlyRequestsStaff } from './intents';
 import { runModelLoop } from './loop';
 import { arabicDigits, maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
@@ -98,6 +101,7 @@ export async function generateDraft(
   inbound: MessageRecord,
   settings: BusinessSettings,
   cancellation: AbortSignal,
+  mode: 'reply' | 'suggest',
 ): Promise<Generation> {
   const started = performance.now();
   const signal = AbortSignal.any([cancellation, AbortSignal.timeout(config.MODEL_TIMEOUT_MS)]);
@@ -108,6 +112,16 @@ export async function generateDraft(
   let context: ReplyContext | undefined;
   try {
     signal.throwIfAborted();
+    if (mode === 'reply' && explicitlyRequestsStaff(unansweredCustomerText(history, inbound)) &&
+        await withinDeadline(canRequestHandoff(conversation.businessId), signal)) {
+      const opening = await withinDeadline(getBusinessOpenState(conversation.businessId).catch(() => null), signal);
+      draft.handoffReason = 'customer_request';
+      draft.intent = 'ESCALATION';
+      draft.intentSource = 'regex';
+      draft.intentConfidence = 1;
+      draft.parts = [{ type: 'text', text: fallbacks[opening?.open === false ? 'escalation_ack_closed' : 'escalation_ack'][language] }];
+      return { state: 'handoff', draft };
+    }
     context = await withinDeadline(buildReplyContext(conversation, history, inbound, settings, language, signal), signal);
     draft.timings.contextMs = elapsed(started);
     draft.tools = context.tools;
@@ -191,8 +205,9 @@ export async function generateDraft(
     const timedOut = signal.aborted && !cancellation.aborted;
     draft.errorCode = error instanceof AppError ? error.code : timedOut ? 'PROVIDER_UNAVAILABLE' : 'INTERNAL';
     if (draft.errorCode === 'PROVIDER_BUDGET_EXHAUSTED') {
-      const canHandoff = context?.rules.handoff && process.env.ESCALATION_ENABLED !== '0';
+      const canHandoff = mode === 'reply' && context?.rules.handoff && process.env.ESCALATION_ENABLED !== '0';
       draft.parts = shapeReply(fallbacks[canHandoff ? 'budget_handoff' : 'ai_failed_retry'][language]);
+      if (canHandoff) draft.handoffReason = 'budget_exhausted';
       draft.guardActions.push({ guard: 'budget', action: 'fallback', detail: 'Provider budget exhausted' });
       return { state: canHandoff ? 'handoff' : 'completed', draft };
     }
