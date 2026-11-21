@@ -40,6 +40,8 @@ export interface ReplyContext {
   messages: ModelMessage[];
   contact: string;
   cardMasked: boolean;
+  shopOpen: boolean | null;
+  offeredByTool?: boolean;
 }
 
 const weekdayNames = {
@@ -67,8 +69,8 @@ export function turnLanguage(history: readonly MessageRecord[], inbound: Message
   return detectReplyLanguage(context.unanswered.map(textOf), context.previous.map(textOf), language);
 }
 
-export function unansweredCustomerText(history: readonly MessageRecord[], inbound: MessageRecord): string {
-  return contextHistory(history, inbound).unanswered.map(textOf).filter(Boolean).join('\n');
+export function unansweredCustomerMessages(history: readonly MessageRecord[], inbound: MessageRecord): string[] {
+  return contextHistory(history, inbound).unanswered.map(textOf).filter(Boolean);
 }
 
 function quantityFor(text: string): number {
@@ -113,6 +115,7 @@ export async function buildReplyContext(
   settings: BusinessSettings,
   language: CustomerLanguage,
   signal: AbortSignal,
+  options: { skipLookups?: boolean; offerPending?: boolean } = {},
 ): Promise<ReplyContext> {
   const { businessId } = conversation;
   const partition = contextHistory(history, inbound);
@@ -133,8 +136,9 @@ export async function buildReplyContext(
   ]);
   signal.throwIfAborted();
   const [knowledgeSearch, quotes, profile] = await Promise.all([
-    query ? searchKnowledge(businessId, query, { topK: 6 }).catch(() => null) : null,
-    rules.price === 'always' ? Promise.all(skus.map((sku) => prefetch(businessId, sku, quantityFor(customerTail[0]?.masked ?? ''), language))) : [],
+    !options.skipLookups && query ? searchKnowledge(businessId, query, { topK: 6 }).catch(() => null) : null,
+    !options.skipLookups && rules.price === 'always'
+      ? Promise.all(skus.map((sku) => prefetch(businessId, sku, quantityFor(customerTail[0]?.masked ?? ''), language))) : [],
     rules.contact === 'always' ? getBusinessProfile(businessId).catch(() => null) : null,
   ]);
   signal.throwIfAborted();
@@ -163,7 +167,7 @@ export async function buildReplyContext(
     }).join('\n'),
     contactLine: contact || 'not available',
     directives: directivesOf(rules),
-    handoffState: 'none',
+    handoffState: options.offerPending ? 'staff help was offered in the previous reply' : 'none',
     knowledgeBlock: knowledge.map((item, index) => '[K' + (index + 1) + '] id=' + item.id + ' | ' + item.title + '\n' + item.snippet).join('\n\n') || 'No knowledge excerpt matched this question.',
     prefetchBlock: prices.map((item) => JSON.stringify({ tool: 'get_price', result: quoteForModel(item, language, rules) })).join('\n') || 'none',
   };
@@ -180,5 +184,8 @@ export async function buildReplyContext(
     remaining -= content.length;
   }
   messages.push(...chat);
-  return { language, unanswered, rules, knowledge, prices, totals: [], tools: quotes.map(({ tool }) => tool), messages, contact, cardMasked: contextRows.some((row) => row.text !== row.masked) };
+  return {
+    language, unanswered, rules, knowledge, prices, totals: [], tools: quotes.map(({ tool }) => tool), messages,
+    contact, cardMasked: contextRows.some((row) => row.text !== row.masked), shopOpen: open?.open ?? null,
+  };
 }

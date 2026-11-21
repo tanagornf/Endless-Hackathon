@@ -3,6 +3,7 @@ import type { GenerateReplyOptions } from '@nless/shared/features/ai-agent/types
 import type { ConversationRecord, MessageRecord } from '@nless/shared/features/inbox/types';
 import { AppError, log, publish, sendToCustomer } from '../../core';
 import { getConversation, getHistory, saveMessage } from '../inbox/service';
+import { notify } from '../notifications/service';
 import { fallbacks } from './fallbacks';
 import { finalSkipReason, isAiAllowed } from './gate';
 import { generateDraft } from './generation';
@@ -144,6 +145,10 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
       await releaseClaim(turn);
       return { response: result(turn.id, 'pending'), retryAt: delayRetry(5000) };
     }
+    if (generated.state === 'skipped') {
+      if (await storeDraft(turn, draft)) await closeTurn(turn, { state: 'skipped', reason: generated.reason, timings: draft.timings });
+      return { response: result(turn.id, 'failed') };
+    }
 
     let state = generated.state;
     if (generated.state === 'failed') {
@@ -221,6 +226,15 @@ export async function runAiTurn(conversationId: string, request: TurnRequest): P
             parts: [{ type: 'text', text: staffHandoffTitle(draft.handoffReason, ackGate.settings.language) }],
           });
         }
+      }
+      const apology = draft.parts.length === 1 && draft.parts[0].type === 'text'
+        && draft.parts[0].text === fallbacks.ai_failed_retry[draft.language];
+      if (!replyMessageId && apology && draft.errorCode && draft.errorCode !== 'PROVIDER_BUDGET_EXHAUSTED') {
+        await notify({
+          businessId: conversation.businessId, to: { role: 'owners' }, type: 'system',
+          title: staffHandoffTitle('ai_failed', finalGate.settings.language),
+          link: '/chat?c=' + conversationId, dedupKey: 'ai-failed:' + turn.id,
+        }).catch(() => log.warn({ turnId: turn.id }, 'Owner notification after exhausted model retries failed'));
       }
       let parts = draft.parts;
       if (!replyMessageId) {

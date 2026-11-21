@@ -7,7 +7,7 @@ import type { HandoffCheckpoint } from './repo';
 
 export type SkipReason =
   | 'business_inactive' | 'ai_off' | 'takeover' | 'handoff_waiting' | 'conversation_closed'
-  | 'not_customer_message' | 'takeover_during_generation' | 'ai_off_during_generation' | 'superseded';
+  | 'not_customer_message' | 'takeover_during_generation' | 'ai_off_during_generation' | 'superseded' | 'non_text_repeat';
 
 export type TurnGate = { allowed: true; settings: BusinessSettings } | { allowed: false; reason: SkipReason };
 

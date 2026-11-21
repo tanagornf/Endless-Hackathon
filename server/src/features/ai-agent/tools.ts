@@ -18,6 +18,7 @@ const toolTimeoutMs = 3000;
 const nullableString = { type: ['string', 'null'] } as const;
 const productProperties = { sku: nullableString, name: nullableString, variant_name: nullableString };
 const productFields = ['sku', 'name', 'variant_name', 'quantity'];
+const handoffReasons = ['customer_request', 'cannot_answer', 'complaint', 'payment_issue', 'other'] as const;
 const tools: ModelTool[] = [
   {
     name: 'search_knowledge',
@@ -62,6 +63,15 @@ const tools: ModelTool[] = [
       required: ['items'], additionalProperties: false,
     },
   },
+  {
+    name: 'handoff_to_staff',
+    description: 'Ask for staff help. If the customer clearly asks for a person, use customer_request. For missing information, complaints or payment problems, answer what you can before asking. The application decides whether to offer or transfer. Never promise a response time or claim staff have taken over.',
+    parameters: {
+      type: 'object',
+      properties: { reason: { type: 'string', enum: [...handoffReasons] }, note: { type: 'string' } },
+      required: ['reason', 'note'], additionalProperties: false,
+    },
+  },
 ];
 
 const textValue = z.string().trim().min(1).max(200);
@@ -73,11 +83,13 @@ const priceArgs = z.strictObject({ ...product, quantity: quantity.nullable() }).
 const totalArgs = z.strictObject({
   items: z.array(z.strictObject({ ...product, quantity }).refine(hasProduct)).min(1).max(10),
 });
+const handoffArgs = z.strictObject({ reason: z.enum(handoffReasons), note: z.string().max(200) });
 
 interface ToolContext {
   businessId: string;
   language: CustomerLanguage;
   rules: EffectiveAnswerRules;
+  allowHandoff?: boolean;
 }
 type ToolError = { ok: false; error: string } & Record<string, unknown>;
 type ToolOutput = ({ ok: true } & Record<string, unknown>) | ToolError;
@@ -90,6 +102,7 @@ type ToolResult = {
   prices?: PriceEvidence[];
   knowledge?: KnowledgeEvidence[];
   total?: TotalEvidence;
+  offerHandoff?: boolean;
 };
 export type ExecutedTool = ToolResult & { trace: AiToolTrace };
 
@@ -98,8 +111,11 @@ const normalize = (value: string) => value.normalize('NFKC').trim().toLocaleLowe
 const displayName = (item: CatalogItem, lang: CustomerLanguage) => (lang === 'en' ? item.nameEn : item.name) || item.name;
 const toolNames = new Set(tools.map(({ name }) => name));
 
-export function availableTools(rules: EffectiveAnswerRules): ModelTool[] {
-  return rules.price === 'always' ? tools : tools.filter(({ name }) => name === 'search_knowledge');
+export function availableTools(rules: EffectiveAnswerRules, allowHandoff: boolean): ModelTool[] {
+  return tools.filter(({ name }) => {
+    if (name === 'handoff_to_staff') return allowHandoff;
+    return name === 'search_knowledge' || rules.price === 'always';
+  });
 }
 
 export function asKnowledgeEvidence(hit: KnowledgeHit, rules: EffectiveAnswerRules): KnowledgeEvidence | null {
@@ -155,6 +171,13 @@ export const noShipping = { th: 'ยังไม่รวมค่าส่ง',
 
 async function executeTool(context: ToolContext, call: ModelToolCall): Promise<ToolResult> {
   const { businessId, language, rules } = context;
+  if (call.name === 'handoff_to_staff') {
+    if (!context.allowHandoff || !rules.handoff) return { output: failure('UNKNOWN_TOOL') };
+    const input = handoffArgs.safeParse(call.arguments);
+    if (!input.success) return { output: failure('VALIDATION_ERROR') };
+    // Customer consent is handled by the explicit and classifier paths. A model tool can only suggest an offer.
+    return { output: { ok: true, action: 'offer_staff' }, offerHandoff: true };
+  }
   if (call.name === 'search_knowledge') {
     const input = searchArgs.safeParse(call.arguments);
     if (!input.success) return { output: failure('VALIDATION_ERROR') };
