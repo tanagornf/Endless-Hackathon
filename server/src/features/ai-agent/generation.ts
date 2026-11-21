@@ -230,7 +230,7 @@ export async function generateDraft(
       }
     };
     const loop: LoopState = { messages: [...context.messages], executedCalls: 0 };
-    const orderText = context.catalogRequest.text;
+    const orderText = inbound.parts.flatMap((part) => part.type === 'text' ? [maskCardNumbers(part.text)] : []).join('\n');
     const isPurchase = mode === 'reply' && context.rules.orders && context.rules.price === 'always' && explicitOrderMethod(orderText);
     const purchaseIntent: IntentScore | null = isPurchase ? { label: 'REQUEST', source: 'regex', confidence: 1 } : null;
     const toolOptions = {

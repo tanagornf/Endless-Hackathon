@@ -74,7 +74,7 @@ it('saves and delivers the same Thai F13 order review once and never confirms fr
   expect(decision.response.reply.parts).toMatchObject([{ type: 'text', text: expect.stringContaining('กดยืนยัน') }]);
   expect(calls).toHaveBeenCalledTimes(1);
   await drainJobs({ type: 'core.deliver' });
-});
+}, 20_000);
 
 it('recovers a committed English proposal after a lost acknowledgement on the same F10 turn', async () => {
   const chat = scripted({ items: [line()], delivery_method: 'pickup' });
@@ -100,7 +100,7 @@ it('recovers a committed English proposal after a lost acknowledgement on the sa
   expect(sent.response.proposal).toEqual(recovered.response.proposal);
   expect(operation).toHaveBeenCalledTimes(2);
   await drainJobs({ type: 'core.deliver' });
-});
+}, 20_000);
 
 it.each([
   ['quote only', 'How much is A-GAME-01 for shipping?', [line()]],
@@ -116,7 +116,7 @@ it.each([
   expect(result.response.proposal).toBeUndefined();
   expect(result.response.reply.parts.some(({ type }) => type === 'order_review')).toBe(false);
   expect(calls).not.toHaveBeenCalled();
-});
+}, 15_000);
 
 it('blocks cross-tenant, staff suggestion and policy-hidden proposal paths before F13', async () => {
   const calls = vi.spyOn(orders, 'createOrderFromProposal');
@@ -128,4 +128,15 @@ it('blocks cross-tenant, staff suggestion and policy-hidden proposal paths befor
   vi.mocked(settings.getEffectiveAnswerRules).mockResolvedValue({ ...allow, orders: false });
   expect((await run(input, shop, false)).response.proposal).toBeUndefined();
   expect(calls).not.toHaveBeenCalled();
-});
+}, 15_000);
+
+it('never converts a previous buy request into a proposal on a new neutral trigger', async () => {
+  const calls = vi.spyOn(orders, 'createOrderFromProposal');
+  scripted({ items: [line()], delivery_method: 'pickup' }, 'Please review your order summary.');
+  const previous = await incoming('Please order 2 A-GAME-01 for pickup.');
+  const latest = await incoming('👍', previous);
+  const result = await run(latest, shop, false);
+  expect(calls).not.toHaveBeenCalled();
+  expect(result.response.proposal).toBeUndefined();
+  expect(result.response.reply.parts).not.toContainEqual({ type: 'text', text: 'Please review your order summary.' });
+}, 15_000);

@@ -76,7 +76,6 @@ export async function prepareOrder(input: {
     if ('error' in lookup) return { error: lookup.error.error };
     const { evidence } = lookup;
     const { quote } = evidence;
-    if (quote.soldOut) return { error: 'SOLD_OUT' };
     const labels = [quote.sku, evidence.itemSku, ...evidence.itemNames];
     const quantities = quantityBindings(text, labels);
     if (quantities.length !== 1 || quantities[0] !== line.quantity) return { error: 'UNVERIFIED_ORDER_ITEMS' };
@@ -84,6 +83,7 @@ export async function prepareOrder(input: {
     if (evidence.variant && !requestedVariantSku && !exactLabel(evidence.variant).test(text)) {
       return { error: 'UNVERIFIED_ORDER_ITEMS' };
     }
+    if (quote.soldOut) return { error: 'SOLD_OUT' };
     const key = quote.itemId + ':' + (quote.variantId ?? '');
     if (distinct.has(key)) return { error: 'UNVERIFIED_ORDER_ITEMS' };
     distinct.add(key);
@@ -136,7 +136,10 @@ export function typedOrderDecision(text: string, language: CustomerLanguage): st
 
 export function safeUnreviewedOrderText(text: string, language: CustomerLanguage): string {
   const claimed = /\b(?:(?:your|this|the) order (?:is|was|has been) (?:placed|confirmed|created|processed)|(?:i|we)(?:'ve| have)? (?:placed|confirmed|created|processed) (?:your|the) order|order (?:confirmed|placed))\b|(?:คำสั่งซื้อ|ออเดอร์).{0,28}(?:ยืนยันแล้ว|เรียบร้อยแล้ว|สำเร็จแล้ว)|(?:ยืนยัน|สั่งซื้อ)เรียบร้อยแล้ว/iu;
-  return claimed.test(normalize(text)) ? orderText.unconfirmed[language] : text;
+  const absentCard = /\b(?:review|check|see|open) (?:your|the|this) (?:order summary|order card)\b|(?:ดู|ตรวจ)(?:ที่|ใน)?(?:การ์ด|สรุปคำสั่งซื้อ)/iu;
+  const normalized = normalize(text);
+  if (claimed.test(normalized)) return orderText.unconfirmed[language];
+  return absentCard.test(normalized) ? orderText.unavailable[language] : text;
 }
 
 export function soldOutOrderText(language: CustomerLanguage): string {
