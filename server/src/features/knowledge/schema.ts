@@ -10,6 +10,7 @@ export const ListQuery = z.object({
   q: z.string().trim().max(160).optional(),
   status: z.enum(['draft', 'reviewed', 'active', 'inactive']).optional(),
   includeDeleted: z.stringbool().default(false),
+  pendingWebSuggestions: z.stringbool().optional(),
   kind: Kind.optional(),
   folderId: z.union([Uuid, z.literal('unfiled')]).optional(),
   cursor: z.string().max(200).optional(),

@@ -23,6 +23,37 @@ export interface KnowledgeDraftResult {
   warnings: { code: 'duplicate_title' | 'duplicate_content'; itemId: string }[];
 }
 
+export interface WebKnowledgeCitation {
+  url: string;
+  title: string;
+}
+
+export interface WebKnowledgeSuggestion {
+  /** The public question accepted from the worker, independent of later title edits. */
+  question: string;
+  citations: WebKnowledgeCitation[];
+}
+
+export interface WebKnowledgeDraftInput extends WebKnowledgeSuggestion {
+  /** Verified tenant of the background job. */
+  businessId: string;
+  answer: string;
+}
+
+export interface WebKnowledgeDraftMatch {
+  itemId: string;
+  status: KnowledgeStatus;
+}
+
+export interface ApprovedWebKnowledgeAnswer {
+  itemId: string;
+  revision: number;
+  title: string;
+  folderId: string | null;
+  answer: string;
+  citations: WebKnowledgeCitation[];
+}
+
 export interface KnowledgeFileTag {
   fileId: string;
   description: string;
@@ -56,10 +87,11 @@ export interface KnowledgeItemRow {
   folderName: string | null;
   indexState: KnowledgeIndexState;
   updatedAt: string;
-  source: 'manual' | 'import' | 'seed' | 'fixture';
+  source: 'manual' | 'import' | 'seed' | 'fixture' | 'web';
 }
 export interface KnowledgeItemDetail extends Omit<KnowledgeItemRow, 'snippet'> {
   body: string;
+  webSuggestion: WebKnowledgeSuggestion | null;
   files: KnowledgeFileTag[];
   moderation: KnowledgeModeration | null;
   index: KnowledgeIndexView;
