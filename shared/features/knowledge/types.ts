@@ -23,6 +23,16 @@ export interface KnowledgeDraftResult {
   warnings: { code: 'duplicate_title' | 'duplicate_content'; itemId: string }[];
 }
 
+export interface OwnerConsultKnowledgeDraftInput {
+  businessId: string;
+  caseId: string;
+  actionStepId: string;
+  answerReceiptId: string;
+  /** Generalized material prepared for owner review, with no private case transcript. */
+  title: string;
+  body: string;
+}
+
 export interface WebKnowledgeCitation {
   url: string;
   title: string;
@@ -87,7 +97,7 @@ export interface KnowledgeItemRow {
   folderName: string | null;
   indexState: KnowledgeIndexState;
   updatedAt: string;
-  source: 'manual' | 'import' | 'seed' | 'fixture' | 'web';
+  source: 'manual' | 'import' | 'seed' | 'fixture' | 'web' | 'owner-consult';
 }
 export interface KnowledgeItemDetail extends Omit<KnowledgeItemRow, 'snippet'> {
   body: string;

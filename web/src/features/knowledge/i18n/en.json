@@ -2,6 +2,14 @@
   "menu": {
     "title": "Knowledge"
   },
+  "ownerConsult": {
+    "pending": "Draft from an owner consultation. The shop owner can approve this knowledge for reuse after reviewing it.",
+    "active": "Owner-approved knowledge. Deactivate it before editing the approved text.",
+    "approve": "Approve for reuse",
+    "approveTitle": "Approve this knowledge for reuse?",
+    "approveMessage": "Revision {{revision}} will be indexed and can inform future replies for this shop.",
+    "consentUnavailable": "This consultation no longer allows reuse. The draft stays unpublished."
+  },
   "web": {
     "label": "Web suggestion",
     "pending": "Web suggestion awaiting approval",

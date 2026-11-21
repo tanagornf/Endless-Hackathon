@@ -18,6 +18,8 @@ function Editor({ id }: { id: string }) {
   const { t } = useTranslation('knowledge');
   const navigate = useNavigate();
   const toast = useToast();
+  const { currentBusiness, businesses } = useSession();
+  const isOwner = businesses.some(({ business, role }) => business.id === currentBusiness?.id && role === 'owner');
   const canWrite = useCan('product.write');
   const canDelete = useCan('product.delete');
   const path = '/knowledge/items/' + id;
@@ -34,6 +36,7 @@ function Editor({ id }: { id: string }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [conflict, setConflict] = useState(false);
   const [confirmation, setConfirmation] = useState<'activate' | 'delete' | 'leave' | 'reject' | null>(null);
+  const [ownerApproval, setOwnerApproval] = useState<{ revision: number; flagged: boolean } | null>(null);
   const received = query.data;
   useEffect(() => { if (received) setItem(received); }, [received]);
   useRealtime('knowledge.status', (event) => { if (event.knowledgeItemId === id) query.reload(); });
@@ -61,12 +64,16 @@ function Editor({ id }: { id: string }) {
 
   function showError(error: unknown) {
     const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
+    const details = error && typeof error === 'object' && 'details' in error ? error.details : null;
     if (code === 'VERSION_CONFLICT') {
       setConflict(true);
       toast.error(t('error.conflict'));
     } else if (code === 'KNOWLEDGE_NOT_READY') {
       toast.error(t('error.notReady'));
       reload();
+    } else if (code === 'POLICY_BLOCKED' && details && typeof details === 'object' &&
+        'reason' in details && details.reason === 'owner_consult_consent') {
+      toast.error(t('ownerConsult.consentUnavailable'));
     } else {
       toast.error(typeof code === 'string' ? t('common:errors.' + code, { defaultValue: t('common:errors.generic') }) : t('common:errors.generic'));
     }
@@ -81,14 +88,14 @@ function Editor({ id }: { id: string }) {
       reload();
     } catch (error) { showError(error); }
   }
-  async function transition(action: Transition) {
+  async function transition(action: Transition, approval?: { revision: number; flagged: boolean }) {
     if (!item || dirty) return;
-    const input = { expectedRevision: item.revision };
+    const input = { expectedRevision: approval?.revision ?? item.revision };
     try {
       let updated: KnowledgeItemDetail;
       switch (action) {
         case 'submit': updated = await submit.run(input); break;
-        case 'activate': updated = await activate.run({ ...input, acknowledgeModeration: confirmation === 'activate' }); break;
+        case 'activate': updated = await activate.run({ ...input, acknowledgeModeration: approval?.flagged ?? confirmation === 'activate' }); break;
         case 'deactivate': updated = await deactivate.run(input); break;
         case 'reindex': updated = await reindex.run({}); break;
       }
@@ -105,20 +112,24 @@ function Editor({ id }: { id: string }) {
   const fields: Fields = draft ?? item;
   const editable = canWrite && item.mutable;
   const webSuggestion = item.webSuggestion;
+  const ownerConsult = item.source === 'owner-consult';
+  const explicitApproval = !!webSuggestion || ownerConsult;
   const pendingSuggestion = !!webSuggestion && (item.status === 'draft' || item.status === 'reviewed');
-  const canEditContent = editable && !(webSuggestion && item.status === 'active');
+  const canEditContent = editable && !(explicitApproval && item.status === 'active');
   const busy = patch.running || submit.running || activate.running || deactivate.running || reindex.running || remove.running || reject.running;
   function update(change: Partial<Fields>) {
     setDraft((current) => ({ kind: item!.kind, title: item!.title, body: item!.body, folderId: item!.folderId,
       expectedRevision: item!.revision, ...current, ...change }));
   }
-  const action = item.status === 'draft' && !webSuggestion ? 'submit' : item.status === 'active' ? 'deactivate' : 'activate';
-  const actionLabel = t(webSuggestion && action === 'activate' ? 'web.activate' : 'actions.' + action);
+  const action = item.status === 'draft' && !explicitApproval ? 'submit' : item.status === 'active' ? 'deactivate' : 'activate';
+  const ownerActivation = ownerConsult && action === 'activate';
+  const actionLabel = t(ownerActivation ? 'ownerConsult.approve' : webSuggestion && action === 'activate' ? 'web.activate' : 'actions.' + action);
   const missingContent = !fields.title.trim() || !fields.body.trim();
-  const requiresContent = action === 'submit' || (!!webSuggestion && action === 'activate');
-  const requiresIndex = action === 'activate' && !webSuggestion;
+  const requiresContent = action === 'submit' || (explicitApproval && action === 'activate');
+  const requiresIndex = action === 'activate' && !explicitApproval;
   function handleTransition() {
-    if (action === 'activate' && item?.moderation?.status === 'flagged') setConfirmation('activate');
+    if (ownerActivation && item) setOwnerApproval({ revision: item.revision, flagged: item.moderation?.status === 'flagged' });
+    else if (action === 'activate' && item?.moderation?.status === 'flagged') setConfirmation('activate');
     else void transition(action).catch(() => {});
   }
   return <>
@@ -142,6 +153,9 @@ function Editor({ id }: { id: string }) {
         {t(item.status === 'active' ? webSuggestion ? 'web.indexing' : 'index.pendingRevision' : 'index.indexing')}
       </Alert>}
       {item.indexState === 'failed' && <Alert severity="warning">{t('index.failed')}</Alert>}
+      {ownerConsult && <Alert severity="info">
+        {t(item.status === 'active' ? 'ownerConsult.active' : 'ownerConsult.pending')}
+      </Alert>}
       {webSuggestion && <SectionCard>
         <Stack spacing={1} sx={{ overflowWrap: 'anywhere' }}>
           <Typography variant="h6">{t(pendingSuggestion ? 'web.pending' : 'web.label')}</Typography>
@@ -180,9 +194,10 @@ function Editor({ id }: { id: string }) {
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             {editable && <>
               <Button variant="contained" disabled={busy || !dirty} onClick={() => void save()}>{t('actions.save')}</Button>
-              <Button variant="outlined" disabled={busy || dirty || (requiresContent && missingContent) ||
-                (requiresIndex && item.indexState !== 'ready')} onClick={handleTransition}>{actionLabel}</Button>
-              {item.status !== 'draft' && (item.indexState === 'failed' || item.indexState === 'not_started') &&
+              {(!ownerActivation || isOwner) && <Button variant="outlined" disabled={busy || dirty || (requiresContent && missingContent) ||
+                (requiresIndex && item.indexState !== 'ready')} onClick={handleTransition}>{actionLabel}</Button>}
+              {item.status !== 'draft' && (!ownerConsult || item.status === 'active') &&
+                (item.indexState === 'failed' || item.indexState === 'not_started') &&
                 <Button disabled={busy || dirty} onClick={() => void transition('reindex').catch(() => {})}>{t('actions.reindex')}</Button>}
             </>}
             {pendingSuggestion && editable && <Button color="error" disabled={busy} onClick={() => setConfirmation('reject')}>{t('web.reject')}</Button>}
@@ -200,6 +215,13 @@ function Editor({ id }: { id: string }) {
       }} />
     <ConfirmDialog open={confirmation === 'activate'} title={t('moderation.confirmTitle')} message={t('moderation.confirmMessage')}
       confirmLabel={actionLabel} onClose={() => setConfirmation(null)} onConfirm={() => transition('activate')} />
+    <ConfirmDialog open={ownerApproval !== null} title={t('ownerConsult.approveTitle')}
+      message={<Stack spacing={1}>
+        <Typography>{t('ownerConsult.approveMessage', { revision: ownerApproval?.revision })}</Typography>
+        {ownerApproval?.flagged && <Typography>{t('moderation.confirmMessage')}</Typography>}
+      </Stack>} confirmLabel={t('ownerConsult.approve')} onClose={() => setOwnerApproval(null)} onConfirm={async () => {
+        if (ownerApproval) await transition('activate', ownerApproval);
+      }} />
     <ConfirmDialog open={confirmation === 'reject'} title={t('web.reject')} message={t('web.rejectMessage')}
       confirmLabel={t('web.reject')} danger onClose={() => setConfirmation(null)} onConfirm={async () => {
         try {
