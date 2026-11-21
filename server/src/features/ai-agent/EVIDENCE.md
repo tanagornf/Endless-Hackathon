@@ -65,3 +65,10 @@ B2 used `generateReply` with synthetic web conversations and indexed demo knowle
 | G13 English name and catalog price | 28e03daf-f587-4d7c-a339-a68e870fc220 | en | 2 | 5362 | 2609 | 53 | 7671 | 4732 |
 | G14 switch back to Thai opening hours | eda5a2ea-09d0-4406-b70c-a26d026c18e0 | th | 1 | 2650 | 2596 | 22 | 613 | 3025 |
 | G16 English return policy | f1d4f7a4-9f88-4f5b-8670-776f834cc3c5 | en | 1 | 2564 | 0 | 14 | 6549 | 2992 |
+
+### F10 P1 cited public product facts
+
+- The real turn checks an exact, active F05 suggestion, then the tenant's catalog description and approved knowledge. A web lookup requires an eligible product specification or standards question and the shop's general-knowledge setting.
+- C1's Responses adapter receives a canonical product or a recognized public term with a controlled topic. Hosted search has up to 12 seconds and reserves two seconds of the turn budget for follow-up work.
+- Public citations appear in the reply and the review-only F05 suggestion. Later visitors receive the merchant-edited active FAQ and its sources. Draft and deleted suggestions stay out of replies.
+- With C1 and B1's dependency changes applied locally, 63 focused tests passed across four files. The new tests cover the real generation entry point with stubbed services, Thai and English, catalog and approved knowledge hits, cited web fallback, spend exhaustion, an 8.78-second search, timeout, and reuse after merchant approval. Provider-backed delivery requires an integrated smoke.

@@ -121,7 +121,10 @@ export function availableTools(rules: EffectiveAnswerRules, allowHandoff: boolea
 export function asKnowledgeEvidence(hit: KnowledgeHit, rules: EffectiveAnswerRules): KnowledgeEvidence | null {
   const { title, snippet, score } = hit;
   if (rules.price !== 'always' && [title, snippet].some((value) => moneyMentions(value).length || moneyInWords.test(value))) return null;
-  return { id: 'knowledge:' + hit.knowledgeItemId + ':r' + hit.revision, title, snippet, score };
+  return {
+    id: 'knowledge:' + hit.knowledgeItemId + ':r' + hit.revision, title, snippet, score,
+    ...(hit.citations?.length && { citations: hit.citations }),
+  };
 }
 
 export async function lookupQuote(
