@@ -21,3 +21,9 @@
 
 - At 15:18 ICT the unpublished compose 9061752cd0f7fc9c0acf3769a38c825920514689 combined the C2 source with C1 #100 50dc4b8 and public main 794909f. The C2 fake-provider run `npm test -- voice line` passed 78 tests in 17 files. Full typecheck passed and Playwright discovered the two public language smoke cases.
 - F30 remains on hold while P0 and P1 are finished. No C2 release PR or real app-origin voice call occurred at this checkpoint.
+
+## Reopened verification
+
+- The lead reopened F30 in issue #1 comment 7060203314. The C2 source was rebased cleanly and locally composed with C1 #100 head 4a80476bd4ad4a57bf19502459fccd9fa59ac575.
+- The unpublished exact composition f67833c8baf57eb68354c45be84a219c0f392dcb passed 106 fake-provider tests in 20 files across voice, LINE and verified catalog reads. Full typecheck passed and Playwright discovered both bilingual public cases.
+- C2 handset acceptance, including the signed LINE invitation and explicit microphone consent, remains pending. Production visibility stays gated separately.
