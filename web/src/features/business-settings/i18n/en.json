@@ -138,5 +138,31 @@
     "on": "On",
     "off": "Off",
     "generalKnowledge": "General knowledge"
+  },
+  "consult": {
+    "title": "Question for the shop owner",
+    "loading": "Loading the owner question",
+    "unavailable": "This question is unavailable for the current shop or account.",
+    "loadError": "Could not load the owner question.",
+    "answer": "Customer-facing reply",
+    "allowDraft": "Allow a separate draft to be proposed for review",
+    "help": "Your answer is for this case. Draft approval and publishing are separate steps.",
+    "submit": "Record answer",
+    "saved": "Owner answer recorded",
+    "caseOnly": "Use this answer for this case only.",
+    "savedDraftPermission": "You allowed a draft proposal for separate review.",
+    "changed": "This question has changed. Review its current state before answering.",
+    "saveError": "Could not record the answer. Try again.",
+    "answerPart": "Customer reply, part {{count}}",
+    "answerLanguage": {
+      "th": "Write the reply in Thai.",
+      "en": "Write the reply in English."
+    },
+    "privateRationale": "Private rationale (optional)",
+    "privateHelp": "For authorized shop owners. Kept with the case.",
+    "customerReady": "This reply answers every part and is ready for the customer.",
+    "incomplete": "Give a complete reply to every part before recording it.",
+    "wrongLanguage": "Write the reply in the customer's original language.",
+    "answerTooLong": "Keep the full reply within 2,000 characters."
   }
 }
