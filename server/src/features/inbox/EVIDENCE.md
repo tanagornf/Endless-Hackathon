@@ -15,3 +15,5 @@
 - `npm test -- inbox` passed 11/11 against the A1 test database with `MODEL_MODE=fake`. Covers tenant scope, permission denial, delayed enqueue recovery, paging, Thai and English, and the fake takeover flow.
 - `npm run check:paths` passed for `lane/A1/inbox`.
 - Production inbox and Demo Chat smoke are pending their UI slices and deployment.
+
+- Web registry and public routing tests passed 4/4 after adding the staff-protected, bilingual history route.

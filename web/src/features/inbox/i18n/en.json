@@ -5,5 +5,17 @@
   },
   "page": {
     "title": "Chat"
+  },
+  "history": {
+    "title": "Conversation history",
+    "customer": "Customer",
+    "staff": "Staff",
+    "ai": "AI",
+    "system": "System",
+    "older": "Older messages",
+    "latest": "Latest messages",
+    "retry": "Try again",
+    "unavailable": "This conversation could not be opened.",
+    "empty": "This conversation has no messages."
   }
 }
