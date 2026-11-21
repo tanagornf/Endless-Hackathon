@@ -1,3 +1,4 @@
+import type { OrderSummary } from '../orders/types';
 export type SlipVerdict = 'verified' | 'wrong_amount' | 'wrong_account' | 'wrong_date' | 'duplicate' | 'unreadable' | 'suspected_forgery' | 'technical';
 
 export interface SlipAnalysisInput {
@@ -52,3 +53,37 @@ export interface SyntheticSlipSpec {
   blur?: boolean;
   notASlip?: boolean;
 }
+
+export interface PaymentSettingsView {
+  businessId: string; promptpayKind: 'mobile' | 'national_id' | 'ewallet' | null; promptpayMasked: string | null;
+  receiverName: string; includeReference: boolean; requestTtlMinutes: number;
+  configured: boolean; validatedAt: string | null; version: number; paymentMode: 'sandbox' | 'real'; slipVerifyMode: 'vision' | 'sandbox';
+}
+export interface PaymentRequestRow {
+  id: string; orderId: string; orderNumber: string; customerName: string; conversationId: string | null;
+  amountMinor: number; state: 'open' | 'pending_verification' | 'paid' | 'expired' | 'superseded' | 'cancelled';
+  failedAttempts: number; escalated: boolean; expiresAt: string; paidAt: string | null; paidBy: string | null;
+  method: 'promptpay_qr'; mode: 'sandbox' | 'real'; createdAt: string; version: number;
+}
+export interface SlipView {
+  id: string; verdict: SlipVerdict; mode: 'vision' | 'sandbox'; confidence: number; autoAcceptable: boolean;
+  amountMinor: number | null; transferredAt: string | null; transactionRefMasked: string | null;
+  qrFound: boolean; qrSendingBank: string | null; receiverName: string | null; receiverLast4: string | null;
+  checks: { name: string; pass: boolean; detail: string }[]; needsStaffReason: string | null;
+  staffDecision: 'accepted' | 'rejected' | null; staffNote: string | null; uploadedByKind: 'customer' | 'staff'; createdAt: string;
+}
+export interface PaymentRequestDetail extends PaymentRequestRow {
+  qrFileId: string | null; payUrl: string; receiverMasked: string; receiverName: string; slips: SlipView[];
+  receipt: { receiptNo: string; paidAt: string; amountMinor: number; mode: 'sandbox' | 'real' } | null;
+}
+export interface SlipSubmitResult {
+  slipId: string; verdict: SlipVerdict; requestState: PaymentRequestRow['state']; orderPaymentState: OrderSummary['paymentState'];
+  attemptsLeft: number; customerMessage: string;           // ข้อความไทยที่แสดง/ส่งให้ลูกค้า (ไม่มีรายละเอียดการตรวจ)
+}
+export interface PublicPaymentView {
+  shopName: string; orderNumber: string; amountMinor: number; state: PaymentRequestRow['state']; expiresAt: string;
+  qrImageBase64: string | null; receiverMasked: string; receiverName: string; mode: 'sandbox' | 'real'; attemptsLeft: number;
+  receipt: { receiptNo: string; paidAt: string } | null;
+  language: 'th' | 'en';   // ภาษาเริ่มต้นของหน้า = getCustomerLanguage ของแชตที่ผูกกับคำขอ หรือภาษาร้าน (§5.5 ตารางสองภาษา)
+}
+export type PublicSlipResult = Pick<SlipSubmitResult, 'verdict' | 'requestState' | 'attemptsLeft' | 'customerMessage'>;

@@ -4,5 +4,62 @@
   },
   "page": {
     "title": "Payments"
-  }
+  },
+  "tabs": {
+    "pending_verification": "Awaiting review",
+    "open": "Awaiting payment",
+    "paid": "Paid",
+    "all": "All requests",
+    "settings": "Settings"
+  },
+  "states": {
+    "pending_verification": "Awaiting review",
+    "open": "Awaiting payment",
+    "paid": "Paid",
+    "expired": "Expired",
+    "superseded": "Replaced",
+    "cancelled": "Cancelled"
+  },
+  "columns": {
+    "order": "Order",
+    "customer": "Customer",
+    "amount": "Amount due",
+    "state": "Status",
+    "expires": "Expires",
+    "mode": "Mode"
+  },
+  "modes": {
+    "sandbox": "Test",
+    "real": "Live"
+  },
+  "settings": {
+    "title": "PromptPay settings",
+    "unconfigured": "No PromptPay recipient configured",
+    "edit": "Edit recipient",
+    "preview": "Create test QR",
+    "saved": "Payment settings saved",
+    "kind": "Recipient ID type",
+    "id": "PromptPay ID",
+    "receiver": "Account name",
+    "ttl": "Link validity (minutes)",
+    "reference": "Include the order reference in the QR",
+    "off": "Turn off PromptPay",
+    "mobile": "Mobile number",
+    "national_id": "National ID",
+    "ewallet": "E-wallet ID"
+  },
+  "pay": {
+    "title": "Payment details",
+    "switch": "ภาษาไทย",
+    "test": "Test payment. Do not transfer money.",
+    "unavailable": "This payment link is unavailable.",
+    "qr": "PromptPay QR code",
+    "download": "Download QR"
+  },
+  "previous": "Previous",
+  "next": "Next",
+  "loading": "Loading",
+  "failed": "Could not load payments.",
+  "retry": "Retry",
+  "empty": "No payment requests in this view"
 }

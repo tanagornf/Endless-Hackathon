@@ -36,3 +36,5 @@ export async function slipRenderingAvailable(): Promise<boolean> {
 export async function renderSyntheticSlip(spec: SyntheticSlipSpec): Promise<Uint8Array> {
   throw new AppError("SERVICE_NOT_READY", "renderSyntheticSlip is not implemented");
 }
+
+export { createPaymentRequestForOrder } from './request';
