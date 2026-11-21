@@ -28,6 +28,8 @@
     "topK": "Maximum results",
     "minimum": "Minimum score",
     "applied": "{{strategy}} · {{elapsed}} ms",
+    "timing": "Embedding {{embed}} ms · Database {{sql}} ms",
+    "cached": "Cached query vector",
     "empty": "No relevant knowledge found",
     "error": "Could not search the index."
   },
