@@ -144,7 +144,11 @@
     "group_source": "Event outside a direct chat",
     "empty": "Empty message",
     "unsupported_type": "Unsupported type",
-    "processing_failed": "Processing failed"
+    "processing_failed": "Processing failed",
+    "bad_message_id": "Invalid message ID",
+    "invalid_postback": "Invalid button response",
+    "action_owner_mismatch": "Response did not match the conversation",
+    "invalid_action_response": "Could not verify the confirmation"
   },
   "readOnly": "View only. You need the channels permission to change this",
   "error": {

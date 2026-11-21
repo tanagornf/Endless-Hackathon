@@ -4,7 +4,7 @@ import { bootstrapLineConnection, ConnectBody } from './connection';
 import { LINE_EVENT_JOB } from './config';
 import { lineEventJob } from './events';
 import { makeLineSender } from './sender';
-import { connect, disconnect, getConnectionView, listEvents, verify } from './service';
+import { connect, disconnect, getConnectionView, listEvents, readChannelMedia, verify } from './service';
 import { handleLineWebhook } from './webhook';
 
 const path = '/businesses/:businessId/channels/line';
@@ -17,6 +17,7 @@ async function maintainLine() {
   if (lastCleanupAt !== null && Date.now() - lastCleanupAt < 86_400_000) return;
   await db.query("DELETE FROM line_events WHERE received_at < now() - interval '14 days'");
   await db.query("DELETE FROM line_reply_tokens_used WHERE used_at < now() - interval '1 day'");
+  await db.query("DELETE FROM line_actions WHERE expires_at < now() - interval '2 days'");
   lastCleanupAt = Date.now();
 }
 
@@ -25,6 +26,8 @@ export default defineFeatureRoutes({
   slug: 'line',
   async register(api) {
     api.webhook('POST', '/line/:channelId', handleLineWebhook);
+    api.get('/channel-media/:fileId', { auth: 'none', summary: 'Read signed channel media' },
+      async (ctx) => readChannelMedia(ctx.params.fileId, ctx.query));
     api.get(path, { auth: 'business', permission: 'business.read', summary: 'Read LINE channel connection' },
       async (ctx) => getConnectionView(ctx.business!.id));
     api.post(path + '/connect', { ...manage, body: ConnectBody, summary: 'Connect LINE Official Account' },

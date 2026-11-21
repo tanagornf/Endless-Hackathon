@@ -1,3 +1,4 @@
+export { signedMediaUrl, readChannelMedia } from './media';
 export { connect, disconnect, getConnectionView, verify } from './connection';
 import { db } from '../../core';
 import type { LineEventRow } from '@nless/shared/features/line/types';
