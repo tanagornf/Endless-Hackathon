@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import express from 'express';
+import request from 'supertest';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { SEED } from '@nless/shared/core/fixtures';
+import { createSession } from './auth';
 import { closeDb, db } from './db';
 import { createTestAgent, loginAs } from './test-utils';
 
@@ -36,11 +39,19 @@ it('uses the current database admin bit and the core CSRF guard', async () => {
   const { id: userId } = await db.one<{ id: string }>(
     "INSERT INTO users (email,display_name,is_platform_admin) VALUES ($1,'Test operator',true) RETURNING id", [email]);
   try {
+    // The development login intentionally allows only seeded accounts.
+    const sessionApp = express();
+    sessionApp.post('/session', async (_req, res) => {
+      await createSession(userId, 'password', res);
+      res.sendStatus(204);
+    });
+    const issued = await request(sessionApp).post('/session').expect(204);
+    const [session] = issued.headers['set-cookie'] as string[];
+    const cookie = session.split(';', 1)[0];
     const operator = await createTestAgent();
-    await loginAs(operator, email);
-    await operator.get(base + '/summary').expect(200);
+    await operator.get(base + '/summary').set('Cookie', cookie).expect(200);
     await db.query('UPDATE users SET is_platform_admin=false WHERE id=$1', [userId]);
-    await operator.get(base + '/summary').expect(403);
+    await operator.get(base + '/summary').set('Cookie', cookie).expect(403);
   } finally {
     await db.query('DELETE FROM users WHERE id=$1', [userId]);
   }
@@ -101,8 +112,13 @@ it('retries and cancels jobs, rejects invalid transitions, and audits successful
   expect(forbiddenCancel.body.error.details.reason).toBe('job_finished');
   for (const state of ['running', 'succeeded']) {
     const job = await createJob(type, state);
-    const denied = await admin.post(jobRoute + job.id + '/retry').set('X-Requested-With', 'nless').expect(422);
-    expect(denied.body.error.details.reason).toBe('job_running');
+    try {
+      const denied = await admin.post(jobRoute + job.id + '/retry').set('X-Requested-With', 'nless').expect(422);
+      expect(denied.body.error.details.reason).toBe('job_running');
+    } finally {
+      // A synthetic running job must not keep the later demo-reset suite busy.
+      await db.query('DELETE FROM jobs WHERE id=$1', [job.id]);
+    }
   }
   const { rows } = await db.query<{ action: string }>('SELECT action FROM audit_events WHERE target_id=$1 ORDER BY action', [dead.id]);
   expect(rows.map(({ action }) => action)).toEqual(['ops.job.cancel', 'ops.job.retry']);
