@@ -32,10 +32,10 @@
 | Lane | ลำดับฟีเจอร์ (slug, tier) | Path เพิ่มเติม |
 |---|---|---|
 | C1 | F01 `core` (P0) → F35 `core/jobs` (P0) → F39 `chatgpt-catalog` (P2) → F36 `release` (P1, เริ่ม 15:15) | `server/src/core/**`, `web/src/core/**`, `shared/core/**`, root `package.json`/lockfile/tsconfig/configs/scripts, `Dockerfile`, `render.yaml`, `.github/**`, `.codex/**`, `tests/e2e/**`, `docs/evidence/**`, `docs/FEATURE_STATUS.csv`, `README.md` |
-| C2 | F17 `line` (P0) → F18 `meta` (P1) → F21 `comments` (P2) | — |
+| C2 | F17 `line` (P0) → F18 `meta` (P1) → F21 `comments` (P2) · F30 `voice` (P3) | — |
 | C3 | F04 `business-settings` (P0) → F03 `tenancy` (P0) → F02 `auth` (P1, ต่อจาก F03 ได้เลย) → F31 `notifications` (P1) | — |
 | B1 | F05 `knowledge` (P0) → F07 `knowledge-search` (P0) → F08 `catalog` (P0) → F37 `evals` (P2) | — |
-| B2 | F10 `ai-agent` (P0) → F38 `follow-ups` (P2) → F30 `voice` (P3) | — |
+| B2 | F10 `ai-agent` (P0) → F38 `follow-ups` (P2) | — |
 | B3 | F06 `knowledge-import` (P1) → F26 `insights` (P2) → F27 `analytics` (P2) | — |
 | A1 | F09 `inbox` (P0) → F11 `team` (P0) → F12 `message-templates` (P2) → F23 `broadcast` (P2) | หน้า Demo Chat (ช่องทาง `web`) อยู่ในฟีเจอร์ `inbox` |
 | A2 | F13 `orders` (P1) → F14 `payments` (P1) → F22 `live-commerce` (P2) | — |

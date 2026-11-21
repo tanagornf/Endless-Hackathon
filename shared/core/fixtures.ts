@@ -90,9 +90,9 @@ export const SEED: SeedData = {
   ],
   customers: [
     { alias: 'cust_a1', id: '00000000-0000-4000-8000-0000000a3001', businessAlias: 'biz_demo_a', channel: 'line', externalId: 'Udemo-a-customer-one', displayName: 'A Customer One', consent: 'granted' },
-    { alias: 'cust_a2', id: '00000000-0000-4000-8000-0000000a3002', businessAlias: 'biz_demo_a', channel: 'facebook', externalId: 'psid-demo-a-customer-two', displayName: 'A Customer Two', consent: 'revoked' },
+    { alias: 'cust_a2', id: '00000000-0000-4000-8000-0000000a3002', businessAlias: 'biz_demo_a', channel: 'web', externalId: 'psid-demo-a-customer-two', displayName: 'A Customer Two', consent: 'revoked' },
     { alias: 'cust_b1', id: '00000000-0000-4000-8000-0000000b3001', businessAlias: 'biz_demo_b', channel: 'line', externalId: 'Udemo-b-customer-one', displayName: 'B Customer One', consent: 'granted' },
-    { alias: 'cust_b2', id: '00000000-0000-4000-8000-0000000b3002', businessAlias: 'biz_demo_b', channel: 'instagram', externalId: 'igsid-demo-b-customer-two', displayName: 'B Customer Two', consent: 'unknown' },
+    { alias: 'cust_b2', id: '00000000-0000-4000-8000-0000000b3002', businessAlias: 'biz_demo_b', channel: 'web', externalId: 'igsid-demo-b-customer-two', displayName: 'B Customer Two', consent: 'unknown' },
   ],
   conversations: [
     {
@@ -102,7 +102,7 @@ export const SEED: SeedData = {
     },
     {
       alias: 'conv_a_staff', id: '00000000-0000-4000-8000-0000000a4002', businessAlias: 'biz_demo_a', customerAlias: 'cust_a2',
-      channel: 'facebook', handler: 'human', assigneeAlias: 'staff_a',
+      channel: 'web', handler: 'human', assigneeAlias: 'staff_a',
       messages: [
         { author: 'customer', text: 'ขอคุยกับพนักงานค่ะ' },
         { author: 'staff', authorAlias: 'staff_a', text: 'สวัสดีค่ะ ยินดีให้บริการค่ะ' },
@@ -115,7 +115,7 @@ export const SEED: SeedData = {
     },
     {
       alias: 'conv_b_staff', id: '00000000-0000-4000-8000-0000000b4002', businessAlias: 'biz_demo_b', customerAlias: 'cust_b2',
-      channel: 'instagram', handler: 'human', assigneeAlias: 'staff_b',
+      channel: 'web', handler: 'human', assigneeAlias: 'staff_b',
       messages: [
         { author: 'customer', text: 'Can I book device setup on Saturday?' },
         { author: 'staff', authorAlias: 'staff_b', text: 'ได้ครับ เดี๋ยวส่งเวลาที่ว่างให้นะครับ' },

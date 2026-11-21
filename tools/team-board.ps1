@@ -64,7 +64,7 @@ $script:BoardFeatures = @{
     F17 = 'C2|line|P0'; F18 = 'C2|meta|P1'; F21 = 'C2|comments|P2'
     F04 = 'C3|business-settings|P0'; F03 = 'C3|tenancy|P0'; F02 = 'C3|auth|P1'; F31 = 'C3|notifications|P1'
     F05 = 'B1|knowledge|P0'; F07 = 'B1|knowledge-search|P0'; F08 = 'B1|catalog|P0'
-    F10 = 'B2|ai-agent|P0'; F30 = 'B2|voice|P3'
+    F10 = 'B2|ai-agent|P0'; F30 = 'C2|voice|P3'
     F06 = 'B3|knowledge-import|P1'; F26 = 'B3|insights|P2'; F27 = 'B3|analytics|P2'
     F09 = 'A1|inbox|P0'; F11 = 'A1|team|P0'; F12 = 'A1|message-templates|P2'; F23 = 'A1|broadcast|P2'
     F13 = 'A2|orders|P1'; F14 = 'A2|payments|P1'; F22 = 'A2|live-commerce|P2'

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Lane / คน | **B2** / **B** · ลำดับ 3 ใน lane (F10 → F38 → F30) |
+| Lane / คน | **C2** / **C** · หลัง F17 LINE และเปิด P3 (F18/F21 เป็น U-deferred) |
 | Tier / เป้า | **P3** · เป้า **R** (ไมค์สดบนเบราว์เซอร์) · fake mode = สูงสุด **A** |
 | Timebox | 90–210 นาที |
 | เริ่มเมื่อ | หัวหน้าโพสต์ `LEAD: OPEN P3` (checkpoint 14:30 ถ้า P0 = R, P1 = R/S, งบ ≤ 55%) · ต้องมี F10 (tools + `executeAgentTool`) merge แล้ว |

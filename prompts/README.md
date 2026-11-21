@@ -30,11 +30,11 @@
 |---|---|---|---|---|---|---|---|
 | **C0** | C | orchestrator ของ C + **ตรวจ gate** + ดูแล production | ไม่เขียนฟีเจอร์ | `fix/<lane>/…` เมื่อจำเป็น | ตรวจทั้ง 5 ขั้น | — | 3000 / 5170 |
 | C1 | C | F01 core + deploy (P0) → F35 jobs/ops (P0) → F39 ChatGPT-ready catalog (P2) → F36 release (P1, 15:15) | ~10:05 setup | `lane/C1/core` | core | 225–480 | 3001 / 5171 |
-| C2 | C | F17 LINE (P0) → F18 Messenger/Instagram (P1) → F21 ตอบคอมเมนต์ (P2) | `SETUP READY` | `lane/C2/line` | ขั้น 2 (ทางเลือก) | 150–390 | 3002 / 5172 |
+| C2 | C | F17 LINE (P0) → F30 voice (P3) · F18/F21 U-deferred | `SETUP READY` | `lane/C2/line` | ขั้น 2 (ทางเลือก) | 150–390 | 3002 / 5172 |
 | C3 | C | F04 ตั้งค่าร้าน (P0) → F03 ร้านและสิทธิ์ (P0) → F02 login (P1, ไม่รอ) → F31 แจ้งเตือน (P1) | `SETUP READY` | `lane/C3/business-settings` | ขั้น 1, 5 | 150–315 | 3003 / 5173 |
 | **B0** | B | orchestrator ของ B + คุณภาพคำตอบ AI | ไม่เขียนฟีเจอร์ | `fix/<lane>/…` เมื่อจำเป็น | ตรวจขั้น 1, 3 ก่อน | — | 3000 / 5170 |
 | B1 | B | F05 คลังความรู้ (P0) → F07 ค้นหา (P0) → F08 สินค้า (P0) → F37 AI evals (P2) | `SETUP READY` | `lane/B1/knowledge` | ขั้น 1, 3 | 180–390 | 3004 / 5174 |
-| B2 | B | F10 AI ตอบ (P0) → F38 follow-up nudges (P2) → F30 voice realtime (P3) | `SETUP READY` | `lane/B2/ai-agent` | ขั้น 3, 5 | 195–465 | 3005 / 5175 |
+| B2 | B | F10 AI ตอบ (P0) → F38 follow-up nudges (P2) | `SETUP READY` | `lane/B2/ai-agent` | ขั้น 3, 5 | 195–465 | 3005 / 5175 |
 | B3 | B | F06 นำเข้าไฟล์ (P1) → F26 insights (P2) → F27 dashboard + ผลลัพธ์ของร้าน (P2) | `LEAD: OPEN P1` | `lane/B3/knowledge-import` | — | 150–405 | 3006 / 5176 |
 | **A0** | A | orchestrator ของ A + เส้นทาง demo ที่กรรมการเห็น | ไม่เขียนฟีเจอร์ | `fix/<lane>/…` เมื่อจำเป็น | ตรวจขั้น 2, 4, 5 ก่อน | — | 3000 / 5170 |
 | A1 | A | F09 inbox + Demo Chat (P0) → F11 คนรับช่วง (P0) → F12 template (P2) → F23 broadcast (P2) | `SETUP READY` | `lane/A1/inbox` | ขั้น 2, 4, 5 | 180–420 | 3007 / 5177 |
@@ -45,7 +45,7 @@
 - **ข้อยกเว้น:** C3 ทำ F02 ต่อจาก F03 ได้เลย · C1 เริ่ม F36 เวลา 15:15 ตามนาฬิกา (พัก F39)
 - **เมื่อ worker ว่าง:** โพสต์ `NEED TO:<orchestrator> next task` แล้วรอ orchestrator ตอบด้วย `TASK TO:<lane> …`
 - **Model ของ Codex:** GPT-6.2 Sol ทุก chat · orchestrator = High · worker = Medium (งานกล = Light/low) · Fast เฉพาะ orchestrator (ตั้งแต่ `SETUP READY` ถึง 13:00 และ 15:30–17:00), C1 setup และ worker A1, B1, B2, C1, C2 ก่อน 13:00 ตามตารางใน [PLAN.md](../PLAN.md#model-และ-effort-ของ-codex-ต่อประเภทงาน)
-- **AI ต่อ lane:** B1 embeddings `text-embedding-3-large`@1536 + rerank ด้วย `fast` + judge ของ evals · B2 `chat`/`fast`/`strong` + tool loop + nudge + Realtime (F30) · B3 parse ไฟล์เองแล้ว `fast` สกัด, insights `chat` · A2 อ่านสลิปด้วย `chat` + รูปแล้วตรวจในโค้ด · A1 `fast` แปล · B1/B3/A1 moderation · C2 ถอดเสียง (stretch) · C1 เป็นเจ้าของ `model.*` ทั้งหมด
+- **AI ต่อ lane:** B1 embeddings `text-embedding-3-large`@1536 + rerank ด้วย `fast` + judge ของ evals · B2 `chat`/`fast`/`strong` + tool loop + nudge · C2 Realtime (F30) · B3 parse ไฟล์เองแล้ว `fast` สกัด, insights `chat` · A2 อ่านสลิปด้วย `chat` + รูปแล้วตรวจในโค้ด · A1 `fast` แปล · B1/B3/A1 moderation · C2 ถอดเสียง (stretch) · C1 เป็นเจ้าของ `model.*` ทั้งหมด
 
 ## คืนนี้ (ส่วนที่เกี่ยวกับ prompts)
 
@@ -291,7 +291,7 @@ git fetch origin → สร้าง branch lane/<LANE>/<slug> จาก origin/
 | คน | Lane 1 ใหม่ | Lane 2 ใหม่ |
 |---|---|---|
 | C | **C1:** F01 → F35 → F03 → F02 → F39 → F36 | **C2:** F04 → F17 → F18 → F21 → F31 |
-| B | **B1:** F05 → F07 → F08 → F06 → F37 → F27 | **B2:** F10 → F38 → F26 → F30 |
+| B | **B1:** F05 → F07 → F08 → F06 → F37 → F27 | **B2:** F10 → F38 → F26 |
 | A | **A1:** F09 → F11 → F24 → F12 → F23 | **A2:** F13 → F14 → F22 → F15 → F16 |
 
 เหตุผล: C1 ถือ core + tenancy + login (ทั้งหมดอยู่ใกล้ `auth.ts` ของ core) และ F36 อยู่ท้าย C1 เสมอ · C2 ทำ F04 (สวิตช์ AI ที่ gate ใช้) ก่อน F17 เพราะ gate ผ่านด้วย Demo Chat ได้ · F06 นำเข้าไฟล์ กลับไป B1 คู่กับ knowledge/catalog ที่มันเขียน draft ลง ตามด้วย F37 และ F27 · F26 insights ไป B2 คู่กับ AI · F24 (`getCustomer` ที่ broadcast/insights ใช้) ไป A1 · F15/F16 ไป A2 คู่กับ orders เพราะเป็น proposal + consent แบบเดียวกัน · ในแต่ละ lane เรียง tier สูงก่อน ฟีเจอร์ P1–P3 ยังรอ `LEAD: OPEN` เหมือนเดิม

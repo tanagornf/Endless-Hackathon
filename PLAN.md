@@ -160,7 +160,7 @@ F22 live commerce ยังเป็น **U** ตามหลักฐานป�
 |---|---|---|---|
 | **Orchestrator** | **C0** + ตรวจ gate 13:00 + ดูแล production | **B0** + คุณภาพคำตอบ AI ทั้งระบบ | **A0** + เส้นทาง demo ที่กรรมการเห็น |
 | **Lane 1** | C1: F01 setup + deploy (P0) → F35 jobs/ops (P0) → F39 ChatGPT-ready catalog (P2) → F36 release (P1, 15:15) | B1: F05 คลังความรู้ (P0) → F07 ค้นหา (P0) → F08 สินค้า (P0) → F37 AI evals (P2) | A1: F09 inbox + Demo Chat (P0) → F11 คนรับช่วง (P0) → F12 template ข้อความ (P2) → F23 broadcast (P2) |
-| **Lane 2** | C2: F17 LINE (P0) · F18/F21 U-deferred | B2: F10 AI ตอบ (P0) → benchmark Decisions API หลัง gate ผ่านและงาน F10 P1 เสร็จ (25 นาที, classifier เดิม live) → F38 follow-up nudges (P2) → F30 voice (P3) | A2: F13 orders (P1) → F14 QR + ตรวจสลิป (P1) → F22 รหัสสินค้าจากแชต LINE (P2, สถานะปัจจุบัน U) |
+| **Lane 2** | C2: F17 LINE (P0) · F18/F21 U-deferred · F30 voice (P3) | B2: F10 AI ตอบ (P0) → benchmark Decisions API หลัง gate ผ่านและงาน F10 P1 เสร็จ (25 นาที, classifier เดิม live) → F38 follow-up nudges (P2) | A2: F13 orders (P1) → F14 QR + ตรวจสลิป (P1) → F22 รหัสสินค้าจากแชต LINE (P2, สถานะปัจจุบัน U) |
 | **Lane 3** | C3: F04 ตั้งค่าร้าน (P0) → F03 ร้านและสิทธิ์ (P0) → F02 login (P1) → F31 แจ้งเตือน (P1) | B3: F06 นำเข้าไฟล์ (P1) → F26 insights (P2) → F27 dashboard + ผลลัพธ์ของร้าน (P2) | A3: F24 ลูกค้าและ tags (P1) → F15 จองนัด (P2) → F16 ปฏิทิน (P2) |
 
 ลำดับใน lane คือลำดับทำงาน ชื่อโฟลเดอร์ (`slug`) และนาทีงานของแต่ละฟีเจอร์อยู่ใน [backlog](docs/competition-plan/feature-backlog.csv) และ [ดัชนี spec](docs/specs/README.md)
@@ -238,12 +238,12 @@ shared/features/<slug>/          ← เจ้าของฟีเจอร์ 
 | `db`, `jobs.enqueue()`, `model.*` ของ OpenAI (chat, embed, transcribe, moderate, realtime session — บันทึก usage ทุกครั้ง), `storage`, `audit()`, `publish()` | C1 (core) | ทุก lane |
 | `sendToCustomer(conversationId, parts)`, `registerChannelSender(channel, sender)` | C1 (core: registry + sender `web` ของ Demo Chat) | B2, A1, C2 · C2 register `line` |
 | สมาชิก, คำเชิญ, บทบาท (F03 tenancy) | C3 | core ใช้ตรวจสิทธิ์ผ่านตาราง memberships |
-| `saveMessage()`, `getConversation()`, `getHistory()` | A1 inbox | C2 ช่องทาง, B2 AI, B2 voice, B1 evals |
+| `saveMessage()`, `getConversation()`, `getHistory()` | A1 inbox | C2 ช่องทาง, B2 AI, C2 voice, B1 evals |
 | `isHumanTakeover(conversationId)`, `assignConversation(conversationId, userId \| null)` | A1 team | B2 AI, C2 ช่องทาง |
 | `renderTemplate(templateId, vars)` → `MessagePart[]` | A1 message-templates | A1 broadcast, B2 AI |
-| `generateReply(conversationId)` | B2 AI | job ตอบแชตของ B2, B2 voice, A1 (ร่างคำตอบ), B1 evals |
+| `generateReply(conversationId)` | B2 AI | job ตอบแชตของ B2, C2 voice, A1 (ร่างคำตอบ), B1 evals |
 | `getAiTurnMetrics()`, `getFollowUpMetrics()` | B2 | B3 analytics |
-| `searchKnowledge(businessId, query)` | B1 knowledge-search | B2 AI, B2 voice |
+| `searchKnowledge(businessId, query)` | B1 knowledge-search | B2 AI, C2 voice |
 | `getProduct()`, `getPrice()`, `listCatalogItems()` | B1 catalog | A2 orders, A2 live codes, B2 AI, C1 ChatGPT-ready catalog |
 | `getBusinessSettings(businessId)` → `{ aiEnabled, timezone, hours, answerPolicy, language }` | C3 business-settings | B2 AI, C2 ช่องทาง, A3 booking |
 | `createOrderFromProposal()`, `listOrdersByCustomer()`, `getOrderMetrics()` | A2 orders | B2 AI tools และ follow-ups, C1 MCP, B3 analytics |

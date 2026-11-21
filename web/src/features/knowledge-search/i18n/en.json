@@ -3,6 +3,94 @@
     "title": "Search test"
   },
   "page": {
-    "title": "Search test"
+    "title": "Knowledge search"
+  },
+  "mode": {
+    "real": "Live model",
+    "fake": "Fake model"
+  },
+  "index": {
+    "title": "Index status",
+    "ready": "Ready {{count}}",
+    "indexing": "Indexing {{count}}",
+    "failed": "Failed {{count}}",
+    "not_started": "Not started {{count}}",
+    "summary": "{{items}} searchable items · {{chunks}} indexed chunks",
+    "stale": "{{count}} chunks use a different model or dimension.",
+    "error": "Could not load the index status."
+  },
+  "search": {
+    "title": "Search indexed knowledge",
+    "question": "Question",
+    "submit": "Search",
+    "options": "Search options",
+    "strategy": "Strategy",
+    "topK": "Maximum results",
+    "minimum": "Minimum score",
+    "applied": "{{strategy}} · {{elapsed}} ms",
+    "empty": "No relevant knowledge found",
+    "error": "Could not search the index."
+  },
+  "strategy": {
+    "auto": "Automatic",
+    "lexical": "Words",
+    "vector": "Vector",
+    "hybrid": "Hybrid"
+  },
+  "hits": {
+    "rank": "Rank",
+    "title": "Item",
+    "score": "Score",
+    "vector": "Vector",
+    "words": "Words",
+    "snippet": "Matching passage",
+    "below": "Below the threshold"
+  },
+  "source": {
+    "title": "Source",
+    "close": "Close",
+    "revision": "Revision {{revision}}",
+    "current": "Current",
+    "historical": "Historical",
+    "error": "Could not load this source.",
+    "openEditor": "Open in Knowledge",
+    "chunk": "Chunk {{number}}"
+  },
+  "eval": {
+    "title": "Retrieval quality",
+    "run": "Run quality check",
+    "running": "Checking retrieval…",
+    "scope": "Uses cases for this shop with available indexed sample items, plus saved cases.",
+    "summary": "{{count}} cases · {{strategy}} · MRR {{mrr}} · Off-topic {{none}} · Forbidden {{forbid}}",
+    "previous": "Previous top 3 recall {{value}}",
+    "group": "Language group",
+    "positive": "Expected matches",
+    "recall": "Top {{rank}} recall",
+    "none": "Off-topic",
+    "kind": "Expectation",
+    "outcome": "Outcome",
+    "topItem": "Top result",
+    "onlyFailed": "Show failed cases only",
+    "pass": "Pass",
+    "fail": "Fail",
+    "emptyFailures": "No failed cases",
+    "history": "Recent runs",
+    "historyError": "Could not load past runs.",
+    "noRuns": "No quality checks yet",
+    "noCases": "This shop has no available sample or saved cases.",
+    "error": "Could not complete the quality check.",
+    "date": "Date",
+    "count": "Cases"
+  },
+  "group": {
+    "all": "All groups",
+    "th": "Thai",
+    "en": "English",
+    "xlang": "Cross-language"
+  },
+  "kind": {
+    "positive": "Find a match",
+    "none": "Find nothing",
+    "forbid": "Exclude specified items"
   }
 }

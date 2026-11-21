@@ -10,10 +10,10 @@ B ถือสมองของระบบ: คลังความรู้ 
 |---|---|---|---|---|
 | **B0** orchestrator | มอบงาน ตรวจงาน ยิงชุดคำถามตรวจ AI บน production ดูต้นทุนและ latency | `..\nless-b0` · 3000 / 5170 | [orchestrators/B0.md](../orchestrators/B0.md) 10:15 | High · Fast เปิดตั้งแต่ `SETUP READY` ถึง 13:00 และ 15:30–17:00 |
 | B1 | F05 คลังความรู้ (P0) → F07 ค้นหา (P0) → F08 สินค้า (P0) → F37 AI evals (P2) | `..\nless-b1` · 3004 / 5174 | [lanes/B1.md](../lanes/B1.md) 10:15 | Medium · Fast เปิดได้ถึง 13:00 ถ้า usage < 40% |
-| B2 | F10 AI ตอบ (P0) → F38 follow-up nudges (P2) → F30 voice (P3) | `..\nless-b2` · 3005 / 5175 | [lanes/B2.md](../lanes/B2.md) 10:15 | Medium · Fast เปิดได้ถึง 13:00 ถ้า usage < 40% |
+| B2 | F10 AI ตอบ (P0) → F38 follow-up nudges (P2) | `..\nless-b2` · 3005 / 5175 | [lanes/B2.md](../lanes/B2.md) 10:15 | Medium · Fast เปิดได้ถึง 13:00 ถ้า usage < 40% |
 | B3 | F06 นำเข้าไฟล์ (P1) → F26 insights (P2) → F27 dashboard + ผลลัพธ์ของร้าน (P2) | `..\nless-b3` · 3006 / 5176 | [lanes/B3.md](../lanes/B3.md) 10:15 (รอ `LEAD: OPEN P1`) | Medium · Fast ปิด |
 
-892.5 นาทีงาน (ค่ากลาง) มากที่สุดในทีมเล็กน้อย เพราะ F30 voice (P3) อยู่ท้าย B2 · ถ้า B ตามไม่ทัน หัวหน้าตัด F30 แล้ว F26 ก่อน **ไม่ตัด F37 และตัวเลขของ F27**
+B2 ดูแล F10 รวมถึงเครื่องมืออ่านข้อมูลร้านที่ C2 F30 ใช้ · ถ้า B ตามไม่ทัน หัวหน้าตัด F26 ก่อน **ไม่ตัด F37 และตัวเลขของ F27**
 
 ## คืนนี้ (บนเครื่องที่จะใช้วันงาน)
 
@@ -26,7 +26,6 @@ B ถือสมองของระบบ: คลังความรู้ 
 - [ ] **OpenAI:** รัน smoke test ใน [docs/openai-api.md §14](../../docs/openai-api.md#14-smoke-test-ก่อนวันงาน) ด้วย key `app-dev` ของคุณบนเครื่องวันงาน (preflight ทำให้เมื่อใส่ `-OpenAI`) ถ้า model ไหนได้ 403/404 แจ้งหัวหน้าทันที
 - [ ] อ่าน spec ของ F10 ทั้งไฟล์ (prompt, tools, guards) และ F05, F07, F08 · อ่าน §1 + §11 ของ F37, F38, F06, F27
 - [ ] เตรียมไฟล์ทดสอบนำเข้า (F06): CSV สินค้า 20 แถวที่มีหัวคอลัมน์ไทย และไฟล์ข้อความ FAQ หนึ่งหน้า (ข้อมูลสังเคราะห์เท่านั้น) เก็บไว้ในเครื่องวันงาน
-- [ ] ไมโครโฟนและหูฟังสำหรับ F30 (ถ้าเปิด P3) · ลองว่า browser ขอสิทธิ์ไมค์ได้
 - [ ] อ่าน [orchestrators/B0.md](../orchestrators/B0.md) หนึ่งรอบ เพื่อรู้ว่า orchestrator จะขออะไรจากคุณ (ปรับ effort/Fast, รัน dev server, บอก usage)
 
 ## 10:00–10:15 เปิดงาน
@@ -56,7 +55,7 @@ Codex รัน `docs\competition-plan\tools\start-day.ps1 -Person B -Mode Day` 
 | 12:45–13:00 | ทดสอบ gate ขั้น 1, 3 ให้ครบ: เพิ่ม FAQ + เพิ่ม/แก้สินค้า `A-GAME-01` จากหน้าเว็บ แล้วถามราคา ต้องได้ 1,490 บาทพร้อม source |
 | **13:00** | gate: ถ้าถูกแท็ก `BLOCKED GATE ... TO:B1/B2` ให้ lane นั้นหยุดงานใหม่แล้วแก้ก่อน · ปิด Fast ของ B0, B1, B2 |
 | 13:00–14:30 | B1: ปิด F07/F08 แล้ว F37 evals · B2: งาน F10 P1 แล้ว benchmark Decisions API (25 นาทีเมื่อ B0 ส่ง TASK หลัง DONE GATE, คง classifier เดิม live) แล้ว F38 · B3: F06 → F26 → F27 |
-| 14:30 | บอกหัวหน้าว่า F30 voice เปิดได้ไหม (เปิดเมื่อ F38 merge แล้วและ P3 ผ่านเงื่อนไขเท่านั้น) |
+| 14:30 | แจ้ง C0 ว่า F10 executeAgentTool พร้อมให้ C2 F30 ใช้หรือยัง |
 | 15:30 | `LEAD: FREEZE` → prompt 5 ทุก worker · เปิด Fast ของ B0 |
 | 15:45 | อนุมัติ real eval หนึ่งรอบบน production เมื่อ B0 ขอ (เพดาน `EVAL_MAX_COST_USD`) |
 | 16:15 | เอาตัวเลขจากหน้า AI quality และ dashboard (pass rate, median latency, ต้นทุนต่อ turn, ผลลัพธ์ของร้าน) ให้ presenter กรอกใน deck |
