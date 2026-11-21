@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { z } from 'zod';
 import { AppError } from './errors';
 import type { ModelChatInput, UsageAttribution } from './types';
 
@@ -94,10 +95,73 @@ export async function runShopCorrectionAnalysis<TResult>(prepared: PreparedAnaly
   mode: 'fake' | 'openai';
   fake: () => TResult | Promise<TResult>;
   send: (request: PreparedAnalysis['request'], signal?: AbortSignal) => TResult | Promise<TResult>;
+  onProviderCancelled?: (result: TResult) => TResult;
 }): Promise<TResult> {
   const { request, signal } = prepared;
   signal?.throwIfAborted();
   const result = runtime.mode === 'fake' ? await runtime.fake() : await runtime.send(request, signal);
+  if (signal?.aborted && runtime.mode === 'openai' && runtime.onProviderCancelled) {
+    return runtime.onProviderCancelled(result);
+  }
   signal?.throwIfAborted();
   return result;
+}
+
+const correctionDraft = z.strictObject({
+  action: z.enum(['knowledge_add', 'knowledge_revise', 'instruction_revise', 'instruction_replace', 'no_change']),
+  caseId: z.string(),
+  targetId: z.string().nullable(),
+  expectedVersion: z.number().int().nonnegative(),
+  textTh: z.string().nullable(),
+  textEn: z.string().nullable(),
+  reason: z.string(),
+});
+
+type CorrectionProfile = {
+  model?: string | null;
+  service_tier?: string | null;
+  reasoning?: { effort?: string | null } | null;
+};
+type CorrectionResponse = CorrectionProfile & {
+  status?: string | null;
+  incomplete_details?: unknown;
+  error?: unknown;
+  output_text?: string;
+  output: readonly { type: string; status?: string; content?: readonly { type: string }[] }[];
+};
+type CorrectionScope = Pick<z.infer<typeof correctionDraft>, 'caseId' | 'targetId' | 'expectedVersion'>;
+type CheckedDraft = { json: z.infer<typeof correctionDraft>; reason?: never }
+  | { json?: never; reason: 'unexpected_profile' | 'failed_response' | 'incomplete_response' | 'refusal' | 'invalid_draft' };
+
+export function validateShopCorrectionResponse(
+  request: CorrectionProfile, expectedModel: string, response: CorrectionResponse, scope: CorrectionScope,
+): CheckedDraft {
+  if (response.status === 'failed' || response.error) return { reason: 'failed_response' };
+  const returnedEffort = response.reasoning?.effort;
+  if (!expectedModel || request.model !== expectedModel || request.service_tier !== 'ultrafast'
+      || request.reasoning?.effort !== 'high' || response.model !== expectedModel || response.service_tier !== 'ultrafast'
+      || (returnedEffort != null && returnedEffort !== 'high')) {
+    return { reason: 'unexpected_profile' };
+  }
+  if (response.status !== 'completed' || response.incomplete_details
+      || response.output.some((item) => item.type === 'message' && item.status !== undefined && item.status !== 'completed')) {
+    return { reason: 'incomplete_response' };
+  }
+  if (response.output.some((item) => item.type === 'message' && item.content?.some((part) => part.type === 'refusal'))) {
+    return { reason: 'refusal' };
+  }
+  if (response.output.some((item) => item.type !== 'message' && item.type !== 'reasoning')) {
+    return { reason: 'invalid_draft' };
+  }
+  let body: unknown;
+  try { body = JSON.parse(response.output_text ?? ''); }
+  catch { return { reason: 'invalid_draft' }; }
+  const result = correctionDraft.safeParse(body);
+  if (!result.success) return { reason: 'invalid_draft' };
+  const draft = result.data;
+  if (draft.caseId !== scope.caseId || draft.targetId !== scope.targetId || draft.expectedVersion !== scope.expectedVersion
+      || (draft.action === 'no_change' && (draft.textTh !== null || draft.textEn !== null))) {
+    return { reason: 'invalid_draft' };
+  }
+  return { json: draft };
 }

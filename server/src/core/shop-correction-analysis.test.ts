@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  prepareShopCorrectionAnalysis, runShopCorrectionAnalysis, SHOP_CORRECTION_ANALYSIS_PURPOSE,
+  prepareShopCorrectionAnalysis, runShopCorrectionAnalysis, SHOP_CORRECTION_ANALYSIS_PURPOSE, validateShopCorrectionResponse,
 } from './shop-correction-analysis';
 import type { ShopCorrectionAnalysisInput, ShopCorrectionAnalysisSettings } from './shop-correction-analysis';
 
@@ -135,5 +135,50 @@ describe('shop correction analysis execution', () => {
 
     await expect(runShopCorrectionAnalysis(prepared, { mode: 'openai', fake, send }))
       .rejects.toThrow('case closed while analysing');
+  });
+});
+
+describe('shop correction provider response validation', () => {
+  const scope = { caseId: 'synthetic-1', targetId: null, expectedVersion: 0 };
+  const draft = { action: 'no_change', ...scope, textTh: null, textEn: null, reason: 'No verified correction' };
+  const requested = { model: settings.model, service_tier: 'ultrafast', reasoning: { effort: 'high' } };
+  const provider = {
+    model: settings.model, service_tier: 'ultrafast', reasoning: { effort: 'high' },
+    status: 'completed', output_text: JSON.stringify(draft),
+    output: [{ type: 'message', status: 'completed', content: [{ type: 'output_text' }] }],
+  };
+
+  it('accepts a completed, correctly scoped strict draft if returned effort is high or unreported', () => {
+    expect(validateShopCorrectionResponse(requested, settings.model, provider, scope)).toEqual({ json: draft });
+    expect(validateShopCorrectionResponse(requested, settings.model, { ...provider, reasoning: null }, scope))
+      .toEqual({ json: draft });
+  });
+
+  it.each([
+    [{ model: 'other-model' }, 'unexpected_profile'],
+    [{ service_tier: 'priority' }, 'unexpected_profile'],
+    [{ service_tier: null }, 'unexpected_profile'],
+    [{ reasoning: { effort: 'medium' } }, 'unexpected_profile'],
+    [{ status: 'incomplete' }, 'incomplete_response'],
+    [{ incomplete_details: { reason: 'max_output_tokens' } }, 'incomplete_response'],
+    [{ output: [{ type: 'message', content: [{ type: 'refusal' }] }] }, 'refusal'],
+    [{ output: [{ type: 'message', status: 'incomplete', content: [{ type: 'output_text' }] }] }, 'incomplete_response'],
+    [{ output: [{ type: 'function_call' }] }, 'invalid_draft'],
+    [{ output_text: 'not JSON' }, 'invalid_draft'],
+    [{ output_text: JSON.stringify({ ...draft, extra: true }) }, 'invalid_draft'],
+    [{ output_text: JSON.stringify({ ...draft, expectedVersion: 1 }) }, 'invalid_draft'],
+    [{ output_text: JSON.stringify({ ...draft, textEn: 'Unexpected advice' }) }, 'invalid_draft'],
+  ] as const)('rejects an unusable provider success (%j)', (override, reason) => {
+    expect(validateShopCorrectionResponse(requested, settings.model, { ...provider, ...override }, scope))
+      .toEqual({ reason });
+  });
+
+  it('rejects a request with a changed model, tier, or effort even if the provider reports the expected profile', () => {
+    for (const mismatch of [
+      { model: 'other-model' }, { service_tier: 'priority' }, { reasoning: { effort: 'medium' } },
+    ]) {
+      expect(validateShopCorrectionResponse({ ...requested, ...mismatch }, settings.model, provider, scope))
+        .toEqual({ reason: 'unexpected_profile' });
+    }
   });
 });

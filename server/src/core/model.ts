@@ -7,7 +7,7 @@ import { config } from './config';
 import { db } from './db';
 import { AppError } from './errors';
 import { log } from './log';
-import { prepareShopCorrectionAnalysis, runShopCorrectionAnalysis } from './shop-correction-analysis';
+import { prepareShopCorrectionAnalysis, runShopCorrectionAnalysis, validateShopCorrectionResponse } from './shop-correction-analysis';
 import { storage } from './storage';
 import type { ModelApi, ModelChatInput, ModelChatResult, ModelContentPart, ModelUsage, ModelWebSearchInput, ModelWebSearchResult, UsageAttribution } from './types';
 
@@ -41,20 +41,24 @@ type ModelRecord = {
   audio?: { input: number; output: number; cached: number };
   zeroCost?: boolean;
   toolCostUsdMicros?: number;
-  reasoningEffort?: string;
+  reasoningEffort?: string | null;
   requestedServiceTier?: string;
   providerServiceTier?: string | null;
+  providerModel?: string | null;
 };
 async function record(kind: Kind, usage: UsageAttribution, model: string, latencyMs: number, data: ModelRecord = {}) {
   const counts = data.usage ?? noCounts;
-  const price = data.error ? { costUsdMicros: null, costReason: 'provider_error' as const }
+  const effectiveModel = data.providerModel ?? model;
+  const hasTokenCounts = counts.inputTokens !== null && counts.outputTokens !== null;
+  const price = data.error && !(data.requestedServiceTier === 'ultrafast' && hasTokenCounts) ? { costUsdMicros: null, costReason: 'provider_error' as const }
     : data.zeroCost && mode === 'openai' ? { costUsdMicros: 0, costReason: 'priced' as const }
-      : computeCostMicros(model, counts, data.audio);
+      : computeCostMicros(effectiveModel, counts, data.audio);
   const result = { ...counts, ...price };
   if (result.costUsdMicros !== null) result.costUsdMicros += data.toolCostUsdMicros ?? 0;
-  if (mode === 'openai' && !data.error && data.requestedServiceTier === 'ultrafast') {
+  if (mode === 'openai' && data.requestedServiceTier === 'ultrafast' && result.costReason !== 'provider_error') {
     const multiplier = config.OPENAI_SHOP_CORRECTION_ULTRAFAST_RATE_MULTIPLIER;
-    if (data.providerServiceTier === 'ultrafast' && multiplier !== undefined && result.costUsdMicros !== null) {
+    if (data.providerModel && hasTokenCounts && data.providerServiceTier === 'ultrafast'
+        && multiplier !== undefined && result.costUsdMicros !== null) {
       result.costUsdMicros = Math.round(result.costUsdMicros * multiplier);
     } else {
       result.costUsdMicros = null;
@@ -68,12 +72,12 @@ async function record(kind: Kind, usage: UsageAttribution, model: string, latenc
     + 'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26) RETURNING id';
   const row = await db.one<{ id: string }>(sql, [
     usage.businessId, usage.accountId ?? null, usage.conversationId ?? null, usage.turnId ?? null, usage.featureId, usage.purpose,
-    kind, mode, model, result.inputTokens, result.outputTokens, result.cachedInputTokens, result.cacheWriteTokens,
+    kind, mode, effectiveModel, result.inputTokens, result.outputTokens, result.cachedInputTokens, result.cacheWriteTokens,
     result.reasoningTokens, result.costUsdMicros, result.costReason, latencyMs, data.finishReason ?? null,
     data.error?.code ?? null, data.requestId ?? null, data.responseId ?? null, data.audio?.input ?? null, data.audio?.output ?? null,
     data.reasoningEffort ?? null, data.requestedServiceTier ?? null, data.providerServiceTier ?? null,
   ]);
-  log.info({ purpose: usage.purpose, mode, model, latencyMs, inputTokens: result.inputTokens, outputTokens: result.outputTokens, costUsdMicros: result.costUsdMicros, providerRequestId: data.requestId }, 'Model usage');
+  log.info({ purpose: usage.purpose, mode, model: effectiveModel, latencyMs, inputTokens: result.inputTokens, outputTokens: result.outputTokens, costUsdMicros: result.costUsdMicros, providerRequestId: data.requestId }, 'Model usage');
   return { usage: result, usageId: row.id };
 }
 
@@ -212,7 +216,7 @@ function responseUsage(response: OpenAI.Responses.Response): Counts {
     outputTokens: response.usage?.output_tokens ?? null,
     cachedInputTokens: details?.cached_tokens ?? null,
     cacheWriteTokens: details?.cache_write_tokens ?? null,
-    reasoningTokens: response.usage?.output_tokens_details.reasoning_tokens ?? null,
+    reasoningTokens: response.usage?.output_tokens_details?.reasoning_tokens ?? null,
   };
 }
 
@@ -306,7 +310,7 @@ async function tracked<T extends object>(kind: Kind, usage: UsageAttribution, mo
   }
   const latencyMs = mode === 'fake' ? 0 : Math.round(performance.now() - start);
   const written = await record(kind, usage, model, latencyMs, { ...attempt, ...response.record });
-  return { ...response.value, ...written, latencyMs, mode, model };
+  return { ...response.value, ...written, latencyMs, mode, model: response.record?.providerModel ?? model };
 }
 const count = z.number().int().nonnegative();
 const realtimeUsage = z.object({
@@ -365,7 +369,7 @@ export const model: ModelApi = {
     // F04 populates these top-level fields from its authorized case and target version.
     const scope = correctionCase.safeParse(parsed(input.redactedInput));
     if (!scope.success) throw new AppError('VALIDATION_ERROR', 'Shop correction case and expected version are required');
-    return tracked<AnalysisValue>('chat', prepared.usage, id, () =>
+    const result = await tracked<AnalysisValue>('chat', prepared.usage, id, () =>
       runShopCorrectionAnalysis<{ value: AnalysisValue; record?: ModelRecord }>(prepared, {
         mode,
         fake: () => {
@@ -378,13 +382,28 @@ export const model: ModelApi = {
           const timeout = AbortSignal.timeout(config.MODEL_TIMEOUT_MS);
           const signal = caller ? AbortSignal.any([caller, timeout]) : timeout;
           const response = await provider.responses.create(request, { signal, maxRetries: 0 });
+          const output = (response.output ?? []).map((item) => item.type === 'message'
+            ? { type: item.type, status: item.status, content: item.content }
+            : { type: item.type });
+          const checked = validateShopCorrectionResponse(request, id, { ...response, output }, scope.data);
           const mapped = mapResponse(response);
           const requestId = response._request_id ?? null;
-          return { value: { text: mapped.text, json: parsed(mapped.text), requestId, toolCalls: [], finishReason: mapped.finishReason },
-            record: { finishReason: mapped.finishReason, requestId, responseId: response.id, providerServiceTier: response.service_tier,
-              usage: responseUsage(response) } };
+          return {
+            value: { text: checked.json ? mapped.text : '', json: checked.json, requestId, toolCalls: [], finishReason: mapped.finishReason },
+            record: {
+              finishReason: checked.reason ?? mapped.finishReason, requestId, responseId: response.id,
+              error: checked.reason === 'failed_response' ? new AppError('PROVIDER_UNAVAILABLE', 'Shop correction provider failed') : undefined,
+              providerModel: response.model || null, providerServiceTier: response.service_tier,
+              reasoningEffort: response.reasoning?.effort ?? null, usage: responseUsage(response),
+            },
+          };
+        },
+        onProviderCancelled(received) {
+          return { value: { ...received.value, text: '', json: undefined },
+            record: { ...received.record, finishReason: 'cancelled_after_response' } };
         },
       }), { reasoningEffort: 'high', requestedServiceTier: 'ultrafast' });
+    return input.signal?.aborted ? { ...result, text: '', json: undefined } : result;
   },
   embed(input) {
     return tracked('embed', input.usage, config.OPENAI_EMBED_MODEL, async () => {
