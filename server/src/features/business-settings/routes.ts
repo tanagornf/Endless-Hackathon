@@ -2,6 +2,7 @@ import { defineFeatureRoutes } from '../../core';
 import { ownerConsultSchedule } from './owner-consult-outbox';
 import { ownerConsultAnswerSchedule } from './owner-consult-answer-outbox';
 import { registerOwnerConsultRoutes } from './owner-consult-routes';
+import { registerShopInstructionRoutes } from './shop-instructions-routes';
 import { AiSwitchBody, CapabilitiesBody, ClosureBody, ClosuresQuery, HoursBody, LocaleBody, OpenStateQuery, PolicyPatchBody, ProfileBody, parseSettingsInput } from './schemas';
 import {
   createClosure, deleteClosure, getBusinessOpenState, getSettingsView, listClosures, patchAnswerPolicy, setAiEnabled, updateCapabilities, updateHours, updateLocale, updateProfile,
@@ -18,6 +19,7 @@ export default defineFeatureRoutes({
   schedules: [ownerConsultSchedule, ownerConsultAnswerSchedule],
   register(api) {
     registerOwnerConsultRoutes(api);
+    registerShopInstructionRoutes(api);
     api.get(settingsPath, { ...settingsRead, summary: 'Read business settings' },
       async ({ business }) => getSettingsView(business!.id));
     api.put(settingsPath + '/ai', {

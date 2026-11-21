@@ -91,3 +91,6 @@ export type AnswerPolicyPatch = { [Key in keyof AnswerPolicy]?: AnswerPolicy[Key
 export type { AnswerOwnerConsultInput, OpenOwnerConsultInput, OpenOwnerConsultResult, OwnerConsultActionKey, OwnerConsultAnswerReceipt, OwnerConsultReuse, OwnerConsultView } from './owner-consult-types';
 export { OWNER_CONSULT_ANSWER_JOB } from './owner-consult-types';
 export type { OwnerConsultAnswerForResume, OwnerConsultAnswerKey } from './owner-consult-types';
+export type {
+  ActiveShopInstruction, ShopInstructionActivation, ShopInstructionCandidate, ShopInstructionReview, ShopInstructionVersion,
+} from './shop-instructions-types';

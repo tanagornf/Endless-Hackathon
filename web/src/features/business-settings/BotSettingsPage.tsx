@@ -3,6 +3,7 @@ import { Alert, Button, FormControlLabel, MenuItem, Skeleton, Stack, Switch, Tex
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import OwnerConsultPanel from './OwnerConsultPanel';
+import ShopInstructionReviewPanel from './ShopInstructionReviewPanel';
 import type {
   AnswerPolicy, AnswerPolicyPatch, MerchantCapabilities, SettingsView,
 } from '@nless/shared/features/business-settings/types';
@@ -32,6 +33,7 @@ export default function BotSettingsPage() {
       <PageHeader title={t('bot.title')} />
       {businessId && consult && <OwnerConsultPanel key={businessId + ':' + consult} caseId={consult} />}
       {businessId && <BotSettings key={businessId} />}
+      {businessId && <ShopInstructionReviewPanel key={'instructions:' + businessId} />}
     </>
   );
 }
