@@ -1,10 +1,10 @@
-import type { Page } from '@nless/shared/core/types';
 import type { DemoChatMessage, DemoChatPoll, DemoChatSendResult, DemoChatShopView, MessageRecord } from '@nless/shared/features/inbox/types';
 import { AppError, assertRateLimit, db, log, model } from '../../core';
 import { getBusinessSettings } from '../business-settings/service';
 import { messageColumns, formatMessage } from './mappers';
 import type { DbMessage } from './mappers';
-import { getHistory, saveMessage } from './service';
+import { saveMessage } from './service';
+import { readDemoHistory } from './demoHistory';
 import { waitForDemoUpdate } from './demoSignal';
 
 const settingsColumns = `s.business_id AS "businessId", s.public_slug AS "publicSlug", s.enabled,
@@ -104,7 +104,7 @@ export async function conversationFor(identity: DemoIdentity, openOnly = false) 
 }
 
 function customerMessage(message: MessageRecord): DemoChatMessage | null {
-  if (message.author === 'system') return null;
+  if (message.author === 'system' || (message.direction === 'outbound' && message.author === 'ai' && message.delivery.state !== 'sent')) return null;
   const { id, seq, direction, author, parts, createdAt, delivery } = message;
   return {
     id, seq, direction, author, parts: parts.map((part) => {
@@ -228,27 +228,29 @@ async function pending(identity: DemoIdentity, conversationId: string): Promise<
     state: row.state === 'dead' || Date.now() - row.since.getTime() > pendingAge ? 'failed' : 'typing' };
 }
 
-async function readPoll(identity: DemoIdentity, conversation: { id: string; status: 'open' | 'closed' }, after?: string): Promise<DemoChatPoll> {
-  const scoped = { businessId: identity.businessId, after, limit: 30 };
+async function readPoll(identity: DemoIdentity, conversation: { id: string; status: 'open' | 'closed' }, after?: string) {
   const [history, ai] = await Promise.all([
-    getHistory(conversation.id, scoped) satisfies Promise<Page<MessageRecord>>,
-    pending(identity, conversation.id),
+    readDemoHistory(identity.businessId, conversation.id, after), pending(identity, conversation.id),
   ]);
-  const last = history.items.at(-1);
-  return {
+  const { waitingSince } = history;
+  const recentWait = waitingSince && Date.now() - Date.parse(waitingSince) < pendingAge;
+  const page: DemoChatPoll = {
     conversationId: conversation.id, items: history.items.flatMap((message) => customerMessage(message) ?? []),
-    cursor: last ? Buffer.from(String(last.seq)).toString('base64url') : after ?? null,
-    pending: ai, closed: conversation.status === 'closed',
+    cursor: history.cursor, pending: recentWait ? { since: waitingSince, state: 'typing' } : ai,
+    closed: conversation.status === 'closed',
   };
+  return { page, immediate: history.immediate, revisiting: history.revisiting };
 }
 
 export async function demoPoll(identity: DemoIdentity, after: string | undefined, waitMs: number): Promise<DemoChatPoll> {
   const conversation = await conversationFor(identity);
   if (!conversation) return { conversationId: null, items: [], cursor: null, pending: null, closed: false };
   const first = await readPoll(identity, conversation, after);
-  if (first.items.length || first.pending?.state === 'failed' || first.closed || waitMs === 0) return first;
-  await waitForDemoUpdate(identity.businessId + ':' + identity.externalId, conversation.id, waitMs);
+  if (first.immediate || first.page.closed || waitMs === 0) return first.page;
+  // Replayed rows from a broad retry scan alone do not wake an otherwise idle visitor.
+  const recheckMs = first.page.pending?.state === 'typing' ? (first.revisiting ? 2000 : 1000) : waitMs;
+  await waitForDemoUpdate(identity.businessId + ':' + identity.externalId, conversation.id, Math.min(waitMs, recheckMs));
   const current = await conversationFor(identity);
   if (!current) return { conversationId: null, items: [], cursor: null, pending: null, closed: false };
-  return readPoll(identity, current, current.id === conversation.id ? after : undefined);
+  return (await readPoll(identity, current, current.id === conversation.id ? after : undefined)).page;
 }
