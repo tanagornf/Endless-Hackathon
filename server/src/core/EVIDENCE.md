@@ -69,3 +69,11 @@
 
 - The C1 model entry point validates the scoped F04 case and uses the peer-reviewed strict draft builder. It records requested and observed service tier independently, as well as high reasoning, tenant, purpose, tokens and latency. An unconfirmed tier or missing configured rate leaves cost unknown. Fake mode returns a deterministic no-change draft and contacts no provider.
 - The independent helper passed 10 isolated tests. Its app-dev Astra/high/ultrafast probes returned the expected tier. The application wrapper and accounting migration remain restricted to branch validation. C3 owns durable approval, draft review, and production activation.
+
+### F30 Live transport handoff to C2
+
+- The server creates OpenAI Live WebRTC sessions and keeps the provider session ID and delegation on the trusted sideband. The browser receives the SDP answer. The provider's final duration is recorded once against the same feature, shop, account, conversation and turn as session creation. Unconfirmed duration remains unknown.
+- App-dev synthetic Chrome WebRTC connected on `4e13cd5`. It sent 12 customer transcript deltas and one trusted client delegation. The real scoped F08 lookup returned 1,490 THB, and the assistant spoke that verified quote. The second synthetic shop could not resolve the SKU. Provider-confirmed close returned 15 active and zero paused seconds. The configured rate recorded US$0.0125 and a repeated meter write returned the same usage row.
+- The forced-loss diagnostic stopped the first trusted sideband while WebRTC was connected. Failure notification took 4 ms, the synthetic microphone track stopped and the recovery sideband received the provider's terminal event. The run elapsed 4,192 ms and the provider reported 15 active billable seconds, zero paused and US$0.0125 at the configured rate.
+- Eight isolated tests cover request shape, client-channel permissions, trusted event validation, deduplication and bounded recovery. The C1 synthetic test database passed all five model tests, including the incremental migration, concurrent usage writes and tenant-scoped rejection.
+- C2 owns verified LINE identity and consent, the browser and call history, and durable compensation after process loss. F30 remains hidden pending actual device and paired loss validation. The two OpenAI calls used the app-dev project and synthetic data.

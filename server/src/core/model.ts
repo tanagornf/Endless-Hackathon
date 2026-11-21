@@ -6,6 +6,9 @@ import { z } from 'zod';
 import { config } from './config';
 import { db } from './db';
 import { AppError } from './errors';
+import { attachLiveVoiceTransport, recoverLiveVoiceTransport } from './live-voice-control';
+import { recordLiveVoiceDuration } from './live-voice-usage';
+import { createLiveVoiceTransport } from './live-voice';
 import { log } from './log';
 import { prepareShopCorrectionAnalysis, runShopCorrectionAnalysis, validateShopCorrectionResponse } from './shop-correction-analysis';
 import { storage } from './storage';
@@ -45,6 +48,7 @@ type ModelRecord = {
   requestedServiceTier?: string;
   providerServiceTier?: string | null;
   providerModel?: string | null;
+  deferredBilling?: boolean;
 };
 async function record(kind: Kind, usage: UsageAttribution, model: string, latencyMs: number, data: ModelRecord = {}) {
   const counts = data.usage ?? noCounts;
@@ -52,7 +56,8 @@ async function record(kind: Kind, usage: UsageAttribution, model: string, latenc
   const hasTokenCounts = counts.inputTokens !== null && counts.outputTokens !== null;
   const price = data.error && !(data.requestedServiceTier === 'ultrafast' && hasTokenCounts) ? { costUsdMicros: null, costReason: 'provider_error' as const }
     : data.zeroCost && mode === 'openai' ? { costUsdMicros: 0, costReason: 'priced' as const }
-      : computeCostMicros(effectiveModel, counts, data.audio);
+      : data.deferredBilling && mode === 'openai' ? { costUsdMicros: null, costReason: 'no_rate' as const }
+        : computeCostMicros(effectiveModel, counts, data.audio);
   const result = { ...counts, ...price };
   if (result.costUsdMicros !== null) result.costUsdMicros += data.toolCostUsdMicros ?? 0;
   if (mode === 'openai' && data.requestedServiceTier === 'ultrafast' && result.costReason !== 'provider_error') {
@@ -459,6 +464,33 @@ export const model: ModelApi = {
       return { value: { text: result.text, seconds: (result.usage as { seconds?: number } | undefined)?.seconds ?? null }, record: { requestId: result._request_id } };
     });
   },
+  async createLiveVoiceSession(input) {
+    const liveModel = config.OPENAI_LIVE_MODEL || (mode === 'fake' ? 'fake-live' : '');
+    let providerSessionId: string | undefined;
+    try {
+      return await tracked('realtime', { ...input.usage, purpose: 'voice.live.session' }, liveModel, async () => {
+        if (provider && config.OPENAI_BASE_URL && config.OPENAI_BASE_URL.replace(/\/$/, '') !== 'https://api.openai.com/v1') {
+          throw new AppError('SERVICE_NOT_READY', 'Live voice requires the OpenAI API');
+        }
+        const value = await createLiveVoiceTransport(input, liveModel, config.OPENAI_LIVE_VOICE,
+          provider ? (body, signal) => provider.post('/live/sessions', { body, signal, maxRetries: 0 }) : undefined);
+        providerSessionId = value.providerSessionId;
+        return { value, record: { responseId: providerSessionId, deferredBilling: true } };
+      });
+    } catch (error) {
+      if (provider && providerSessionId) {
+        await recoverLiveVoiceTransport(providerSessionId, mode).catch(() => {});
+      }
+      throw error;
+    }
+  },
+  attachLiveVoiceSession(input) {
+    return attachLiveVoiceTransport(input, mode);
+  },
+  closeLiveVoiceSession(providerSessionId) {
+    return recoverLiveVoiceTransport(providerSessionId, mode);
+  },
+  recordLiveVoiceUsage: recordLiveVoiceDuration,
   async createRealtimeSession(input) {
     return tracked('realtime', input.usage, config.OPENAI_REALTIME_MODEL, async () => {
       const ttl = input.ttlSeconds ?? 600;
