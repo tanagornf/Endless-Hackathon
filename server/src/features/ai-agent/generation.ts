@@ -203,7 +203,10 @@ export async function generateDraft(
     const toolOptions = { tools: !casual, handoff: canEscalate };
     const firstReply = runModelLoop(loop, context, conversation.businessId, call('reply'), started, modelSignal, toolOptions)
       .then((response) => ({ response } as const), (error: unknown) => ({ error } as const));
-    const price = catalogPriceIntent(context.unanswered.join(' '), context.prices.map(({ quote }) => quote));
+    const priceText = context.catalogRequest.linkedSameProduct
+      ? context.catalogRequest.text + ' ' + context.catalogRequest.skus[0]
+      : context.catalogRequest.text;
+    const price = catalogPriceIntent(priceText, context.prices.map(({ quote }) => quote));
     const classifierTimeout = Math.min(8000, config.MODEL_TIMEOUT_MS - elapsed(started) - 1500);
     let score = casual ?? price ?? unknownIntent;
     if (!casual && !price && classifierTimeout > 0) {

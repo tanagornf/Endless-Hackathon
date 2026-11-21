@@ -962,6 +962,29 @@ describe('F10 catalog reference scope', { timeout: 20_000 }, () => {
     });
   });
 
+  it('answers an explicit Thai same-game follow-up across one unrelated hours turn', async () => {
+    const spy = scriptedModel(
+      { text: 'Demo Quest board game costs 1,490 baht.' },
+      { text: 'ร้านเปิด 10:00–20:00 น. ค่ะ' },
+      { text: fallbacks.no_answer.th },
+    );
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    await execute(await incoming('ร้านเปิดกี่โมงคะ', known));
+    const same = await incoming('แล้วเกมเดิมนี้ราคาเท่าไหร่คะ', known);
+    await execute(same);
+
+    const saved = (await replies(known.conversation.id)).at(-1)!;
+    expect(saved.text).toContain('1,490 บาท');
+    expect(saved.text).not.toContain(fallbacks.handoff_offer.th);
+    const turn = await trace(same.message.id);
+    expect(turn).toMatchObject({
+      state: 'completed', intent_source: 'regex', reply_language: 'th', handoff_offered: false,
+      product_refs: [expect.objectContaining({ sku: 'A-GAME-01' })],
+    });
+    expect(spy.mock.calls.filter(([input]) => input.usage.turnId === turn.id).map(([input]) => input.usage.purpose)).toEqual(['reply']);
+  });
+
   it('does not rescue a fresh missing product lookup with the previous SKU price', async () => {
     scriptedModel(
       { text: 'Demo Quest board game costs 1,490 baht.' },
