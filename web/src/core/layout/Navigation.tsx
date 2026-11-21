@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Box, IconButton, InputAdornment, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, TextField, Typography } from '@mui/material';
+import { Box, IconButton, InputAdornment, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, TextField, Tooltip, Typography, useMediaQuery } from '@mui/material';
+import MenuOpenOutlined from '@mui/icons-material/MenuOpenOutlined';
 import SearchOutlined from '@mui/icons-material/SearchOutlined';
 import CloseOutlined from '@mui/icons-material/CloseOutlined';
 import { Link, NavLink } from 'react-router-dom';
@@ -9,14 +10,45 @@ import { menuIcon } from '../icons';
 import { Brand } from './Brand';
 
 export const groups: MenuGroup[] = ['home','chat','customers','knowledge','ai','live','insights','commerce','settings','help','admin'];
-export function Navigation({ entries, close }: { entries: MenuEntry[]; close: () => void }) {
+const railPaths = ['/dashboard', '/chat', '/catalog', '/knowledge', '/demo-chat', '/channels', '/members'];
+export function Navigation({ entries, close, desktop = false }: { entries: MenuEntry[]; close: () => void; desktop?: boolean }) {
   const { t } = useTranslation('common');
   const [term, setTerm] = useState('');
+  const wide = useMediaQuery('(min-width: 1440px)');
+  const [preference, setPreference] = useState(() => {
+    try { return localStorage.getItem('endless.navigation'); } catch { return null; }
+  });
+  const compact = desktop && (preference ? preference === 'compact' : !wide);
+  function toggleWidth() {
+    const next = compact ? 'expanded' : 'compact';
+    setPreference(next);
+    try { localStorage.setItem('endless.navigation', next); } catch { /* Optional preference. */ }
+  }
   const search = term.toLocaleLowerCase().trim();
   const hits = entries.filter(item => [t(item.labelKey), t('nav:' + item.group), item.path, ...(item.searchTerms ?? [])]
     .some(value => value.toLocaleLowerCase().includes(search)));
-  return <Box component="nav" aria-label={t('pages.menu')} sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: 260, maxWidth: '90vw' }}>
-    <Box component={Link} to="/?view=workspace" onClick={close} sx={{ display: 'block', px: 2.5, py: 2, textDecoration: 'none' }}><Brand /></Box>
+  const toggleLabel = t(compact ? 'workspace.expandMenu' : 'workspace.collapseMenu');
+  return <Box component="nav" aria-label={t('pages.menu')} sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: compact ? 68 : 260, maxWidth: '90vw' }}>
+    <Box sx={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'center', justifyContent: 'space-between', p: 1, gap: .5 }}>
+      <Box component={Link} to="/?view=workspace" aria-label={t('workspace.title')} onClick={close}
+        sx={{ display: 'grid', placeItems: 'center', minWidth: 44, minHeight: 44, px: compact ? 0 : 1, textDecoration: 'none' }}><Brand compact={compact} /></Box>
+      {desktop && <Tooltip title={toggleLabel} placement="right"><IconButton aria-label={toggleLabel} aria-expanded={!compact} onClick={toggleWidth}>
+        <MenuOpenOutlined sx={{ transform: compact ? 'scaleX(-1)' : undefined }} />
+      </IconButton></Tooltip>}
+    </Box>
+    {compact ? <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column', gap: .5, pt: 1, borderTop: 1, borderColor: 'divider', overflowY: 'auto' }}>
+      {railPaths.map(path => {
+        const entry = entries.find(item => item.path === path);
+        if (!entry) return null;
+        const label = t(entry.labelKey);
+        const Icon = menuIcon(entry.icon);
+        return <Tooltip key={path} title={label} placement="right">
+          <IconButton component={NavLink} to={path} aria-label={label} sx={{
+            borderRadius: '10px', color: 'text.secondary', '&.active': { bgcolor: 'primary.light', color: 'primary.dark' },
+          }}><Icon fontSize="small" /></IconButton>
+        </Tooltip>;
+      })}
+    </Box> : <>
     <Box sx={{ px: 2, pb: 2, borderBottom: 1, borderColor: 'divider' }}>
       <TextField fullWidth value={term} onChange={e => setTerm(e.target.value)} placeholder={t('workspace.search')}
         slotProps={{ htmlInput: { 'aria-label': t('workspace.search') }, input: {
@@ -43,5 +75,6 @@ export function Navigation({ entries, close }: { entries: MenuEntry[]; close: ()
       })}
       {!hits.length && term && <Typography role="status" variant="body2" sx={{ p: 1.5 }}>{t('workspace.noPages')}</Typography>}
     </Box>
+    </>}
   </Box>;
 }
