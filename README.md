@@ -1,5 +1,7 @@
 # Endless
 
+**English** · [ภาษาไทย](README.th.md)
+
 Endless is a bilingual sales assistant for Thai shops that sell through chat. The app brings customer conversations into a shared inbox and uses each shop’s catalog and knowledge to answer questions.
 
 ## Watch Endless in action
@@ -91,37 +93,37 @@ Evidence snapshot based on `926e5c09d7a723abe66adb5d532028b1cadece05`.
 
 | ID | Feature | Mode | Evidence |
 |---|---|---|---|
-| F01 | ฐานโปรเจกต์และการรัน | A | [Evidence](server/src/core/EVIDENCE.md) |
-| F02 | ตัวตนและ session | A | [Evidence](server/src/features/auth/EVIDENCE.md) |
-| F03 | บัญชี ธุรกิจ สมาชิก และสิทธิ์ | A | [Evidence](server/src/features/tenancy/EVIDENCE.md) |
-| F04 | การตั้งค่าธุรกิจ | A | [Evidence](server/src/features/business-settings/EVIDENCE.md) |
-| F05 | คลังความรู้และวงจรข้อมูล | A | [Evidence](server/src/features/knowledge/EVIDENCE.md) |
-| F06 | นำเข้าและสกัดข้อมูล | A | [Evidence](server/src/features/knowledge-import/EVIDENCE.md) |
-| F07 | ค้นคืน RAG และประเมิน revision | A | [Evidence](server/src/features/knowledge-search/EVIDENCE.md) |
-| F08 | Catalog สินค้า/บริการ/variants | A | [Evidence](server/src/features/catalog/EVIDENCE.md) |
-| F09 | Inbox และประวัติ | A | [Evidence](server/src/features/inbox/EVIDENCE.md) |
-| F10 | AI turn และเครื่องมือ | A | [Evidence](server/src/features/ai-agent/EVIDENCE.md) |
-| F11 | ทีมและ human handoff | A | [Evidence](server/src/features/team/EVIDENCE.md) |
-| F12 | Rich messages และ templates | U | [Evidence](server/src/features/message-templates/EVIDENCE.md) |
-| F13 | Commerce และ orders | A | [Evidence](server/src/features/orders/EVIDENCE.md) |
-| F14 | QR การชำระและตรวจสลิป | A | [Evidence](server/src/features/payments/EVIDENCE.md) |
-| F15 | Booking และ reminders | U | [Evidence](server/src/features/booking/EVIDENCE.md) |
+| F01 | Application foundation | A | [Evidence](server/src/core/EVIDENCE.md) |
+| F02 | Account sign-in and recovery | A | [Evidence](server/src/features/auth/EVIDENCE.md) |
+| F03 | Shops, invitations and permissions | A | [Evidence](server/src/features/tenancy/EVIDENCE.md) |
+| F04 | Shop settings and answer policies | A | [Evidence](server/src/features/business-settings/EVIDENCE.md) |
+| F05 | Merchant knowledge and FAQs | A | [Evidence](server/src/features/knowledge/EVIDENCE.md) |
+| F06 | Knowledge imports | A | [Evidence](server/src/features/knowledge-import/EVIDENCE.md) |
+| F07 | Knowledge retrieval and evaluation | A | [Evidence](server/src/features/knowledge-search/EVIDENCE.md) |
+| F08 | Product catalog and variants | A | [Evidence](server/src/features/catalog/EVIDENCE.md) |
+| F09 | Shared conversation inbox | A | [Evidence](server/src/features/inbox/EVIDENCE.md) |
+| F10 | AI replies and tool use | A | [Evidence](server/src/features/ai-agent/EVIDENCE.md) |
+| F11 | Staff takeover and handback | A | [Evidence](server/src/features/team/EVIDENCE.md) |
+| F12 | Message templates | U | [Evidence](server/src/features/message-templates/EVIDENCE.md) |
+| F13 | Quotes and orders | A | [Evidence](server/src/features/orders/EVIDENCE.md) |
+| F14 | Payments and slip checks | A | [Evidence](server/src/features/payments/EVIDENCE.md) |
+| F15 | Booking and reminders | U | [Evidence](server/src/features/booking/EVIDENCE.md) |
 | F16 | Google Calendar | U | [Evidence](server/src/features/calendar/EVIDENCE.md) |
-| F17 | LINE | S | [Evidence](server/src/features/line/EVIDENCE.md) |
-| F18 | Facebook และ Instagram | U | [Evidence](server/src/features/meta/EVIDENCE.md) |
-| F21 | Comment-to-DM | U | [Evidence](server/src/features/comments/EVIDENCE.md) |
-| F22 | Live commerce และ product codes | U | [Evidence](server/src/features/live-commerce/EVIDENCE.md) |
-| F23 | Broadcast และ audiences | U | [Evidence](server/src/features/broadcast/EVIDENCE.md) |
-| F24 | CRM และ tags automation | A | [Evidence](server/src/features/crm/EVIDENCE.md) |
-| F26 | Insights และ summaries | U | [Evidence](server/src/features/insights/EVIDENCE.md) |
-| F27 | Dashboard usage/cost และ traces | U | [Evidence](server/src/features/analytics/EVIDENCE.md) |
-| F30 | Browser voice | U | [Evidence](server/src/features/voice/EVIDENCE.md) |
-| F31 | Notifications และ push | A | [Evidence](server/src/features/notifications/EVIDENCE.md) |
-| F35 | Reliability และเครื่องมือปฏิบัติการ | A | [Evidence](server/src/core/EVIDENCE.md) |
-| F36 | ตรวจรวม เผยแพร่ และหลักฐาน | A | [Evidence](server/src/features/release/EVIDENCE.md) |
-| F37 | AI evals และหน้า AI quality | U | [Evidence](server/src/features/evals/EVIDENCE.md) |
-| F38 | Follow-up nudges | U | [Evidence](server/src/features/follow-ups/EVIDENCE.md) |
-| F39 | ChatGPT-ready catalog (ACP feed + MCP) | U | [Evidence](server/src/features/chatgpt-catalog/EVIDENCE.md) |
+| F17 | LINE Official Account | S | [Evidence](server/src/features/line/EVIDENCE.md) |
+| F18 | Facebook and Instagram | U | [Evidence](server/src/features/meta/EVIDENCE.md) |
+| F21 | Comment-to-message replies | U | [Evidence](server/src/features/comments/EVIDENCE.md) |
+| F22 | Live-selling product codes | U | [Evidence](server/src/features/live-commerce/EVIDENCE.md) |
+| F23 | Customer broadcasts | U | [Evidence](server/src/features/broadcast/EVIDENCE.md) |
+| F24 | Customer profiles and tags | A | [Evidence](server/src/features/crm/EVIDENCE.md) |
+| F26 | Shop insights | U | [Evidence](server/src/features/insights/EVIDENCE.md) |
+| F27 | Usage and cost reporting | U | [Evidence](server/src/features/analytics/EVIDENCE.md) |
+| F30 | Voice conversations | U | [Evidence](server/src/features/voice/EVIDENCE.md) |
+| F31 | Staff notifications | A | [Evidence](server/src/features/notifications/EVIDENCE.md) |
+| F35 | Background jobs and reliability | A | [Evidence](server/src/core/EVIDENCE.md) |
+| F36 | Release verification | A | [Evidence](server/src/features/release/EVIDENCE.md) |
+| F37 | Model evaluations | U | [Evidence](server/src/features/evals/EVIDENCE.md) |
+| F38 | Customer follow-ups | U | [Evidence](server/src/features/follow-ups/EVIDENCE.md) |
+| F39 | ChatGPT-ready catalog | U | [Evidence](server/src/features/chatgpt-catalog/EVIDENCE.md) |
 
 R means Real, S means Sandbox, A means Adapter, and U means Unimplemented.
 
