@@ -362,17 +362,16 @@ describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
     const inbound = await incoming('How much is A-GAME-01?');
     const chat = vi.spyOn(model, 'chat');
     const writes = vi.spyOn(inbox, 'saveMessage');
-    const sends = vi.spyOn(channels, 'sendToCustomer')
-      .mockRejectedValue(new AppError('SERVICE_NOT_READY', 'Synthetic delivery enqueue error', { retryable: true }));
-    const readHistory = inbox.getHistory;
-    vi.spyOn(inbox, 'getHistory').mockImplementation(async (...args) => {
-      const page = await readHistory(...args);
-      return {
-        ...page,
-        items: page.items.map((item) => item.author === 'ai' ? {
-          ...item, delivery: { mode: 'real', state: 'failed', externalRef: null, error: 'DELIVERY_ENQUEUE_FAILED' },
-        } : item),
-      };
+    const sends = vi.spyOn(channels, 'sendToCustomer').mockImplementation(async (...args) => {
+      // Reject only the enqueue transaction. Core still runs its real reconciliation transaction.
+      const transaction = vi.spyOn(db, 'tx').mockRejectedValueOnce(
+        new AppError('SERVICE_NOT_READY', 'Synthetic delivery enqueue error', { retryable: true }),
+      );
+      try {
+        return await originalSend(...args);
+      } finally {
+        transaction.mockRestore();
+      }
     });
     const run = () => runAiTurn(inbound.conversation.id, { businessId, triggerMessageId: inbound.message.id, deliver: true });
 
@@ -388,7 +387,10 @@ describe('F10 shared conversation claim', { timeout: 15_000 }, () => {
     const final = await run();
     expect(final.retryAt).toBeUndefined();
     expect(final.response).toMatchObject({ state: 'completed', delivery: { mode: 'real', state: 'failed' } });
-    const [reply] = await replies(inbound.conversation.id);
+    const saved = await replies(inbound.conversation.id);
+    expect(saved).toHaveLength(1);
+    const [reply] = saved;
+    expect(reply.delivery).toMatchObject({ state: 'failed', error: 'DELIVERY_ENQUEUE_FAILED' });
     expect(await getTurnTrace(businessId, final.response.turnId)).toMatchObject({
       state: 'completed', replyMessageId: reply.id, errorCode: 'DELIVERY_ENQUEUE_FAILED', attempts: 3,
     });
