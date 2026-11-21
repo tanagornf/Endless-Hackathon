@@ -80,6 +80,14 @@ function Initialize-BoardHook {
     }
     $root = Find-HookLaneRoot -Start $start
     if ($null -eq $root) { return $null }
+    # A worktree can host several chats. Only the bound chat may consume its lane inbox.
+    $sessionFile = [IO.Path]::Combine($root, '.team-board', 'hook-session.txt')
+    if ([IO.File]::Exists($sessionFile)) {
+        $owner = [IO.File]::ReadAllText($sessionFile).Trim()
+        if ([string]::IsNullOrWhiteSpace($owner) -or $null -eq $hookInput -or
+            [string]$hookInput.session_id -cne $owner -or
+            ($hookInput.agent_id -and [string]$hookInput.agent_id -cne $owner)) { return $null }
+    }
     $lane = ([IO.File]::ReadAllText([IO.Path]::Combine($root, '.lane'))).Trim().ToUpperInvariant()
     if ($lane -notmatch '^[ABC][0-3]$') {
         $shown = $lane; if ($shown.Length -gt 12) { $shown = $shown.Substring(0, 12) }
@@ -115,6 +123,7 @@ function Invoke-HookBoard {
     # .team-board relative to the current folder). Returns its stdout lines, or $null after a warning when it failed.
     # The board's own stderr warnings (e.g. "Sites read failed; falling back to GitHub") are folded into ONE line.
     $previous = (Get-Location -PSProvider FileSystem).ProviderPath
+    $originalPath = $env:PATH
     $originalError = [Console]::Error
     $captured = New-Object IO.StringWriter
     $failure = ''
@@ -122,6 +131,13 @@ function Invoke-HookBoard {
     try {
         [Console]::SetError($captured)
         Set-Location -LiteralPath $Ctx.Root
+        # A running desktop app can inherit PATH before the GitHub CLI installer updates it.
+        if ($env:ProgramFiles -and -not (Get-Command gh -CommandType Application -ErrorAction SilentlyContinue)) {
+            $cliDir = Join-Path $env:ProgramFiles 'GitHub CLI'
+            if ([IO.File]::Exists((Join-Path $cliDir 'gh.exe'))) {
+                $env:PATH = $cliDir + [IO.Path]::PathSeparator + $originalPath
+            }
+        }
         $parameters = @{ AgentId = $Ctx.Lane }
         foreach ($key in $Extra.Keys) { $parameters[$key] = $Extra[$key] }
         $lines = @(& $Ctx.Board $Mode @parameters)
@@ -129,6 +145,7 @@ function Invoke-HookBoard {
     }
     catch { $failure = [string]$_.Exception.Message }
     finally {
+        $env:PATH = $originalPath
         [Console]::SetError($originalError)
         try { Set-Location -LiteralPath $previous } catch { }
     }
