@@ -65,9 +65,10 @@ export function detectReplyLanguage(
   priorCustomerText: readonly string[],
   defaultLanguage: CustomerLanguage,
 ): CustomerLanguage {
-  const fromUnanswered = detectTextLanguage(unanswered.join(' '));
-  if (fromUnanswered) return fromUnanswered;
-  for (const text of priorCustomerText.slice(-6).reverse()) {
+  const latest = detectTextLanguage(unanswered.at(-1) ?? '');
+  if (latest) return latest;
+  const previous = [...priorCustomerText, ...unanswered.slice(0, -1)];
+  for (const text of previous.slice(-6).reverse()) {
     const detected = detectTextLanguage(text);
     if (detected) return detected;
   }
