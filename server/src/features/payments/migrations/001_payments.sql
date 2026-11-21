@@ -103,4 +103,3 @@ CREATE TABLE payment_receipts (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (business_id, receipt_no)
 );
-
