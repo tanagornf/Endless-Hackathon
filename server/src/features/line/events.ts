@@ -1,3 +1,4 @@
+import { handleLineVoiceIntent } from './voiceInvite';
 import { config, decryptSecret, log, sendToCustomer, type JobHandler } from '../../core';
 import { getCustomerLanguage, saveMessage } from '../inbox/service';
 import { isHumanTakeover } from '../team/service';
@@ -122,6 +123,11 @@ export const lineEventJob: JobHandler<LineEventJobPayload> = async (job) => {
       });
       if (note) return finishEvent(webhookEventId, businessId, 'ignored', note);
     } else if (event.type === 'message' && message) {
+      if (connection.bot_user_id && message.type === 'text' && message.text && await handleLineVoiceIntent({
+        businessId, lineBot: connection.bot_user_id, basicId: connection.basic_id, eventId: webhookEventId,
+        customer, messageId: message.id, text: message.text, occurredAt: occurredAt.toISOString(),
+        providerMeta: providerMetadata(event, receivedAtMs),
+      })) return finishEvent(webhookEventId, businessId, 'done');
       const attachment = lineAttachmentTypes.has(message.type);
       if (attachment && await hasSavedInbound(businessId, message.id)) return finishEvent(webhookEventId, businessId, 'done');
       if (message.type !== 'text') language = (await getBusinessSettings(businessId)).language;

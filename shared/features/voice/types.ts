@@ -67,3 +67,18 @@ export interface VoiceUsageAck {
   /** true → the cap is reached: the browser closes the RTCPeerConnection. */
   capped: boolean;
 }
+
+/** F30 phone-browser response. Provider identity and credentials stay on the server. */
+export interface VoiceLiveStartResponse {
+  voiceSessionId: string;
+  answerSdp: string;
+  expiresAt: string;
+  model: string;
+  mode: 'openai' | 'fake';
+  maxSeconds: number;
+}
+
+export interface VoiceLiveCallStatus {
+  ended: boolean;
+  captions: { id: string; role: 'customer' | 'assistant'; text: string }[];
+}
