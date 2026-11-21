@@ -1,13 +1,19 @@
-import { config, decryptSecret, log, type JobHandler } from '../../core';
-import { saveMessage } from '../inbox/service';
+import { config, decryptSecret, log, sendToCustomer, type JobHandler } from '../../core';
+import { getCustomerLanguage, saveMessage } from '../inbox/service';
 import { isHumanTakeover } from '../team/service';
 import { getBusinessSettings } from '../business-settings/service';
 import { notify } from '../notifications/service';
+import { consumeLinePostback } from './actions';
 import { EVENT_MAX_AGE_MS, PROFILE_TTL_MS, REPLY_TOKEN_TTL_MS } from './config';
 import { getAccessToken } from './connection';
+import { inboundAttachment, lineAttachmentTypes } from './inboundMedia';
+import { lineLabels, type LineLanguage } from './labels';
 import { lineRequest } from './lineApi';
 import { inboundTextParts, LineEvent } from './normalize';
-import { cacheProfile, findContact, findJobConnection, finishEvent, setFollowing, type LineConnection } from './repo';
+import {
+  cacheProfile, claimAudioNotice, findContact, findJobConnection, finishEvent, hasSavedInbound, releaseAudioNotice,
+  setFollowing, type LineConnection,
+} from './repo';
 import { z } from 'zod';
 
 export type LineEventJobPayload = {
@@ -49,6 +55,32 @@ async function showTyping(connection: LineConnection, conversationId: string, us
   }
 }
 
+async function sendAudioNotice(businessId: string, connectionId: string, conversationId: string, userId: string, eventId: string) {
+  let claimedAt: Date | null = null;
+  try {
+    const settings = await getBusinessSettings(businessId);
+    if (!settings.aiEnabled || await isHumanTakeover(conversationId)) return;
+    const language = await getCustomerLanguage(conversationId, { businessId });
+    claimedAt = await claimAudioNotice(businessId, userId);
+    if (!claimedAt) return;
+    await sendToCustomer(conversationId, [{ type: 'text', text: lineLabels[language].audioNotice }], {
+      businessId, author: 'ai', origin: 'system', clientRequestId: 'line-audio-notice:' + eventId,
+    });
+  } catch {
+    if (claimedAt) await releaseAudioNotice(businessId, userId, claimedAt).catch(() => {});
+    log.debug({ connectionId, webhookEventId: eventId }, 'LINE voice message notice could not be queued');
+  }
+}
+
+function providerMetadata(event: LineEvent, receivedAtMs: number): Record<string, unknown> {
+  if (!event.replyToken) return { lineEventId: event.webhookEventId };
+  return {
+    lineEventId: event.webhookEventId, replyToken: event.replyToken,
+    replyTokenIssuedAt: new Date(receivedAtMs).toISOString(),
+    replyTokenExpiresAt: new Date(receivedAtMs + REPLY_TOKEN_TTL_MS).toISOString(),
+  };
+}
+
 export const lineEventJob: JobHandler<LineEventJobPayload> = async (job) => {
   const businessId = job.businessId;
   if (!businessId) throw new Error('LINE event has no business');
@@ -77,30 +109,37 @@ export const lineEventJob: JobHandler<LineEventJobPayload> = async (job) => {
   const customer = {
     channel: 'line' as const, externalId: userId, displayName: 'LINE user', channelAccountId: connection.bot_user_id,
   };
-  let language: 'th' | 'en' = 'th';
+  let language: LineLanguage = 'th';
 
   try {
     if (event.type === 'follow' || event.type === 'unfollow') {
       await setFollowing(businessId, userId, event.type === 'follow', occurredAt);
       if (event.type === 'follow') await profileName(connection, userId, job.signal);
+    } else if (event.type === 'postback' && event.postback) {
+      const note = await consumeLinePostback({
+        businessId, webhookEventId, customer, providerMeta: providerMetadata(event, receivedAtMs),
+        occurredAt: occurredAt.toISOString(), data: event.postback.data,
+      });
+      if (note) return finishEvent(webhookEventId, businessId, 'ignored', note);
     } else if (event.type === 'message' && message) {
-      if (message.type === 'sticker') language = (await getBusinessSettings(businessId)).language;
-      const normalized = inboundTextParts(message, language);
-      if (!normalized) return finishEvent(webhookEventId, businessId, 'ignored', message.type === 'text' ? 'empty' : 'unsupported_type');
+      const attachment = lineAttachmentTypes.has(message.type);
+      if (attachment && await hasSavedInbound(businessId, message.id)) return finishEvent(webhookEventId, businessId, 'done');
+      if (message.type !== 'text') language = (await getBusinessSettings(businessId)).language;
+      const normalized = attachment
+        ? await inboundAttachment(message, connection, language, job.signal)
+        : inboundTextParts(message, language);
+      if (!normalized) {
+        return finishEvent(webhookEventId, businessId, 'ignored', attachment ? 'bad_message_id' : message.type === 'text' ? 'empty' : 'unsupported_type');
+      }
 
       await setFollowing(businessId, userId, true, occurredAt);
       customer.displayName = await profileName(connection, userId, job.signal);
-      const providerMeta: Record<string, unknown> = { lineEventId: webhookEventId };
-      if (event.replyToken) {
-        providerMeta.replyToken = event.replyToken;
-        providerMeta.replyTokenIssuedAt = new Date(receivedAtMs).toISOString();
-        providerMeta.replyTokenExpiresAt = new Date(receivedAtMs + REPLY_TOKEN_TTL_MS).toISOString();
-      }
       const saved = await saveMessage({
         businessId, customer, direction: 'inbound', author: 'customer', origin: 'live',
-        externalId: message.id, occurredAt: occurredAt.toISOString(), providerMeta, ...normalized,
+        externalId: message.id, occurredAt: occurredAt.toISOString(), providerMeta: providerMetadata(event, receivedAtMs), ...normalized,
       });
       if (saved.created && saved.aiJobId) await showTyping(connection, saved.conversation.id, userId, job.signal);
+      if (saved.created && message.type === 'audio') await sendAudioNotice(businessId, connectionId, saved.conversation.id, userId, webhookEventId);
     } else {
       return finishEvent(webhookEventId, businessId, 'ignored', 'unsupported_type');
     }
@@ -110,7 +149,7 @@ export const lineEventJob: JobHandler<LineEventJobPayload> = async (job) => {
       await saveMessage({
         businessId, customer, direction: 'inbound', author: 'customer', origin: 'live',
         externalId: message.id, occurredAt: occurredAt.toISOString(), triggerAi: false,
-        parts: [{ type: 'text', text: language === 'en' ? '[LINE message that could not be received]' : '[ข้อความจาก LINE ที่ระบบรับไม่สำเร็จ]' }],
+        parts: [{ type: 'text', text: lineLabels[language].failed }],
       }).catch(() => log.warn({ connectionId, webhookEventId }, 'Could not store failed LINE event placeholder'));
     }
     await finishEvent(webhookEventId, businessId, 'failed', 'processing_failed');

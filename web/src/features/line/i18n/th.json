@@ -144,7 +144,11 @@
     "group_source": "เหตุการณ์นอกแชตส่วนตัว",
     "empty": "ข้อความว่าง",
     "unsupported_type": "ชนิดที่ยังไม่รองรับ",
-    "processing_failed": "ประมวลผลไม่สำเร็จ"
+    "processing_failed": "ประมวลผลไม่สำเร็จ",
+    "bad_message_id": "รหัสข้อความไม่ถูกต้อง",
+    "invalid_postback": "ข้อมูลจากปุ่มไม่ถูกต้อง",
+    "action_owner_mismatch": "คำตอบจากปุ่มไม่ตรงกับการสนทนา",
+    "invalid_action_response": "ตรวจสอบการยืนยันไม่สำเร็จ"
   },
   "readOnly": "คุณดูได้อย่างเดียว ต้องมีสิทธิ์จัดการช่องทาง",
   "error": {

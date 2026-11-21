@@ -15,7 +15,8 @@ test('LINE routes isolate connection credentials and accept one signed event acr
   await loginAs(owner, 'owner.a@example.test');
   await loginAs(staff, 'staff.a@example.test');
   await loginAs(other, 'owner.b@example.test');
-  const path = '/api/v1/businesses/' + a + '/channels/line';
+    expect(await owner.get('/api/v1/channel-media/' + randomUUID()).then((res) => res.status)).toBe(404);
+const path = '/api/v1/businesses/' + a + '/channels/line';
 
   const channelId = String(randomInt(100_000_000, 999_999_999));
   const channelSecret = randomBytes(16).toString('hex');

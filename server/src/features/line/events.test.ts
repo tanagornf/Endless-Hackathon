@@ -5,19 +5,23 @@ import { lineEventJob, type LineEventJobPayload } from './events';
 const mocks = vi.hoisted(() => ({
   connection: vi.fn(), finish: vi.fn(), upsert: vi.fn(), contact: vi.fn(), profile: vi.fn(),
   save: vi.fn(), settings: vi.fn(), takeover: vi.fn(), request: vi.fn(), notify: vi.fn(),
+  hasInbound: vi.fn(), claimNotice: vi.fn(), releaseNotice: vi.fn(), attachment: vi.fn(), postback: vi.fn(), send: vi.fn(),
 }));
 vi.mock('../../core', () => ({
   config: { LINE_MODE: 'real' },
-  decryptSecret: (value: string) => value,
+  decryptSecret: (value: string) => value, sendToCustomer: mocks.send,
   log: { warn: vi.fn(), debug: vi.fn() },
 }));
 vi.mock('./repo', () => ({
   findJobConnection: mocks.connection, finishEvent: mocks.finish, setFollowing: mocks.upsert,
-  findContact: mocks.contact, cacheProfile: mocks.profile,
+  findContact: mocks.contact, cacheProfile: mocks.profile, hasSavedInbound: mocks.hasInbound,
+  claimAudioNotice: mocks.claimNotice, releaseAudioNotice: mocks.releaseNotice,
 }));
 vi.mock('./lineApi', () => ({ lineRequest: mocks.request }));
 vi.mock('./connection', () => ({ getAccessToken: vi.fn().mockResolvedValue('test-access-token') }));
-vi.mock('../inbox/service', () => ({ saveMessage: mocks.save }));
+vi.mock('../inbox/service', () => ({ saveMessage: mocks.save, getCustomerLanguage: async () => 'en' }));
+vi.mock('./inboundMedia', () => ({ inboundAttachment: mocks.attachment, lineAttachmentTypes: new Set(['image', 'audio']) }));
+vi.mock('./actions', () => ({ consumeLinePostback: mocks.postback }));
 vi.mock('../team/service', () => ({ isHumanTakeover: mocks.takeover }));
 vi.mock('../business-settings/service', () => ({ getBusinessSettings: mocks.settings }));
 vi.mock('../notifications/service', () => ({ notify: mocks.notify }));
@@ -46,6 +50,9 @@ describe('LINE inbound job', () => {
     mocks.contact.mockResolvedValue({ display_name: 'Test customer', profile_fetched_at: new Date() });
     mocks.settings.mockResolvedValue({ aiEnabled: true, language: 'en' });
     mocks.takeover.mockResolvedValue(false);
+    mocks.hasInbound.mockResolvedValue(false);
+    mocks.attachment.mockResolvedValue({ parts: [{ type: 'image', fileId: 'attachment', alt: 'Picture from customer' }], triggerAi: true });
+    mocks.postback.mockResolvedValue(null);
     mocks.save.mockResolvedValue({ created: true, aiJobId: 'ai-job', conversation: { id: 'conversation' } });
   });
 
@@ -86,3 +93,36 @@ describe('LINE inbound job', () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 });
+
+  it('does not redownload a previously saved attachment and passes newly saved image parts through to the inbox', async () => {
+    const message = { id: '1234567', type: 'image' };
+    mocks.hasInbound.mockResolvedValueOnce(true);
+    await lineEventJob(job({ message }));
+    expect(mocks.attachment).not.toHaveBeenCalled();
+    await lineEventJob(job({ message }));
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+      externalId: '1234567', parts: [{ type: 'image', fileId: 'attachment', alt: 'Picture from customer' }],
+    }));
+  });
+
+  it('saves audio without AI and queues the localized voice notice once per claim', async () => {
+    const message = { id: '7654321', type: 'audio' };
+    mocks.attachment.mockResolvedValue({ parts: [{ type: 'text', text: '[Voice message]' }], triggerAi: false });
+    mocks.save.mockResolvedValue({ created: true, aiJobId: null, conversation: { id: 'conversation' } });
+    mocks.claimNotice.mockResolvedValueOnce(new Date()).mockResolvedValueOnce(null);
+    await lineEventJob(job({ message }));
+    await lineEventJob(job({ message }));
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ triggerAi: false }));
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(mocks.send).toHaveBeenCalledWith('conversation', [
+      { type: 'text', text: 'Sorry, I cannot listen to voice messages yet. Please type your message.' },
+    ], expect.objectContaining({ businessId: 'business', clientRequestId: 'line-audio-notice:event-1' }));
+  });
+
+  it('preserves event scope and reply metadata when passing a postback to the action service', async () => {
+    await lineEventJob(job({ type: 'postback', postback: { data: 'nl:a:abcDEF123456' } }));
+    expect(mocks.postback).toHaveBeenCalledWith(expect.objectContaining({
+      data: 'nl:a:abcDEF123456', businessId: 'business', webhookEventId: 'event-1',
+      providerMeta: expect.objectContaining({ replyToken: 'test-reply-token' }),
+    }));
+  });
