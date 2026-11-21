@@ -11,6 +11,7 @@
     "password": "Password",
     "submit": "Sign in",
     "toggle": "Show or hide characters",
+    "noAccount": "No account yet? Sign up",
     "error": {
       "invalid": "Wrong email or password",
       "locked": "Too many attempts. Try again in {{minutes}} minutes",
@@ -18,5 +19,39 @@
       "csrf": "The request failed validation. Reload the page",
       "unavailable": "Sign-in is unavailable. Try again."
     }
+  },
+  "signup": {
+    "title": "Create your account",
+    "name": "Your name",
+    "business": "Business name",
+    "email": "Email",
+    "password": "Password (at least 10 characters)",
+    "submit": "Sign up and start",
+    "haveAccount": "Already have an account? Sign in",
+    "invite": "You are signing up to accept an invitation. Use the invited email.",
+    "error": {
+      "email_taken": "This email already has an account. Try signing in.",
+      "email_mismatch": "This email is not the invited email.",
+      "inviteMissing": "Open the invitation link again to sign up for the shop.",
+      "inviteInvalid": "This invitation can no longer be used. Ask the shop for a new link.",
+      "validation": "Check the information you entered.",
+      "limited": "Too many attempts. Try again later.",
+      "unavailable": "Signup is unavailable. Try again."
+    }
+  },
+  "password": {
+    "error": {
+      "too_short": "Password must be at least 10 characters.",
+      "too_long": "Password is longer than 128 characters.",
+      "common": "This password is too easy to guess.",
+      "same_as_email": "The password must not match your email."
+    }
+  },
+  "verify": {
+    "title": "Confirm email",
+    "working": "Confirming…",
+    "done": "Email confirmed.",
+    "error": "This link cannot be used. It may be expired or already used.",
+    "continue": "Continue to Endless"
   }
 }

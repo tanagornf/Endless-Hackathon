@@ -6,18 +6,20 @@ import request from 'supertest';
 import { expect, test } from 'vitest';
 import { mountSpa } from './spa';
 
-test('the initial invitation document suppresses referrers even before browser routing starts', async () => {
-  const dist = await mkdtemp(join(tmpdir(), 'nless-invitation-'));
+test('token-bearing documents suppress referrers even before browser routing starts', async () => {
+  const dist = await mkdtemp(join(tmpdir(), 'nless-token-document-'));
   const html = join(dist, 'index.html');
   try {
-    await writeFile(html, '<!doctype html><title>Synthetic invitation</title>');
+    await writeFile(html, '<!doctype html><title>Synthetic token document</title>');
     const app = express();
     mountSpa(app, dist);
     const agent = request(app);
-    const invitation = await agent.get('/invitations/accept?token=synthetic-test-value');
-    expect(invitation.status).toBe(200);
-    expect(invitation.headers['content-type']).toMatch(/^text\/html/);
-    expect(invitation.headers['referrer-policy']).toBe('no-referrer');
+    for (const path of ['/invitations/accept', '/invitations/accept/', '/verify-email', '/verify-email/']) {
+      const document = await agent.get(path + '?token=synthetic-test-value');
+      expect(document.status, path).toBe(200);
+      expect(document.headers['content-type'], path).toMatch(/^text\/html/);
+      expect(document.headers['referrer-policy'], path).toBe('no-referrer');
+    }
     expect((await agent.get('/')).headers['referrer-policy']).toBeUndefined();
   } finally {
     await unlink(html).catch(() => {});

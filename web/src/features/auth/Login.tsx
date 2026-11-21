@@ -2,9 +2,9 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlined from '@mui/icons-material/VisibilityOffOutlined';
-import { Alert, Box, Button, IconButton, InputAdornment, Paper, Stack, TextField } from '@mui/material';
+import { Alert, Box, Button, IconButton, InputAdornment, Link, Paper, Stack, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import type { AuthResult, LoginInput } from '@nless/shared/features/auth/types';
 import { LanguageSwitch, PageHeader, useApiMutation, useSession } from '../../core';
 import { safeNext } from './safeNext';
@@ -14,6 +14,8 @@ export default function Login() {
   const { refresh } = useSession();
   const navigate = useNavigate();
   const [search] = useSearchParams();
+  const next = safeNext(search.get('next'));
+  const signupPath = next === '/invitations/accept' ? '/signup?invite=1' : '/signup';
   const [show, setShow] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const login = useApiMutation<LoginInput, AuthResult>('POST', '/auth/login', {
@@ -46,7 +48,7 @@ export default function Login() {
     try {
       await login.run({ email: String(values.get('email')), password: String(values.get('password')) });
       await refresh();
-      navigate(safeNext(search.get('next')), { replace: true });
+      navigate(next, { replace: true });
     } catch {
       // The mutation exposes the failure for the inline alert.
     } finally {
@@ -72,6 +74,7 @@ export default function Login() {
             </InputAdornment> },
           }} />
         <Button type="submit" variant="contained" data-testid="login-submit" loading={busy}>{t('login.submit')}</Button>
+        <Link component={RouterLink} to={signupPath} sx={{ alignSelf: 'flex-start', py: 1 }}>{t('login.noAccount')}</Link>
       </Stack>
     </Paper>
   </Box>;

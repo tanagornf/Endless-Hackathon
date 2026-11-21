@@ -2,6 +2,14 @@ import { detectTextLanguage } from '@nless/shared/core/language';
 import type { CustomerLanguage } from '@nless/shared/core/language';
 
 export const fallbacks = {
+  greeting: {
+    th: 'สวัสดีค่ะ มีอะไรให้ช่วยไหมคะ',
+    en: 'Hello! How can I help?',
+  },
+  goodbye: {
+    th: 'ยินดีค่ะ ขอบคุณที่ทักมานะคะ',
+    en: "You're welcome. Thanks for stopping by!",
+  },
   no_answer: {
     th: 'ขอตรวจสอบข้อมูลกับร้านก่อนนะคะ',
     en: 'Let me check with the shop first.',

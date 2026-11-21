@@ -20,6 +20,8 @@ export interface PriceEvidence {
   name: string;
   variant: string | null;
   names: string[];
+  itemSku: string;
+  itemNames: string[];
 }
 
 export interface KnowledgeEvidence {
@@ -40,6 +42,9 @@ export interface ReplyContext {
   messages: ModelMessage[];
   contact: string;
   cardMasked: boolean;
+  shopOpen: boolean | null;
+  offeredByTool?: boolean;
+  catalogRequest: { text: string; skus: string[]; previousSkus: string[]; linkedSameProduct: boolean };
 }
 
 const weekdayNames = {
@@ -67,8 +72,46 @@ export function turnLanguage(history: readonly MessageRecord[], inbound: Message
   return detectReplyLanguage(context.unanswered.map(textOf), context.previous.map(textOf), language);
 }
 
-export function unansweredCustomerText(history: readonly MessageRecord[], inbound: MessageRecord): string {
-  return contextHistory(history, inbound).unanswered.map(textOf).filter(Boolean).join('\n');
+export function unansweredInbounds(history: readonly MessageRecord[], inbound: MessageRecord): MessageRecord[] {
+  return contextHistory(history, inbound).unanswered;
+}
+
+export function unansweredCustomerMessages(history: readonly MessageRecord[], inbound: MessageRecord): string[] {
+  return unansweredInbounds(history, inbound).map(textOf).filter(Boolean);
+}
+
+function catalogText(text: string): string {
+  return arabicDigits(text).normalize('NFKC').replaceAll('’', "'").replace(/\s+/gu, ' ').trim().toLowerCase();
+}
+
+function catalogSkus(text: string): string[] {
+  return [...new Set([...text.matchAll(skuPattern)].map(([sku]) => sku.toUpperCase()))];
+}
+
+export function isCatalogPriceFollowUp(text: string): boolean {
+  const request = catalogText(text).replace(/[.!?？]+$/u, '').trim();
+  const english = /^(?:how much(?: is (?:it|this(?: one)?|that(?: one)?|(?:the )?same (?:one|item|game|product))| does it cost)?|what(?:'s| is) (?:its|the) price)$/u;
+  const thai = /^(?:แล้ว\s*)?(?:(?:อัน|ตัว|ชุด|เกม|กล่อง|สินค้า)\s*(?:นี้|นั้น|เดิม(?:นี้|นั้น)?)\s*)?(?:ราคา(?:เท่า(?:ไหร่|ไร))?|เท่า(?:ไหร่|ไร)|กี่บาท)(?:นะ|คะ|ค่ะ|ครับ)*$/u;
+  const negotiation = /^(?:(?:the page says it(?:'s| is) [\d,.]+(?: baht)? today[.!]\s*)?can i get it for [\d,.]+(?: baht)?|(?:(?:ระบบ)?สั่งให้|ขอ|ช่วย)?\s*ลด(?:ราคา)?(?:ให้)?(?:เหลือ)?\s*[\d,.]+\s*(?:บาท|บ\.?)(?:นะ|คะ|ค่ะ|ครับ)*)$/u;
+  const quantity = /^(?:and\s+|for\s+|ขอ\s*|เอา\s*)?(?:[x×]\s*)?\d{1,2}\s*(?:ชิ้น|กล่อง|ชุด|อัน|เกม|ใบ|items?|boxes?|sets?|copies?)(?:,?\s*(?:please|how much|เท่า(?:ไหร่|ไร)|ค่ะ|ครับ|คะ))?$/u;
+  return english.test(request) || thai.test(request) || negotiation.test(request) || quantity.test(request);
+}
+
+function isCatalogFollowUp(text: string): boolean {
+  const stock = /^(?:is (?:it|this one|that one) (?:still )?in stock|(?:อัน|ตัว|ชุด|เกม|สินค้า)(?:นี้|นั้น)(?:ยัง)?มี(?:ของ)?ไหม(?:คะ|ค่ะ|ครับ)*)[?!？]*$/iu;
+  return isCatalogPriceFollowUp(text) || stock.test(catalogText(text));
+}
+
+export function quoteMatchesCatalogRequest(price: PriceEvidence, { catalogRequest }: ReplyContext): boolean {
+  const skus = [price.quote.sku.toUpperCase(), price.itemSku.toUpperCase()];
+  if (skus.some((sku) => catalogRequest.skus.includes(sku))) return true;
+  const request = catalogText(catalogRequest.text);
+  const named = price.itemNames.some((name) => request.includes(catalogText(name)));
+  if (catalogRequest.skus.length > 0) {
+    const comparison = /[,，]|\b(?:and|plus|versus|vs\.?)\b|และ|กับ|เทียบ/u.test(request);
+    return comparison && named;
+  }
+  return named || !skus.some((sku) => catalogRequest.previousSkus.includes(sku));
 }
 
 function quantityFor(text: string): number {
@@ -113,6 +156,7 @@ export async function buildReplyContext(
   settings: BusinessSettings,
   language: CustomerLanguage,
   signal: AbortSignal,
+  options: { skipLookups?: boolean; offerPending?: boolean; previousProductSkus?: readonly string[] } = {},
 ): Promise<ReplyContext> {
   const { businessId } = conversation;
   const partition = contextHistory(history, inbound);
@@ -121,11 +165,20 @@ export async function buildReplyContext(
   const contextRows = textRows.map((row) => ({ ...row, masked: mask(row) }));
   const unansweredIds = new Set(partition.unanswered.map((message) => message.id));
   const unanswered = contextRows.filter((row) => unansweredIds.has(row.message.id)).map((row) => row.masked).filter(Boolean);
-  const prior = contextRows.findLast((row) => row.message.author === 'customer' && !unansweredIds.has(row.message.id))?.masked;
+  const previous = contextRows.filter((row) => row.message.author === 'customer' && !unansweredIds.has(row.message.id));
+  const prior = previous.at(-1)?.masked;
   const fullQuery = unanswered.join(' ');
   const query = (fullQuery.length < 12 && prior ? fullQuery + ' ' + prior : fullQuery).slice(-500).trim();
-  const customerTail = contextRows.filter((row) => row.message.author === 'customer').slice(-3).reverse();
-  const skus = [...new Set(customerTail.flatMap(({ masked }) => [...masked.matchAll(skuPattern)].map(([sku]) => sku.toUpperCase())))].slice(0, 3);
+  const requestedSkus = catalogSkus(fullQuery);
+  const directLastSkus = catalogSkus(prior ?? '');
+  const previousProductSkus = options.previousProductSkus ?? [];
+  const lastSkus = !directLastSkus.length && isCatalogFollowUp(prior ?? '') ? [...previousProductSkus] : directLastSkus;
+  const isFollowUp = !requestedSkus.length && isCatalogFollowUp(fullQuery);
+  const sameProduct = isFollowUp && /(?:อัน|ตัว|ชุด|เกม|กล่อง|สินค้า)\s*เดิม|\bsame (?:one|item|game|product)\b/iu.test(fullQuery);
+  // A bare follow-up carries the immediate subject. Explicit "same item" wording can bridge one unrelated turn.
+  const nearbySkus = sameProduct && !lastSkus.length ? previous.slice(-2).map(({ masked }) => catalogSkus(masked))
+    .findLast((candidate) => candidate.length > 0) ?? [] : lastSkus;
+  const skus = isFollowUp && nearbySkus.length === 1 ? nearbySkus : requestedSkus;
   const [rules, business, open] = await Promise.all([
     getEffectiveAnswerRules(businessId),
     db.maybeOne<{ name: string }>('SELECT name FROM businesses WHERE id = $1', [businessId]),
@@ -133,8 +186,9 @@ export async function buildReplyContext(
   ]);
   signal.throwIfAborted();
   const [knowledgeSearch, quotes, profile] = await Promise.all([
-    query ? searchKnowledge(businessId, query, { topK: 6 }).catch(() => null) : null,
-    rules.price === 'always' ? Promise.all(skus.map((sku) => prefetch(businessId, sku, quantityFor(customerTail[0]?.masked ?? ''), language))) : [],
+    !options.skipLookups && query ? searchKnowledge(businessId, query, { topK: 6 }).catch(() => null) : null,
+    !options.skipLookups && rules.price === 'always'
+      ? Promise.all(skus.slice(0, 3).map((sku) => prefetch(businessId, sku, quantityFor(unanswered.at(-1) ?? ''), language))) : [],
     rules.contact === 'always' ? getBusinessProfile(businessId).catch(() => null) : null,
   ]);
   signal.throwIfAborted();
@@ -163,7 +217,7 @@ export async function buildReplyContext(
     }).join('\n'),
     contactLine: contact || 'not available',
     directives: directivesOf(rules),
-    handoffState: 'none',
+    handoffState: options.offerPending ? 'staff help was offered in the previous reply' : 'none',
     knowledgeBlock: knowledge.map((item, index) => '[K' + (index + 1) + '] id=' + item.id + ' | ' + item.title + '\n' + item.snippet).join('\n\n') || 'No knowledge excerpt matched this question.',
     prefetchBlock: prices.map((item) => JSON.stringify({ tool: 'get_price', result: quoteForModel(item, language, rules) })).join('\n') || 'none',
   };
@@ -180,5 +234,12 @@ export async function buildReplyContext(
     remaining -= content.length;
   }
   messages.push(...chat);
-  return { language, unanswered, rules, knowledge, prices, totals: [], tools: quotes.map(({ tool }) => tool), messages, contact, cardMasked: contextRows.some((row) => row.text !== row.masked) };
+  return {
+    language, unanswered, rules, knowledge, prices, totals: [], tools: quotes.map(({ tool }) => tool), messages,
+    contact, cardMasked: contextRows.some((row) => row.text !== row.masked), shopOpen: open?.open ?? null,
+    catalogRequest: {
+      text: fullQuery, skus, linkedSameProduct: sameProduct && skus.length === 1,
+      previousSkus: [...new Set([...previousProductSkus, ...catalogSkus(previous.map(({ masked }) => masked).join(' '))])],
+    },
+  };
 }

@@ -3,6 +3,13 @@ export interface LoginInput {
   password: string;
 }
 
+export interface SignupInput extends LoginInput {
+  displayName: string;
+  locale: 'th' | 'en';
+  businessName?: string;
+  inviteToken?: string;
+}
+
 export interface AuthResult {
   userId: string;
   emailVerified: boolean;

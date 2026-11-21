@@ -1,6 +1,7 @@
 import { formatMoneyText } from '@nless/shared/core/language';
 import type { AiGuardAction } from '@nless/shared/features/ai-agent/types';
 import type { MessagePart } from '@nless/shared/core/types';
+import { isCatalogPriceFollowUp } from './context';
 import type { PriceEvidence, ReplyContext } from './context';
 import { fallbacks } from './fallbacks';
 import { maskCardNumbers } from './mask';
@@ -16,7 +17,7 @@ const stockPattern = /สินค้าคงเหลือ|เหลือ\s*
 const priceQuestion = /ราคา|เท่า(?:ไหร่|ไร)|ลด(?:เหลือ|ราคา)|\b(?:price|priced|cost|costs|how much|discount)\b/iu;
 
 export function isPriceQuestion(context: ReplyContext): boolean {
-  return priceQuestion.test(context.unanswered.join(' '));
+  return priceQuestion.test(context.catalogRequest.text) || isCatalogPriceFollowUp(context.catalogRequest.text);
 }
 
 function stripMarkdown(text: string): string {

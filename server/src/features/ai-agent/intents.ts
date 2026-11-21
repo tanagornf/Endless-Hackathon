@@ -4,6 +4,14 @@ const explicitEnglish = /\b(?:talk|speak|chat|connect|transfer)\s*(?:me\s*)?(?:t
 const shortEnglish = /^(?:(?:a|the)\s+)?(?:human|real person|live agent|human agent)(?:\s+please)?[.!?]*$/imu;
 const exclusion = /(แอดมิน|admin)\s*(คืออะไร|คือ|หมายถึง)|what is (?:an? )?admin|ราคา.*(แอดมิน|admin)|(โปรแกรม|แพ็กเกจ).*(แอดมิน|admin)/iu;
 const negation = /ไม่ต้อง\s*(?:คุย|พูด|ติดต่อ|ต่อสาย|โอน|ส่งต่อ|เรียก)|ไม่ได้\s*(?:ขอ|อยาก|ต้องการ)\s*(?:คุย|พูด|ติดต่อ)|\b(?:don't|do not|no need to|not asking to|not want to)\b.{0,24}\b(?:talk|speak|chat|connect|transfer|human|person|staff|agent)\b/iu;
+const affirmative = /^(?:ต้องการ|ต้อง|เอา|ได้|ได้เลย|ใช่|ใช่ค่ะ|ใช่ครับ|ค่ะ|คะ|ครับ|โอเค|โอเคค่ะ|โอเคครับ|ok|okay|yes|yep|sure|please|ขอ|ช่วยหน่อย|ส่งต่อ|ต่อเลย|yesplease)(?:ค่ะ|ครับ|คะ|นะ|เลย|หน่อย|จ้า)*$/iu;
+const decline = /^(?:ไม่|ไม่เป็นไร|ไม่ต้อง|ไม่เอา|no|nope|nothanks)(?:ค่ะ|ครับ|คะ|นะ|เลย|จ้า)*$/iu;
+
+export function replyToStaffOffer(text: string): 'accepted' | 'declined' | null {
+  const normalized = text.normalize('NFKC').replace(/[\s\p{P}\u200B-\u200D\uFEFF]+/gu, '').toLowerCase();
+  if (affirmative.test(normalized)) return 'accepted';
+  return decline.test(normalized) ? 'declined' : null;
+}
 
 export function explicitlyRequestsStaff(text: string): boolean {
   const normalized = text.normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g, '').replaceAll('’', "'");

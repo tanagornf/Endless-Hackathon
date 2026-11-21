@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | d38f851 | F10, core loop and channels 86/86. Verified same-reply delivery retry and terminal trace, and recovered lost enqueue acknowledgement. Real dev S2 generation 9/9. | 2026-11-21 13:23 +07:00 | Production smoke and remaining S3 intents pending. |
+| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | 6e53dca | Final gate focus 10/10, typecheck and ownership passed. Prior fixed head passed 101/101 independently. | 2026-11-21 13:56 +07:00 | Deployed gate step 3 retest, trace UI and F11 crash recovery receipt pending. |
 
 ## Log
 
@@ -21,6 +21,11 @@
 | 2026-11-21 13:01 | Added the explicit request path, F11 handoff checkpoint, versioned acknowledgement and fallback after exhausted retries. | — | be677e7 | `npm test -- ai-agent loop.test.ts channels.test.ts` passed 84/84. Includes current-version queue send and suppression after a subsequent staff claim. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
 | 2026-11-21 13:10 | Verified the explicit handoff against the real F04 hours service and F35's queued delivery guard. | — | 33c1d28 | `npm test -- ai-agent loop.test.ts channels.test.ts` passed 84/84 on core c291657. A queued acknowledgement sent at the matching version and was suppressed after either staff claim or handback to AI. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
 | 2026-11-21 13:23 | Kept generation complete and linked the exact persisted delivery outcome on terminal enqueue failure. | B0 independently replayed both failure and lost acknowledgement with C1's candidate. | d38f851 | `npm test -- ai-agent loop.test.ts channels.test.ts` passed 86/86. Both new cases use one model call and one saved reply. The paired replay matched the terminal error in the F09 row and F10 owner trace, found zero delivery jobs after definitive failure, and one succeeded job after a lost acknowledgement. | `MODEL_MODE=fake`, separate B2 and B0 test DBs. |
+| 2026-11-21 13:35 | Released same-reply terminal delivery trace using C1's real reconciliation. | B0 independently verified a failed exact message reopened and sent once. | 07a03dd | Exact head 037e471 passed three focused delivery tests and hosted CI. | `MODEL_MODE=fake`, separate B2 and B0 test DBs. |
+| 2026-11-21 13:40 | Added intent classification, bilingual offers and confirmation, the image fallback, and LINE-only capability copy. | — | 9c5cab0 | `npm test -- ai-agent loop.test.ts channels.test.ts` passed 94/94. Covered G19–G21, classifier cancellation, Thai confirmation, denial, the budget fallback and the owner alert when handoff is disabled. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 13:47 | Reproduced the gate's old-SKU price surviving an explicit unknown SKU, a fresh missing-name lookup and a model tool call to an older SKU. | C0 correlated the unknown Thai turn and its one catalog source with the exact sent F09 reply. | 11b613e | Three failure reproductions and one passing follow-up control in 37.97s. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 13:54 | Scoped catalog prefetch, tool results and totals to the active request. Retained unambiguous English/Thai follow-ups, 990-baht negotiation and quantity totals. | B0 independently confirmed the unknown and Thai same-product cases. | c9ef4ea | Scoped local 8/8, independent F10/core suite 101/101 and independent gate pair 2/2. | `MODEL_MODE=fake`, B2 lane and isolated cloud test DBs. |
+| 2026-11-21 13:56 | Excluded F10-traced staff-held messages from later AI pricing without changing the superseded-turn backlog. | The UI verifier flagged a separate handback pricing regression. | 6e53dca | `npm test -- ai-agent -t 'F10 catalog reference scope|G1 uses|G17 supersedes'` passed 10/10 in 66.71s. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
 
 S1 serializes direct and queued turns with a short `ai.turn:<conversationId>` transaction lock and a fenced lease. The tests exercise a stale holder, a duplicate inbound, overlapping direct and queued turns, and four queued conversations with the default five-connection pool. The focused expired-lease test on the F35 base passed and verified exactly one AI save and one delivery enqueue call after a replacement holder finished.
 
@@ -28,11 +33,13 @@ After the reply is saved, the shop subscription receives `ai.turn` with `data.tu
 
 The S2 tests cover G2, G3, G4, G5, G13, G14 and G16. They use scripted OpenAI responses and the F07 and F08 application services. The dev S1 observations are recorded separately. [B0 gate evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058026663)
 
-The trace list, metrics and `/ai-settings` remain in S5. The first S3 slice covers explicit Thai and English requests, the closed-shop acknowledgement, the fallback wait when F11 fails, and handoff after exhausted model retries. Broader intent classification and offers remain in S3. Production evidence is pending.
+The trace list, metrics and `/ai-settings` remain in S5. S3 covers explicit Thai and English requests, shop-hours-aware acknowledgement, the fallback wait, intent classification, staff offers and consent, and handoff after model failure. LINE is the external customer channel. Demo Chat is an internal test surface. Production evidence and the cross-feature F11 restart receipt remain pending.
 
 F10 saves a version marker only after a successful F11 assignment and reuses the same saved acknowledgement on delivery retry. Tests cover AI-off before save, a manual takeover race, and suppression after a later staff claim or handback to AI. [Core delivery guard](https://github.com/tanagornf/Endless-Hackathon/pull/26)
 
-After three definite enqueue failures, the generated turn remains complete and keeps the saved reply ID. Its owner trace reports `DELIVERY_ENQUEUE_FAILED` from the scoped F09 delivery state. A committed job with a lost acknowledgement continues to dispatch the same reply. [Independent worker replay](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058509112)
+After three definite enqueue failures, the generated turn remains complete and keeps the saved reply ID. Its owner trace reports `DELIVERY_ENQUEUE_FAILED` from the scoped F09 delivery state. A committed job with a lost acknowledgement continues to dispatch the same reply. [Independent worker replay](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058708480)
+
+In the earlier production gate, the unknown explicit SKU received the previous known product's price. The fix requires an active product match for price and total tools and limits historical prefetch to explicit or unambiguous follow-ups. It also omits a staff-held request from the first later AI quote after handback while retaining superseded messages in the normal unanswered backlog. [Production owner trace evidence](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058840936)
 
 ## S2 OpenAI development acceptance
 
