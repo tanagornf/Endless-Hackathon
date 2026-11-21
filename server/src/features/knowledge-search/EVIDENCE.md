@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F07 | knowledge-search | B1 | DOING | R | A | OpenAI embed at 1536 dimensions, production smoke | | A0 scoped suite 15/15 in 71.89 s on 7d3a848. B0 synthetic SQL checks 13/13. | 2026-11-21 13:36 | Production provider verification and workbench slices pending. |
+| F07 | knowledge-search | B1 | DOING | R | A | OpenAI embed at 1536 dimensions, production smoke | | Workbench API and metrics 5/5. TH/EN Playwright smoke discovered. B1 app-dev real seeded retrieval run 22 cases. | 2026-11-21 14:16 | Full corpus loading, remaining S2 controls and production smoke pending. |
 
 ## Log
 
@@ -13,6 +13,13 @@
 - Retrieval confirms the source item is still active even if a status write committed before index cleanup. Index publication locks the F05 source row in the same transaction.
 - The seed checks that ready metadata has every expected non-null vector with the configured model and dimensions. Ordinary seed repairs incomplete fixtures and corrects visibility using the current item and revision under its publication lock. Visibility-only repairs use the existing vectors. An in-flight generation yields a failed seed step without a competing claim.
 - The isolated A0 fake-model run exercised missing chunks, null vectors, stale chunk model, visibility repair without model use, and queued or running generations. B0 independently checked tenant scope and readiness against synthetic PostgreSQL rows. The shared admin reset provider guard is tracked in F35.
-- The English FAQ activation smoke is discoverable with Playwright. Production execution and real-provider retrieval metrics remain pending.
+- The English FAQ activation smoke is discoverable with Playwright. Production execution remains pending.
 
 - B1 development smoke used real OpenAI embeddings. Eight seed revisions indexed. Thai opening-hours query ranked the matching FAQ first (0.628). English returns query found the return policy (0.529). The other-shop marker returned zero hits. This was a three-query smoke, with full fixture evaluation pending in S2.
+
+## S2 workbench
+
+- `/knowledge-search` shows the tenant's index status and actual search results in Thai and English. The search API returns its effective strategy, scores, snippets and source revision. Source reads and run and saved-case listing are tenant scoped. Evaluation persists its run and compares it with the shop's prior metrics.
+- The focused workbench integration and grouped metric checks passed 5/5 in 26.29 s in the isolated B1 test database, with the model in fake mode. Both Thai and English Playwright smoke cases are discoverable. Production execution is pending.
+- The B1 app-dev real run `9f15a10e-0c9c-4bb1-9205-0bca7f290f89` at implementation `0936380` used hybrid retrieval with the configured OpenAI model `text-embedding-3-large` at 1536 dimensions. Demo A had three searchable items, five indexed chunks and zero stale-model chunks. There were 22 successful query embeddings, 344 input tokens and 46 USD micros in `model_usage`. The measured run took 5.630 s.
+- This seed-only run measured 22 available cases from fixture v1: 14 Thai, one English and seven cross-language. Recall at 1, 3 and 5 was 1.000 across the 12 positives, with group positive counts seven, one and four. MRR was 1.000. Off-topic cases passed 7/7 and forbidden-item cases passed 3/3. The results apply to this partial corpus. Fixture loading, saved-case editing, query cache, reranking and production verification remain pending.

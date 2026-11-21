@@ -1,9 +1,12 @@
 import { z } from 'zod';
 import { AppError, config, db, model } from '../../core';
-import type { KnowledgeHit, KnowledgeSearchResult, SearchKnowledgeOptions } from '@nless/shared/features/knowledge-search/types';
+import type {
+  KnowledgeHit, KnowledgeSearchResult, RetrievalConfig, RetrievalStrategy, SearchKnowledgeOptions,
+  WorkbenchHit, WorkbenchSearchOptions, WorkbenchSearchResult,
+} from '@nless/shared/features/knowledge-search/types';
 import {
-  DEFAULT_MIN_SCORE, FAKE_MIN_SCORE, INDEX_DIMENSIONS, LEX_CANDIDATES, LEXICAL_FALLBACK_MIN_SCORE,
-  QUERY_MAX_CHARS, SNIPPET_MAX_CHARS, VEC_CANDIDATES,
+  C0, C0_XLANG, C1, DEFAULT_MIN_SCORE, FAKE_MIN_SCORE, INDEX_DIMENSIONS, LEX_CANDIDATES, LEXICAL_FALLBACK_MIN_SCORE,
+  QUERY_MAX_CHARS, SNIPPET_MAX_CHARS, VEC_CANDIDATES, W_LEX, W_VEC, W_XLANG,
 } from './config';
 import { getActiveKnowledgeItemIds } from '../knowledge/service';
 import { scoreChunk } from './score';
@@ -19,6 +22,7 @@ interface Candidate {
   text: string;
   lexical_terms: string[];
   cos: number | null;
+  semantic_match: boolean;
   population: number;
   document_frequency: Record<string, number>;
 }
@@ -55,6 +59,7 @@ async function candidates(businessId: string, allTerms: string[], folders: strin
         'SELECT t,count(*)::int AS occurrences FROM sample CROSS JOIN LATERAL unnest(lexical_terms) t WHERE t=ANY($2) GROUP BY t' +
       ') SELECT c.item_id,c.revision,c.folder_id,c.kind,c.chunk_no,c.title,c.text,c.lexical_terms,' +
         'CASE WHEN c.embed_model=$5 AND c.embed_dim=$8 THEN 1-(c.embedding <=> $4::vector) END AS cos,' +
+      'c.id IN (SELECT id FROM semantic) AS semantic_match,' +
         '(SELECT count(*)::int FROM sample) AS population, ' +
         "(SELECT COALESCE(jsonb_object_agg(t,occurrences),'{}'::jsonb) FROM terms) AS document_frequency " +
       'FROM knowledge_chunks c WHERE c.business_id=$1 AND c.searchable AND c.id IN (SELECT id FROM lexical UNION SELECT id FROM semantic)',
@@ -77,10 +82,25 @@ function resultHit(chunk: Candidate, score: number): KnowledgeHit {
 
 const folderFilter = z.array(z.string().uuid()).max(20);
 
-export async function searchKnowledge(businessId: string, query: string, opts?: SearchKnowledgeOptions): Promise<KnowledgeSearchResult> {
+export function retrievalSettings(strategy: RetrievalStrategy, options?: WorkbenchSearchOptions): RetrievalConfig {
+  const weights = options?.weights;
+  return {
+    strategy, wVec: weights?.vec ?? W_VEC, wLex: weights?.lex ?? W_LEX, wXlang: W_XLANG,
+    c0Xlang: Math.min(C0_XLANG, weights?.c0 ?? C0), c0: weights?.c0 ?? C0, c1: weights?.c1 ?? C1, rerank: false,
+    minScore: options?.minScore ?? (strategy !== 'lexical' ? DEFAULT_MIN_SCORE
+      : config.MODEL_MODE === 'fake' ? FAKE_MIN_SCORE : LEXICAL_FALLBACK_MIN_SCORE),
+    embedModel: config.MODEL_MODE === 'fake' ? 'fake-hash' : config.OPENAI_EMBED_MODEL,
+  };
+}
+
+export async function searchWorkbench(businessId: string, query: string, opts?: WorkbenchSearchOptions): Promise<WorkbenchSearchResult> {
+  const start = performance.now();
   const text = query.trim().slice(0, QUERY_MAX_CHARS);
   const mode = config.MODEL_MODE === 'fake' ? 'fake' : 'real';
-  if (!text) return { query: text, strategy: 'lexical', mode, hits: [] };
+  if (!text) return {
+    query: text, strategy: 'lexical', mode, hits: [], config: retrievalSettings('lexical', opts), belowThreshold: [],
+    timings: { embedMs: 0, sqlMs: 0, rerankMs: null, totalMs: 0 }, cacheHit: false,
+  };
   const topK = Number.isFinite(opts?.topK) ? Math.min(20, Math.max(0, Math.floor(opts!.topK!))) : 5;
   const rawFolders = opts?.folderIds;
   const folders = folderFilter.safeParse(rawFolders ?? []);
@@ -89,27 +109,49 @@ export async function searchKnowledge(businessId: string, query: string, opts?: 
   const allTerms = [...terms.words, ...terms.skus];
   const markers = terms.skus.filter((sku) => /^tenant_[a-z]+_only_[a-z]+_\d+$/.test(sku));
   try {
-    const vector = await queryVector(businessId, text);
+    const embedStart = performance.now();
+    const vector = opts?.strategy === 'lexical' ? null : await queryVector(businessId, text);
+    const sqlStart = performance.now();
     const rows = await candidates(businessId, allTerms, folders.data.length ? folders.data : null, vector);
-    const strategy = rows.some((chunk) => chunk.cos !== null) ? 'hybrid' : 'lexical';
-    const minimum = opts?.minScore ?? (strategy === 'hybrid' ? DEFAULT_MIN_SCORE :
-      mode === 'fake' ? FAKE_MIN_SCORE : LEXICAL_FALLBACK_MIN_SCORE);
+    const sqlMs = Math.round(performance.now() - sqlStart);
+    const strategy = rows.some((chunk) => chunk.cos !== null)
+      ? opts?.strategy === 'vector' ? 'vector' : 'hybrid'
+      : 'lexical';
+    const settings = retrievalSettings(strategy, opts);
     const ranked = rows
-      .filter((chunk) => markers.every((marker) => chunk.lexical_terms.includes(marker)))
-      .map((chunk) => ({ chunk, score: scoreChunk(text, terms, chunk, strategy).final }))
-      .filter(({ score }) => score >= minimum && score > 0)
-      .sort((a, b) => b.score - a.score || b.chunk.revision - a.chunk.revision ||
+      .filter((chunk) => (strategy !== 'vector' || chunk.semantic_match) &&
+        markers.every((marker) => chunk.lexical_terms.includes(marker)))
+      .map((chunk) => ({ chunk, score: scoreChunk(text, terms, chunk, strategy, opts?.weights) }))
+      .sort((a, b) => b.score.final - a.score.final || b.chunk.revision - a.chunk.revision ||
         a.chunk.item_id.localeCompare(b.chunk.item_id) || a.chunk.chunk_no - b.chunk.chunk_no);
     const found = new Set<string>();
-    const hits: KnowledgeHit[] = [];
+    const hits: WorkbenchHit[] = [];
+    const belowThreshold: WorkbenchSearchResult['belowThreshold'] = [];
     for (const { chunk, score } of ranked) {
-      if (hits.length >= topK) break;
       if (found.has(chunk.item_id)) continue;
       found.add(chunk.item_id);
-      hits.push(resultHit(chunk, score));
+      if (score.final >= settings.minScore && score.final > 0) {
+        if (hits.length < topK) hits.push({
+          ...resultHit(chunk, score.final), status: 'active', chunkText: chunk.text,
+          debug: { ...score, chunkNo: chunk.chunk_no, cos: chunk.cos },
+        });
+      } else if (belowThreshold.length < 3) {
+        belowThreshold.push({ knowledgeItemId: chunk.item_id, title: chunk.title, final: score.final });
+      }
     }
-    return { query: text, strategy, mode, hits };
+    return {
+      query: text, strategy, mode, hits, config: settings, belowThreshold, cacheHit: false,
+      timings: { embedMs: Math.round(sqlStart - embedStart), sqlMs, rerankMs: null, totalMs: Math.round(performance.now() - start) },
+    };
   } catch (cause) {
     throw new AppError('INTERNAL', 'Knowledge search failed', { cause });
   }
+}
+
+export async function searchKnowledge(businessId: string, query: string, opts?: SearchKnowledgeOptions): Promise<KnowledgeSearchResult> {
+  const result = await searchWorkbench(businessId, query, opts);
+  return {
+    query: result.query, strategy: result.strategy, mode: result.mode,
+    hits: result.hits.map(({ debug: _debug, chunkText: _chunkText, status: _status, ...hit }) => hit),
+  };
 }
