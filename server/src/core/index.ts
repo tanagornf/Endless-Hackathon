@@ -6,7 +6,7 @@ export { jobs } from './jobs';
 export { drainJobs } from './worker';
 export { redactText, redactObject } from './redact';
 export { model } from './model';
-export { getUser, getBusiness, requirePermission, requirePlatformAdmin, createSession, destroySession, revokeUserSessions } from './auth';
+export { getUser, getBusiness, requirePermission, requirePlatformAdmin, createSession, destroySession, revokeUserSessions, revokeUserSessionsInTransaction } from './auth';
 export { sendToCustomer, registerChannelSender, ChannelSendError } from './channels';
 export { publish } from './realtime';
 export { storage, assertUploadAllowed } from './storage';
