@@ -10,9 +10,9 @@ import {
   JOBS_MAX_RESCHEDULES, JOBS_POLL_MS, JOBS_RESULT_MAX_BYTES, JOBS_SHUTDOWN_GRACE_MS,
 } from './jobs-config';
 import { jobContext, log } from './log';
-import { publishDeliveryChange, SETTLE_DEAD_DELIVERIES_SQL } from './outbox';
-import type { SettledDeliveryJob } from './outbox';
+import { publishDeliveryChange, settleTerminalDeliveries } from './outbox';
 import { redactObject, redactText } from './redact';
+import type { DbExecutor } from './types';
 
 interface JobIdentity { id: string; type: string; business_id: string | null; attempts: number }
 interface JobClaim extends JobIdentity {
@@ -51,17 +51,18 @@ async function onDead(job: JobIdentity, lastError: string) {
   }).catch(() => log.warn({ jobId: job.id, type: job.type }, 'Dead job audit could not be written'));
 }
 async function reap(type?: string): Promise<number> {
-  const { rows } = await db.query<SettledDeliveryJob>(`
-    WITH settled_jobs AS (
+  const expired = "state='running' AND locked_until<now() AND attempts>=max_attempts AND ($1::text IS NULL OR type=$1)";
+  if (!await db.maybeOne(`SELECT id FROM jobs WHERE ${expired} LIMIT 1`, [type ?? null])) return 0;
+  const { rows, deliveries } = await db.tx(async (tx) => {
+    const { rows } = await tx.query<JobIdentity>(`
       UPDATE jobs SET state='dead',dead_at=now(),finished_at=now(),updated_at=now(),claim_token=NULL,
-        locked_until=NULL,locked_by=NULL,last_error=$2 WHERE state='running' AND locked_until<now()
-        AND attempts>=max_attempts AND ($1::text IS NULL OR type=$1)
-      RETURNING id,type,business_id,attempts,payload,state
-    ) ${SETTLE_DEAD_DELIVERIES_SQL}`, [type ?? null, exhausted]);
-  for (const row of rows) {
-    if (row.delivery) await publishDeliveryChange(row.delivery);
-    await onDead(row, exhausted);
-  }
+        locked_until=NULL,locked_by=NULL,last_error=$2 WHERE ${expired}
+      RETURNING id,type,business_id,attempts`, [type ?? null, exhausted]);
+    const deliveries = await settleTerminalDeliveries(tx, rows.filter(({ type }) => type === 'core.deliver').map(({ id }) => id));
+    return { rows, deliveries };
+  });
+  for (const delivery of deliveries) await publishDeliveryChange(delivery);
+  for (const row of rows) await onDead(row, exhausted);
   return rows.length;
 }
 
@@ -110,23 +111,30 @@ interface Settlement {
   payload?: string;
 }
 async function settle(job: JobClaim, outcome: Settlement): Promise<boolean> {
-  const changed = await db.maybeOne<SettledDeliveryJob>(
-    "WITH settled_jobs AS (UPDATE jobs SET state=$3::text,claim_token=NULL,locked_until=NULL,locked_by=NULL,updated_at=now()," +
+  const update = (executor: DbExecutor) => executor.maybeOne<JobIdentity>(
+    "UPDATE jobs SET state=$3::text,claim_token=NULL,locked_until=NULL,locked_by=NULL,updated_at=now()," +
     "attempts=attempts-CASE WHEN $4::timestamptz IS NULL THEN 0 ELSE 1 END," +
     "reschedules=reschedules+CASE WHEN $4::timestamptz IS NULL THEN 0 ELSE 1 END," +
     "run_at=CASE WHEN $4::timestamptz IS NOT NULL THEN GREATEST($4,now()+interval '1 second') " +
     "WHEN $5::double precision IS NOT NULL THEN now()+make_interval(secs=>$5) ELSE run_at END," +
     "finished_at=CASE WHEN $3::text='queued' THEN NULL ELSE now() END," +
     "dead_at=CASE WHEN $3::text='dead' THEN now() ELSE NULL END,last_error=$6,result=$7::jsonb " +
-    "WHERE id=$1 AND claim_token=$2 AND state='running' RETURNING id,type,business_id,attempts,payload,state)" + SETTLE_DEAD_DELIVERIES_SQL,
+    "WHERE id=$1 AND claim_token=$2 AND state='running' RETURNING id,type,business_id,attempts",
     [job.id, job.claim_token, outcome.state, outcome.rescheduleAt ?? null, outcome.backoffSeconds ?? null,
       outcome.error ?? null, outcome.payload ?? null],
   );
+  const { changed, deliveries } = outcome.state === 'dead' && job.type === 'core.deliver'
+    ? await db.tx(async (tx) => {
+      const changed = await update(tx);
+      const deliveries = changed ? await settleTerminalDeliveries(tx, [job.id]) : [];
+      return { changed, deliveries };
+    })
+    : { changed: await update(db), deliveries: [] };
   if (!changed) {
     log.debug('Discarded result for an inactive job claim');
     return false;
   }
-  if (changed.delivery) await publishDeliveryChange(changed.delivery);
+  for (const delivery of deliveries) await publishDeliveryChange(delivery);
   if (outcome.state === 'dead') await onDead(job, outcome.error ?? 'job failed');
   else publishJob(job, outcome.state);
   return outcome.state === 'dead';

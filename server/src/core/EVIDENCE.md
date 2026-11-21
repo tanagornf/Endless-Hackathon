@@ -51,3 +51,9 @@
 - The C1 test database verified two-session scheduler leadership, overlapping-job suppression, slot deduplication, retention and takeover after release.
 - Readiness checks cover loaded features, pending migrations, upload write access, freshness of an enabled worker, and scheduler leadership. The scheduler, readiness and shutdown files passed 9 checks locally.
 - The first broad local run found a synthetic queued test row leaking between files. The scheduler test now removes its own rows. Integrated and production verification are tracked on the pull request.
+
+### F35 operations integration
+
+- Dead worker deliveries, lease reaping and operator cancellation reconcile a shared pending message in their job transition transaction. Message row locks serialize sibling transitions before a fresh read of active siblings.
+- Added a synthetic integration case with a reaper and an operator independently settling the last two delivery jobs. It checks one shared message reaches its final status and the sender receives no calls.
+- Demo reset and operations API tests use scoped fixtures. Local integration and production evidence are tracked separately on the pull request.
