@@ -116,6 +116,7 @@ async function dispatchHandoffNotification(key: ReceiptKey): Promise<void> {
     // and moves the deadline forward, including when a crashed worker is replaced.
     const target = await db.maybeOne<ReceiptKey & {
       customerId: string; version: number; reason: string; lease: string; active: boolean;
+      explicitRequestEvidence: ExplicitStaffRequestEvidence | null;
     }>(`UPDATE team_ai_handoff_receipts r SET notification_due_at = clock_timestamp() + interval '2 minutes'
       FROM conversations c WHERE ${joinConversation} AND ${receiptKey}
       AND r.notification_result IS NULL AND r.notification_due_at <= clock_timestamp()
@@ -130,6 +131,9 @@ async function dispatchHandoffNotification(key: ReceiptKey): Promise<void> {
       FROM team_ai_handoff_receipts r JOIN conversations c ON ${joinConversation}
       WHERE ${receiptKey} AND ${ownsLease}`, params);
     if (!current) return;
+    if (input && target.explicitRequestEvidence) {
+      input.dedupKey = 'staff-offer-accepted:' + target.businessId + ':' + target.conversationId + ':v' + target.version;
+    }
     const mode = current.active && input ? (await notify(input)).mode : 'obsolete';
     await db.query(`UPDATE team_ai_handoff_receipts r SET notification_result = $5
       WHERE ${receiptKey} AND ${ownsLease}`, [...params, mode]);

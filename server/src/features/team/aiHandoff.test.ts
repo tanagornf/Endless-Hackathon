@@ -251,6 +251,7 @@ test.each(['customer_asked', 'accepted_staff_offer'] as const)(
   'returns current committed customer confirmation evidence for %s only in its owning shop',
   async (explicitRequestEvidence) => {
     const intent = { ...await newIntent(), explicitRequestEvidence };
+    const notified = vi.spyOn(notifications, 'notify');
     const committedVersion = intent.expectedVersion + 1;
     const key = 'handoff:' + intent.conversationId + ':v' + committedVersion;
     const proof = { conversationId: intent.conversationId, committedVersion, explicitRequestEvidence };
@@ -258,6 +259,17 @@ test.each(['customer_asked', 'accepted_staff_offer'] as const)(
     expect(await applyAiHandoff(intent)).toEqual({ ...intent, committedVersion });
     expect(await applyAiHandoff(intent)).toEqual({ ...intent, committedVersion });
     expect(await getAiHandoffReceipt(intent)).toEqual({ ...intent, committedVersion });
+    const trustedKey = 'staff-offer-accepted:' + businessId + ':' + intent.conversationId + ':v' + committedVersion;
+    expect(notified).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      businessId, to: { permission: 'chat.takeover' }, type: 'chat.handoff', dedupKey: trustedKey,
+    }));
+    const delivery = await notified.mock.results[0].value;
+    if (delivery.mode === 'real') {
+      expect(delivery.notificationIds).toHaveLength(2);
+      const input = notified.mock.calls[0][0];
+      expect(await notifications.notify({ ...input, dedupKey: key })).toEqual({ notificationIds: [], mode: 'real' });
+    }
+    expect(await getExplicitStaffRequestForNotification(businessId, trustedKey)).toBeNull();
     expect(await getExplicitStaffRequestForNotification(businessId, key)).toEqual(proof);
     expect(await getExplicitStaffRequestForNotification(otherBusiness, key)).toBeNull();
     for (const invalid of [key + '0', key + '\n', key.replace(':v', ':v0'), 'handoff:' + intent.turnId]) {
