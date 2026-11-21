@@ -21,7 +21,7 @@ CREATE TABLE shop_instruction_versions (
   parent_version_id uuid,
   candidate_id uuid,
   restored_from_version_id uuid,
-  instruction text NOT NULL CHECK (char_length(instruction) BETWEEN 1 AND 4002),
+  instruction text CHECK (char_length(instruction) BETWEEN 1 AND 4002),
   actor_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (business_id,id),
@@ -31,7 +31,8 @@ CREATE TABLE shop_instruction_versions (
   FOREIGN KEY (business_id,restored_from_version_id) REFERENCES shop_instruction_versions (business_id,id),
   FOREIGN KEY (business_id,candidate_id) REFERENCES shop_instruction_candidates (business_id,id),
   CHECK ((revision=1) = (parent_version_id IS NULL)),
-  CHECK ((candidate_id IS NOT NULL) <> (restored_from_version_id IS NOT NULL))
+  CHECK (candidate_id IS NULL OR (restored_from_version_id IS NULL AND instruction IS NOT NULL)),
+  CHECK (candidate_id IS NOT NULL OR restored_from_version_id IS NOT NULL OR instruction IS NULL)
 );
 
 ALTER TABLE shop_instruction_candidates ADD FOREIGN KEY (business_id,base_version_id)

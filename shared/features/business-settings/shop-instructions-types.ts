@@ -11,7 +11,9 @@ export interface ActiveShopInstruction {
   instruction: string;
 }
 
-export interface ShopInstructionVersion extends ActiveShopInstruction {
+export interface ShopInstructionVersion {
+  id: string;
+  instruction: string | null;
   parentVersionId: string | null;
   restoredFromVersionId: string | null;
   candidateId: string | null;

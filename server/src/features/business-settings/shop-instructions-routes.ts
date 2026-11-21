@@ -8,6 +8,7 @@ import {
 const root = '/businesses/:businessId/settings/shop-instructions';
 const ownerRoute = { auth: 'business', permission: 'business.bot_settings' } as const;
 const identifier = z.uuid();
+const rollbackTarget = z.union([identifier, z.literal('baseline')]);
 const activation = z.object({ expectedActiveVersionId: identifier.nullable() }).strict();
 
 export function registerShopInstructionRoutes(api: FeatureApi): void {
@@ -28,6 +29,7 @@ export function registerShopInstructionRoutes(api: FeatureApi): void {
   api.post(root + '/versions/:versionId/rollback', { ...ownerRoute, body: activation, summary: 'Restore a prior shop instruction revision' },
     async ({ body, params, scope, res }) => {
       res.setHeader('Cache-Control', 'no-store');
-      return rollbackShopInstruction(scope!, parseSettingsInput(identifier, params.versionId), body.expectedActiveVersionId);
+      const versionId = parseSettingsInput(rollbackTarget, params.versionId);
+      return rollbackShopInstruction(scope!, versionId === 'baseline' ? null : versionId, body.expectedActiveVersionId);
     });
 }
