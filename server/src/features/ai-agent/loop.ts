@@ -1,7 +1,9 @@
 import type { ModelChatInput, ModelChatResult, ModelMessage } from '../../core';
+import { quoteMatchesCatalogRequest } from './context';
 import type { ReplyContext } from './context';
 import { maskCardNumbers } from './mask';
 import { availableTools, declinedTool, runTool, TOOL_BUDGET } from './tools';
+import type { ExecutedTool } from './tools';
 
 type RoundInput = Pick<ModelChatInput, 'messages' | 'tools' | 'toolChoice' | 'providerState'>;
 type Call = (input: RoundInput) => Promise<ModelChatResult>;
@@ -35,11 +37,17 @@ export async function runModelLoop(
     const allowance = allowTools ? TOOL_BUDGET - state.executedCalls : 0;
     const { toolCalls } = response;
     state.executedCalls += Math.min(allowance, toolCalls.length);
-    const outcomes = await Promise.all(toolCalls.map((tool, index) =>
-      index < allowance ? runTool({
+    const outcomes = await Promise.all(toolCalls.map(async (tool, index): Promise<ExecutedTool> => {
+      if (index >= allowance) return declinedTool(tool);
+      const result = await runTool({
         businessId, language: context.language, rules: context.rules, allowHandoff: options.handoff,
-      }, tool, signal) : declinedTool(tool),
-    ));
+      }, tool, signal);
+      if (result.prices?.some((price) => !quoteMatchesCatalogRequest(price, context))) {
+        const error = 'UNRELATED_PRODUCT';
+        return { output: { ok: false, error }, trace: { ...result.trace, ok: false, error } };
+      }
+      return result;
+    }));
     signal.throwIfAborted();
     state.messages.push({ role: 'assistant', content: maskCardNumbers(response.text), toolCalls });
     for (let index = 0; index < outcomes.length; index += 1) {

@@ -925,3 +925,166 @@ describe('F10 S3 intent and handoff offers', { timeout: 20_000 }, () => {
     expect(await trace(returns.message.id)).toMatchObject({ intent: 'QUESTION', handoff_offered: true, evidence_ids: [] });
   });
 });
+
+describe('F10 catalog reference scope', { timeout: 20_000 }, () => {
+  it('rejects an obsolete SKU price after an intervening Thai hours question and an explicit unknown multi-hyphen SKU', async () => {
+    scriptedModel(
+      { text: 'Demo Quest board game costs 1,490 baht.' },
+      { text: 'ร้านเปิด 10:00–20:00 น. ค่ะ' },
+      { text: 'Demo Quest ราคา 1,490 บาทค่ะ' },
+      { text: fallbacks.product_not_found.th },
+    );
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    const hours = await incoming('ร้านเปิดกี่โมงคะ', known);
+    await execute(hours);
+    const unknown = await incoming('ขอราคาสินค้ารหัส ZZZ-SMOKE-UNKNOWN-914 หน่อยค่ะ', known);
+    await execute(unknown);
+
+    const sent = await replies(known.conversation.id);
+    expect(sent[0].text).toContain('1,490 baht');
+    expect(sent[1].text).toContain('10:00–20:00');
+    expect(sent[2].text).not.toMatch(/1[,.]?490|Demo Quest/iu);
+    expect(sent[2].parts.every(({ type }) => type === 'text')).toBe(true);
+    const current = await trace(unknown.message.id);
+    expect(current.evidence_ids).not.toEqual(expect.arrayContaining([expect.stringMatching(/^catalog:/)]));
+    expect(current.product_refs).toEqual([]);
+  });
+
+  it('retains a current catalog quote for an immediate, unambiguous price follow-up', async () => {
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    const followup = await incoming('How much is it?', known);
+    await execute(followup);
+    expect((await replies(known.conversation.id)).at(-1)!.text).toContain('1,490 baht');
+    expect(await trace(followup.message.id)).toMatchObject({
+      evidence_ids: [expect.stringMatching(/^catalog:/)], product_refs: [expect.objectContaining({ sku: 'A-GAME-01' })],
+    });
+  });
+
+  it('answers an explicit Thai same-game follow-up across one unrelated hours turn', async () => {
+    const spy = scriptedModel(
+      { text: 'Demo Quest board game costs 1,490 baht.' },
+      { text: 'ร้านเปิด 10:00–20:00 น. ค่ะ' },
+      { text: fallbacks.no_answer.th },
+    );
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    await execute(await incoming('ร้านเปิดกี่โมงคะ', known));
+    const same = await incoming('แล้วเกมเดิมนี้ราคาเท่าไหร่คะ', known);
+    await execute(same);
+
+    const saved = (await replies(known.conversation.id)).at(-1)!;
+    expect(saved.text).toContain('1,490 บาท');
+    expect(saved.text).not.toContain(fallbacks.handoff_offer.th);
+    const turn = await trace(same.message.id);
+    expect(turn).toMatchObject({
+      state: 'completed', intent_source: 'regex', reply_language: 'th', handoff_offered: false,
+      product_refs: [expect.objectContaining({ sku: 'A-GAME-01' })],
+    });
+    expect(spy.mock.calls.filter(([input]) => input.usage.turnId === turn.id).map(([input]) => input.usage.purpose)).toEqual(['reply']);
+  });
+
+  it('does not rescue a fresh missing product lookup with the previous SKU price', async () => {
+    scriptedModel(
+      { text: 'Demo Quest board game costs 1,490 baht.' },
+      { toolCalls: [call('missing-new-product', 'get_price', priceArguments(null, 'Nebula Prototype 884'))] },
+      { text: 'Nebula Prototype 884 costs 1,490 baht.' },
+      { text: fallbacks.product_not_found.en },
+    );
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    const missing = await incoming('How much is the Nebula Prototype 884?', known);
+    await execute(missing);
+
+    const [prior, current] = await replies(known.conversation.id);
+    expect(prior.text).toContain('1,490 baht');
+    expect(current.text).toContain(fallbacks.product_not_found.en);
+    expect(current.text).not.toMatch(/1[,.]?490|Demo Quest/iu);
+    expect(current.parts.every(({ type }) => type === 'text')).toBe(true);
+    expect(await trace(missing.message.id)).toMatchObject({
+      product_refs: [], tools: expect.arrayContaining([expect.objectContaining({ name: 'get_price', ok: false, error: 'NOT_FOUND' })]),
+    });
+  });
+
+  it('rejects a model tool lookup for the old SKU when the current request explicitly names another SKU', async () => {
+    const spy = scriptedModel(
+      { text: 'Demo Quest board game costs 1,490 baht.' },
+      { toolCalls: [
+        call('old-sku', 'get_price', priceArguments('A-GAME-01', null)),
+        call('old-total', 'calculate_total', { items: [priceArguments('A-GAME-01', null, 2)] }),
+      ] },
+      { text: 'Demo Quest costs 1,490 baht.' },
+      { text: fallbacks.product_not_found.en },
+    );
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    const unknown = await incoming('How much is ZZZ-SMOKE-UNKNOWN-914?', known);
+    await execute(unknown);
+
+    const rejected = replyCalls(spy)[2].messages.filter(({ role }) => role === 'tool');
+    expect(rejected.map(({ content }) => JSON.parse(content as string))).toEqual([
+      { ok: false, error: 'UNRELATED_PRODUCT' }, { ok: false, error: 'UNRELATED_PRODUCT' },
+    ]);
+    const reply = (await replies(known.conversation.id)).at(-1)!;
+    expect(reply.text).not.toMatch(/1[,.]?490|Demo Quest/iu);
+    expect(reply.parts.every(({ type }) => type === 'text')).toBe(true);
+    expect(await trace(unknown.message.id)).toMatchObject({ product_refs: [] });
+  });
+
+  it('re-fetches the current price through a negotiation and quantity-only follow-up', async () => {
+    const prices = vi.spyOn(catalog, 'getPrice');
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    const offer = await incoming('The page says it’s 990 today. Can I get it for 990?', known);
+    await execute(offer);
+    const quantity = await incoming('2 sets, please', known);
+    await execute(quantity);
+
+    const stored = await replies(known.conversation.id);
+    expect(stored[1].text).toContain('1,490 baht');
+    expect(stored[1].text).not.toContain('990');
+    expect(stored[2].text).toContain('2,980 baht');
+    expect(prices.mock.calls.map(([, request]) => request.quantity)).toEqual([1, 1, 2]);
+    expect(await trace(quantity.message.id)).toMatchObject({
+      product_refs: [expect.objectContaining({ sku: 'A-GAME-01' })], reply_language: 'en',
+    });
+  });
+
+  it('keeps totals for two explicitly requested products, using an SKU and a name', async () => {
+    scriptedModel(
+      { toolCalls: [call('current-total', 'calculate_total', {
+        items: [priceArguments('A-GAME-01', null, 1), priceArguments(null, 'Demo Cards card set', 1)],
+      })] },
+      { text: 'The total is 1,589 baht.' },
+    );
+    const inbound = await incoming('How much in total for A-GAME-01 and Demo   Cards card set?');
+    await execute(inbound);
+    expect((await replies(inbound.conversation.id))[0].text).toContain('1,589 baht');
+    expect(await trace(inbound.message.id)).toMatchObject({
+      product_refs: expect.arrayContaining([
+        expect.objectContaining({ sku: 'A-GAME-01' }), expect.objectContaining({ sku: 'A-CARD-01' }),
+      ]),
+      tools: expect.arrayContaining([expect.objectContaining({ name: 'calculate_total', ok: true })]),
+    });
+  });
+
+  it('keeps a takeover-held SKU out of the first new AI price after handback', async () => {
+    const handoff = await incoming('Can I speak to a human?');
+    await execute(handoff);
+    const held = await incoming('A-GAME-01 ราคาเท่าไหร่คะ', handoff);
+    await execute(held);
+    await assignConversation(handoff.conversation.id, null, { businessId });
+    const current = await incoming('A-CARD-01 ราคาเท่าไหร่คะ', handoff);
+    await execute(current);
+
+    expect(await trace(held.message.id)).toMatchObject({ state: 'skipped', skip_reason: 'takeover', reply_message_id: null });
+    const reply = (await replies(handoff.conversation.id)).at(-1)!;
+    expect(reply.text).toContain('99 บาท');
+    expect(reply.text).not.toMatch(/1[,.]?490|Demo Quest/iu);
+    expect(await trace(current.message.id)).toMatchObject({
+      product_refs: [expect.objectContaining({ sku: 'A-CARD-01' })],
+      evidence_ids: [expect.stringMatching(/^catalog:/)],
+    });
+  });
+});

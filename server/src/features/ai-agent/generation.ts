@@ -8,7 +8,7 @@ import type { ModelChatInput, ModelChatResult } from '../../core';
 import { getBusinessOpenState } from '../business-settings/service';
 import { casualIntent, catalogPriceIntent, classifyIntent, unknownIntent } from './classifier';
 import type { IntentScore } from './classifier';
-import { buildReplyContext, turnLanguage, unansweredCustomerMessages } from './context';
+import { buildReplyContext, turnLanguage, unansweredCustomerMessages, unansweredInbounds } from './context';
 import type { ReplyContext } from './context';
 import { fallbacks } from './fallbacks';
 import { codeFallback, inspectReply, isPriceQuestion, mentionsProduct, receiptText, renderCatalogQuotes, shapeReply, stripUnsafeSentences } from './guards';
@@ -18,7 +18,7 @@ import { runModelLoop } from './loop';
 import { arabicDigits, maskCardNumbers } from './mask';
 import { moneyMentions } from './money';
 import { repairPrompt } from './prompt';
-import { priorSavedReply } from './repo';
+import { customerInboundsHeldByStaff, priorSavedReply } from './repo';
 import type { TurnDraft } from './repo';
 
 type Generation =
@@ -126,7 +126,7 @@ export function emptyDraft(language: CustomerLanguage): TurnDraft {
 export async function generateDraft(
   turnId: string,
   conversation: ConversationRecord,
-  history: readonly MessageRecord[],
+  inboxHistory: readonly MessageRecord[],
   inbound: MessageRecord,
   settings: BusinessSettings,
   cancellation: AbortSignal,
@@ -134,19 +134,25 @@ export async function generateDraft(
 ): Promise<Generation> {
   const started = performance.now();
   const signal = AbortSignal.any([cancellation, AbortSignal.timeout(config.MODEL_TIMEOUT_MS)]);
-  const language = turnLanguage(history, inbound, settings.language);
+  const language = turnLanguage(inboxHistory, inbound, settings.language);
   const draft = emptyDraft(language);
   const calls: ModelChatResult[] = [];
   const modelMs: number[] = [];
   let context: ReplyContext | undefined;
   try {
     signal.throwIfAborted();
+    const backlog = unansweredInbounds(inboxHistory, inbound).filter(({ id }) => id !== inbound.id);
+    const held = mode === 'reply' && backlog.length
+      ? await withinDeadline(customerInboundsHeldByStaff(conversation, backlog.map(({ id }) => id)), signal)
+      : null;
+    const history = held?.size ? inboxHistory.filter(({ id }) => !held.has(id)) : inboxHistory;
     const unanswered = unansweredCustomerMessages(history, inbound);
     const prior = mode === 'reply' ? await withinDeadline(priorSavedReply(conversation, inbound), signal) : null;
     const previousAnswer = history.findLast((message) => message.seq < inbound.seq && message.direction === 'outbound' &&
       (message.author === 'ai' || message.author === 'staff'));
-    const offerPending = prior?.offeredHandoff === true && previousAnswer?.id === prior.replyMessageId &&
-      previousAnswer.delivery.state !== 'failed';
+    const matchingPrior = previousAnswer && previousAnswer.id === prior?.replyMessageId && previousAnswer.delivery.state !== 'failed'
+      ? prior : null;
+    const offerPending = matchingPrior?.offeredHandoff === true;
     const offerReply = offerPending && unanswered.length === 1 ? replyToStaffOffer(unanswered[0]) : null;
     if (mode === 'reply' && (explicitlyRequestsStaff(unanswered.join('\n')) || offerReply === 'accepted') &&
         await withinDeadline(canRequestHandoff(conversation.businessId), signal)) {
@@ -159,6 +165,7 @@ export async function generateDraft(
     }
     context = await withinDeadline(buildReplyContext(conversation, history, inbound, settings, language, signal, {
       skipLookups: Boolean(casual) || !unanswered.length, offerPending,
+      previousProductSkus: matchingPrior?.productRefs.map(({ sku }) => sku),
     }), signal);
     draft.timings.contextMs = elapsed(started);
     draft.tools = context.tools;
@@ -201,7 +208,10 @@ export async function generateDraft(
     const toolOptions = { tools: !casual, handoff: canEscalate };
     const firstReply = runModelLoop(loop, context, conversation.businessId, call('reply'), started, modelSignal, toolOptions)
       .then((response) => ({ response } as const), (error: unknown) => ({ error } as const));
-    const price = catalogPriceIntent(context.unanswered.join(' '), context.prices.map(({ quote }) => quote));
+    const priceText = context.catalogRequest.linkedSameProduct
+      ? context.catalogRequest.text + ' ' + context.catalogRequest.skus[0]
+      : context.catalogRequest.text;
+    const price = catalogPriceIntent(priceText, context.prices.map(({ quote }) => quote));
     const classifierTimeout = Math.min(8000, config.MODEL_TIMEOUT_MS - elapsed(started) - 1500);
     let score = casual ?? price ?? unknownIntent;
     if (!casual && !price && classifierTimeout > 0) {
@@ -260,8 +270,10 @@ export async function generateDraft(
       text = catalogText;
       draft.guardActions.push({ guard: 'price', action: 'fallback', detail: 'Rendered catalog prices by SKU' });
     }
-    if (!context.prices.length && !context.knowledge.length &&
-        context.tools.some(({ name, error, prefetch }) => name === 'get_price' && !prefetch && error === 'NOT_FOUND')) {
+    if (!context.prices.length && context.tools.some(({ name, error, prefetch }) =>
+      name === 'get_price' && error === 'NOT_FOUND' &&
+      (prefetch ? draftContext.catalogRequest.skus.length > 0 : !draftContext.knowledge.length),
+    )) {
       text = fallbacks.product_not_found[language];
     }
     const receipt = receiptText(context, text);

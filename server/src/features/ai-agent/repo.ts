@@ -123,13 +123,26 @@ export async function releaseClaim(turn: TurnLease): Promise<void> {
   await db.query('UPDATE ai_turns SET lease_until = now() WHERE ' + owned, leaseParams(turn));
 }
 
+export async function customerInboundsHeldByStaff(
+  conversation: ConversationRecord, messageIds: readonly string[],
+): Promise<Set<string>> {
+  const { rows } = await db.query<{ id: string }>(String.raw`
+    SELECT inbound_message_id AS id FROM ai_turns
+    WHERE business_id = $1 AND conversation_id = $2 AND inbound_message_id = ANY($3::uuid[])
+      AND mode = 'reply' AND state = 'skipped'
+      AND skip_reason IN ('takeover', 'takeover_during_generation', 'handoff_waiting')
+  `, [conversation.businessId, conversation.id, messageIds]);
+  return new Set(rows.map(({ id }) => id));
+}
+
 export async function priorSavedReply(conversation: ConversationRecord, inbound: MessageRecord): Promise<{
   replyMessageId: string;
+  productRefs: AiTurnTopic['productRefs'];
   offeredHandoff: boolean;
   recentlySentNonTextNotice: boolean;
 } | null> {
   return db.maybeOne(String.raw`
-    SELECT reply_message_id AS "replyMessageId", handoff_offered AS "offeredHandoff",
+    SELECT reply_message_id AS "replyMessageId", product_refs AS "productRefs", handoff_offered AS "offeredHandoff",
       COALESCE(timings ? 'nonTextNotice' AND finished_at > $3::timestamptz - interval '10 minutes', false)
         AS "recentlySentNonTextNotice"
     FROM ai_turns
