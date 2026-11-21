@@ -11,6 +11,7 @@ vi.mock('../../core', async () => ({
   useApiQuery: (path: string) => mocks.read(path),
   useApiMutation: (method: string, path: unknown) => { mocks.mutation(method, path); return { run: mocks.run, running: false }; },
   useRealtime: vi.fn(),
+  useSession: () => ({ user: { id: 'staff' }, currentBusiness: { id: 'shop' } }),
 }));
 
 const record: CustomerPanelData = {
@@ -55,4 +56,59 @@ test('read-only staff see the profile without tag actions', async () => {
   show({ ...record, canEditTags: false, canCreateTags: false });
   expect(screen.getByTestId('crm-tag-chip').textContent).toBe('VIP');
   expect(screen.queryByTestId('crm-tag-add')).toBeNull();
+  for (const field of ['phone', 'email', 'note']) expect(screen.getByTestId('crm-' + field).hasAttribute('readonly')).toBe(true);
+});
+
+test.each(['th', 'en'] as const)('contact blurs save in order and survive reload in %s', async locale => {
+  await i18n.changeLanguage(locale);
+  let detail = record.detail;
+  mocks.run.mockImplementation(async (patch: { expectedVersion: number; phone?: string; email?: string; note?: string }) => {
+    expect(patch.expectedVersion).toBe(detail.profileVersion);
+    detail = {
+      ...detail, profileVersion: detail.profileVersion + 1, note: patch.note ?? detail.note,
+      contact: { ...detail.contact, phone: patch.phone ?? detail.contact.phone, email: patch.email ?? detail.contact.email },
+    };
+    return detail;
+  });
+  const panel = show(record);
+  const fields = { phone: '0800000001', email: 'synthetic@example.test', note: 'Synthetic contact note' };
+  for (const [field, value] of Object.entries(fields)) {
+    const input = screen.getByTestId('crm-' + field);
+    fireEvent.change(input, { target: { value } });
+    fireEvent.blur(input);
+  }
+  await waitFor(() => expect(mocks.run).toHaveBeenCalledTimes(3));
+  expect(mocks.mutation).toHaveBeenCalledWith('PATCH', '/crm/customers/customer-a/profile');
+  expect(mocks.run.mock.calls.map(call => call[0])).toEqual([
+    { expectedVersion: 1, phone: fields.phone }, { expectedVersion: 2, email: fields.email }, { expectedVersion: 3, note: fields.note },
+  ]);
+  panel.unmount();
+  show({ ...record, detail });
+  expect(screen.getByLabelText(locale === 'en' ? 'Staff note' : 'บันทึกของพนักงาน').getAttribute('aria-busy')).toBe('false');
+  for (const [field, value] of Object.entries(fields)) {
+    expect((screen.getByTestId('crm-' + field) as HTMLInputElement).value).toBe(value);
+  }
+});
+
+test('realtime reload preserves an unfinished draft only within its own conversation', async () => {
+  const view = show(record);
+  fireEvent.change(screen.getByTestId('crm-phone'), { target: { value: '0800000002' } });
+  mocks.read.mockReturnValue({ data: undefined, error: null, reload: mocks.reload });
+  view.rerender(<MemoryRouter><CustomerPanel conversationId="conversation-a" /></MemoryRouter>);
+  expect((screen.getByTestId('crm-phone') as HTMLInputElement).value).toBe('0800000002');
+  view.rerender(<MemoryRouter><CustomerPanel conversationId="conversation-b" /></MemoryRouter>);
+  expect(screen.queryByTestId('crm-phone')).toBeNull();
+  expect(mocks.run).not.toHaveBeenCalled();
+});
+
+test('a version conflict reloads the profile and asks staff to review it in Thai', async () => {
+  await i18n.changeLanguage('th');
+  mocks.run.mockRejectedValueOnce(Object.assign(new Error('Conflict'), { code: 'VERSION_CONFLICT' }));
+  show(record);
+  const input = screen.getByTestId('crm-email');
+  fireEvent.change(input, { target: { value: 'synthetic@example.test' } });
+  fireEvent.blur(input);
+  await waitFor(() => expect(mocks.reload).toHaveBeenCalledOnce());
+  expect(screen.getByRole('alert').textContent).toContain('ตรวจสอบข้อมูลล่าสุด');
+  expect((input as HTMLInputElement).value).toBe('');
 });

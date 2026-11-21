@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import ContactFields from './ContactFields';
 import { Alert, Autocomplete, Button, Chip, CircularProgress, Stack, TextField, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { CrmCustomerDetail, CustomerPanelData } from '@nless/shared/features/crm/types';
-import { SectionCard, StatusChip, formatDateTime, useApiMutation, useApiQuery, useRealtime } from '../../core';
+import { SectionCard, StatusChip, formatDateTime, useApiMutation, useApiQuery, useRealtime, useSession } from '../../core';
 
 export function ProfileCard({ detail, availableTags, canEditTags, canCreateTags, onChange, link = false }:
   Pick<CustomerPanelData, 'detail' | 'availableTags' | 'canEditTags' | 'canCreateTags'> & { onChange: () => void; link?: boolean }) {
@@ -42,16 +43,27 @@ export function ProfileCard({ detail, availableTags, canEditTags, canCreateTags,
         getOptionLabel={option => option.id ? option.name : t('createNamed', { name: option.name })}
         noOptionsText={t('noTags')} renderInput={params => <TextField {...params} label={t('addTag')}
           slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps.htmlInput, 'data-testid': 'crm-tag-add' } }} />} />}
+      <ContactFields key={detail.id} record={detail} editable={canEditTags} reload={onChange} />
       {link && <Button component={Link} to={'/customers/' + detail.id} sx={{ minHeight: 44 }}>{t('openProfile')}</Button>}
     </Stack>
   </SectionCard>;
 }
 
 export default function CustomerPanel({ conversationId }: Record<string, unknown>) {
+  const { user, currentBusiness } = useSession();
+  return <ScopedPanel key={[user?.id, currentBusiness?.id, conversationId].join(':')} conversationId={conversationId} />;
+}
+
+function ScopedPanel({ conversationId }: { conversationId: unknown }) {
   const { t } = useTranslation('crm');
   const state = useApiQuery<CustomerPanelData>(typeof conversationId === 'string' ? '/crm/conversations/' + encodeURIComponent(conversationId) + '/panel' : null);
+  const [previous, setPrevious] = useState<CustomerPanelData>();
+  useEffect(() => {
+    if (state.data || state.error) setPrevious(state.data);
+  }, [state.data, state.error]);
+  const panel = state.data ?? previous;
   useRealtime('custom', event => { if (event.featureId === 'F24') state.reload(); });
   if (state.error) return <Alert severity="error" action={<Button onClick={state.reload}>{t('retry')}</Button>}>{t('loadError')}</Alert>;
-  if (!state.data) return <CircularProgress size={22} aria-label={t('loading')} />;
-  return <ProfileCard key={state.data.customerId} {...state.data} onChange={state.reload} link />;
+  if (!panel) return <CircularProgress size={22} aria-label={t('loading')} />;
+  return <ProfileCard key={panel.customerId} {...panel} onChange={state.reload} link />;
 }
