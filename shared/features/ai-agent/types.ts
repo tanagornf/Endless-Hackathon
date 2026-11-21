@@ -6,6 +6,67 @@ export interface GenerateReplyOptions {
   signal?: AbortSignal;
 }
 
+export type AiTurnStateName = 'running' | 'completed' | 'awaiting_confirmation' | 'handoff' | 'failed' | 'skipped' | 'superseded';
+export type AiIntent =
+  | 'GREETING' | 'GOODBYE' | 'QUESTION' | 'REQUEST' | 'STATUS_CHECK' | 'FEEDBACK' | 'CLARIFICATION'
+  | 'ESCALATION' | 'OFF_TOPIC' | 'PRICE_CALC' | 'PRODUCT_FILTER' | 'BUSINESS_HOURS' | 'BOOKING_AVAILABILITY' | 'UNKNOWN';
+
+export interface AiToolTrace {
+  name: string;
+  ok: boolean;
+  ms: number;
+  error?: string;
+  prefetch?: boolean;
+}
+
+export interface AiGuardAction {
+  guard: 'price' | 'money_words' | 'url' | 'policy_price' | 'policy_contact' | 'sold_out' | 'markdown' | 'language' | 'budget';
+  action: 'repair' | 'strip' | 'fallback' | 'note';
+  detail: string;
+}
+
+export interface AiTurnSummary {
+  turnId: string;
+  conversationId: string;
+  state: AiTurnStateName;
+  mode: 'reply' | 'suggest';
+  intent: AiIntent | null;
+  skipReason: string | null;
+  toolCount: number;
+  evidenceCount: number;
+  guardCount: number;
+  latencyMs: number | null;
+  startedAt: string;
+  replyLanguage: 'th' | 'en' | null;
+}
+
+export interface AiTurnUsage {
+  calls: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cachedTokens: number | null;
+  costUsdMicros: number | null;
+}
+
+export interface AiTurnTrace extends AiTurnSummary {
+  inboundMessageId: string;
+  intentSource: 'regex' | 'classifier' | 'fallback' | null;
+  intentConfidence: number | null;
+  tools: AiToolTrace[];
+  evidenceIds: string[];
+  productRefs: AiTurnTopic['productRefs'];
+  guardActions: AiGuardAction[];
+  replyMessageId: string | null;
+  handoffOffered: boolean;
+  escalated: boolean;
+  retryUsed: boolean;
+  usage: AiTurnUsage | null;
+  timings: Record<string, number | number[]>;
+  errorCode: string | null;
+  finishedAt: string | null;
+  attempts: number;
+}
+
 /**
  * @owner F10 ai-agent · B2 · consumer: B3 F27 (seller impact + AI quality cards)
  * Counts and median over ai_turns with mode 'reply' and started_at in [range.from, range.to) (UTC, half-open).

@@ -1,5 +1,5 @@
 import { AppError } from '../../core';
-import { fakeReply, runFakeReplyJob } from './setup';
+import { runAiTurn } from './turn';
 import type { AiTurnMetrics, AiTurnTopic, GenerateReplyOptions } from '@nless/shared/features/ai-agent/types';
 import type { ChatTurnResult, MetricsRange } from '@nless/shared/core/types';
 import type { JobHandler } from '../../core';
@@ -20,17 +20,9 @@ import type { AiReplyJobPayload } from '@nless/shared/features/inbox/types';
  * PROVIDER_BUDGET_EXHAUSTED (team credits / hard limit gone) → state 'handoff' with the fixed handoff text of
  * fake step 4 in the customer's language (no model text), so staff take over. It does not throw for model/provider
  * errors and never causes a side effect. Unknown conversation → AppError('NOT_FOUND').
- * @fake deterministic, no model call, Thai reply (the fake is not bilingual; the 13:00 gate needs the real one):
- *   1. last customer message text = q (from getHistory); business from getConversation.
- *   2. a SEED.catalog item of that business whose sku or name/nameEn appears in q (case-insensitive) →
- *      getPrice → "<name> (<sku>) ราคา <฿x,xxx> ค่ะ" (+ " ตอนนี้สินค้าหมดค่ะ" when soldOut);
- *      evidenceIds [`catalog:<itemId>:v<version>`].
- *   3. else searchKnowledge(businessId, q) top hit → "จากข้อมูลร้าน: <snippet>" ; evidenceIds [`knowledge:<id>:r<revision>`].
- *   4. else "ขออภัยค่ะ ยังไม่มีข้อมูลเรื่องนี้ เดี๋ยวให้พนักงานช่วยตอบนะคะ", state 'handoff', evidenceIds [].
- *   turnId = `fake-turn-<triggerMessageId ?? conversationId>`; delivery { mode: 'real', state: 'not_required' }.
  */
 export async function generateReply(conversationId: string, opts?: GenerateReplyOptions): Promise<ChatTurnResult> {
-  return fakeReply(conversationId, opts);
+  return (await runAiTurn(conversationId, opts ?? {})).response;
 }
 
 /**
@@ -49,10 +41,15 @@ export async function generateReply(conversationId: string, opts?: GenerateReply
  *   7 sendToCustomer(conversationId, parts, { messageId }).
  *   Any "no" in 1–2/5 → return quietly (message stays stored, no reply, no error). No plan or quota check: unlimited
  *   (core model.* already wrote the cost rows to model_usage).
- * @fake C1 ships exactly this handler using the fakes, so the loop works at SETUP READY.
  */
 export const aiReplyJobHandler: JobHandler<AiReplyJobPayload> = async (job) => {
-  await runFakeReplyJob(job);
+  const turn = await runAiTurn(job.payload.conversationId, {
+    businessId: job.businessId ?? undefined,
+    triggerMessageId: job.payload.messageId,
+    signal: job.signal,
+    deliver: true,
+  });
+  return turn.retryAt ? { retryAt: turn.retryAt } : undefined;
 };
 
 
