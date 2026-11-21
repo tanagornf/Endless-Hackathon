@@ -1,3 +1,5 @@
+import type { WebKnowledgeCitation } from '../knowledge/types';
+
 export interface KnowledgeHit {
   knowledgeItemId: string;
   revision: number;
@@ -7,6 +9,8 @@ export interface KnowledgeHit {
   /** 0..1, higher is better. Not a correctness guarantee. */
   score: number;
   folderId: string | null;
+  /** Public source links retained when a web FAQ is approved by the shop. */
+  citations?: WebKnowledgeCitation[];
 }
 
 export interface KnowledgeSearchResult {

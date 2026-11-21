@@ -2,6 +2,18 @@
   "menu": {
     "title": "Knowledge"
   },
+  "web": {
+    "label": "Web suggestion",
+    "pending": "Web suggestion awaiting approval",
+    "empty": "No web suggestions awaiting approval",
+    "sources": "Web sources",
+    "indexing": "The answer is live for the original question. Indexing for similar questions is in progress.",
+    "activate": "Approve and activate",
+    "reject": "Reject suggestion",
+    "rejectMessage": "The answer will be removed from review and will not be used in chat.",
+    "rejected": "Suggestion rejected",
+    "editActive": "Deactivate this answer to edit it, then approve it again."
+  },
   "page": {
     "title": "Knowledge base",
     "subtitle": "What the AI uses to answer customers. Review and activate items before use.",
@@ -23,6 +35,7 @@
     "folders": "Manage folders"
   },
   "tabs": {
+    "webSuggestions": "Web suggestions",
     "all": "All",
     "draft": "Draft",
     "reviewed": "Reviewed",

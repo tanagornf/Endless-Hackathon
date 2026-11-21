@@ -14,3 +14,11 @@
 - S2 adds tenant-scoped folder management with Thai and English controls, plus idempotent imported drafts. Drafts stay unpublished with one immutable revision and never enqueue indexing on import.
 - Six S2 integration cases cover folder permissions, duplicate names and content, tenant isolation, concurrent ensure/import and folder deletion on indexed knowledge. Knowledge plus registry/bilingual checks passed 55/55.
 - On main a13a7ed the B1 dev owner smoke used the normal F35 worker and real OpenAI. A new Thai FAQ became ready and active, was found by an English query at rank 1, disappeared after deactivation and was soft-deleted.
+
+## P1 web suggestions for owner approval
+
+- The trusted web worker writes a regular F05 FAQ draft using `createWebKnowledgeDraft`. The tenant and normalized public question deduplicate retries, including after rejection. The original question, citation URLs and titles stay on the item, and the original suggested answer stays in revision 1.
+- The bilingual Knowledge page shows web suggestions in the existing list and editor. An authorized owner can edit, approve or reject. Approval exposes the edited body via `readWebKnowledgeAnswer` immediately. F07 indexes the active revision for similar queries. The exact lookup and the draft status check require no web call.
+- On 2026-11-21, 57 tests passed across F05, F07 and scripts on an isolated in-memory PostgreSQL-compatible PGlite instance with pgvector and `MODEL_MODE=fake`. The new tests cover concurrent deduplication, two tenants, route permissions, public input validation, first approval before indexing, F07 retrieval after indexing, rejection and source readback. The production build, ownership check for `lane/B1/knowledge-web-suggestions` and Git whitespace check passed.
+- A local headless Chromium smoke at a 393 px viewport used the built owner UI and real F05 HTTP routes. The English flow edited and approved a suggestion and read back the approved answer and citation. The Thai flow rejected a separate suggestion and verified it was unavailable to buyer retrieval.
+- The real web provider, B2 chat integration and production verification are pending for this slice.
