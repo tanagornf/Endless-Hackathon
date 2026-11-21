@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { decryptSecret, encryptSecret, jobs, log, rateLimit, type WebhookHandler } from '../../core';
 import { CHANNEL_ID, LINE_EVENT_JOB } from './config';
+import { detachLineReadToken, markLineMessageAsRead } from './read-receipt';
 import { findWebhookConnection, recordWebhookEvent } from './repo';
 
 const WebhookBody = z.object({
@@ -69,15 +70,19 @@ export const handleLineWebhook: WebhookHandler = async (ctx) => {
       });
       if (!shouldQueue) continue;
       const lockKey = ['line', connection.id, header.source?.userId].filter(Boolean).join(':');
+      const inbound = detachLineReadToken(event, receivedAtMs);
       // The durable job keeps the event encrypted, including any customer text and reply token.
-      await jobs.enqueue(LINE_EVENT_JOB, {
+      const queued = await jobs.enqueue(LINE_EVENT_JOB, {
         connectionId: connection.id,
-        event: { webhookEventId: header.webhookEventId, encrypted: encryptSecret(JSON.stringify(event)) },
+        event: { webhookEventId: header.webhookEventId, encrypted: encryptSecret(JSON.stringify(inbound.event)) },
         receivedAtMs,
       }, {
         dedupKey: 'line.event:' + header.webhookEventId,
         businessId: connection.business_id, lockKey, maxAttempts: 5,
       });
+      if (!queued.deduped && inbound.markAsReadToken) {
+        void markLineMessageAsRead(connection.access_token_enc, inbound.markAsReadToken);
+      }
     }
     return acknowledged;
   } catch {

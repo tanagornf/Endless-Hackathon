@@ -21,6 +21,8 @@
 
 ## Production verification
 
+Native read receipts use the webhook's durable enqueue deduplication and a single bounded LINE request. The focused, database-free suite passed 45/45 mocked read-receipt, webhook, event, and sender tests. On-device verification remains pending a coordinated synthetic operator test with the OA Chat setting enabled.
+
 | Check | Result |
 |---|---|
 | A team test account sent a message to NLess Demo, it appeared in Shop A inbox, and LINE received the answer | Pending a configured test OA and device observation |
