@@ -10,7 +10,7 @@ import { menuIcon } from '../icons';
 import { Brand } from './Brand';
 
 export const groups: MenuGroup[] = ['home','chat','customers','knowledge','ai','live','insights','commerce','settings','help','admin'];
-const railPaths = ['/dashboard', '/chat', '/catalog', '/knowledge', '/demo-chat', '/channels', '/members'];
+const railPaths = ['/dashboard', '/chat', '/catalog', '/knowledge', '/demo-chat', '/channels', '/members', '/ops'];
 export function Navigation({ entries, close, desktop = false }: { entries: MenuEntry[]; close: () => void; desktop?: boolean }) {
   const { t } = useTranslation('common');
   const [term, setTerm] = useState('');

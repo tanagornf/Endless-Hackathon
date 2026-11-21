@@ -5,8 +5,8 @@ import StorefrontOutlined from '@mui/icons-material/StorefrontOutlined';
 import { useTranslation } from 'react-i18next';
 import { useSession } from '../session';
 
-export function ShopSwitcher() {
-  const { businesses, currentBusiness, selectBusiness } = useSession();
+export function ShopSwitcher({ onSelect }: { onSelect: (id: string) => void }) {
+  const { businesses, currentBusiness } = useSession();
   const { t } = useTranslation('common');
   if (!currentBusiness || businesses.length === 0) return null;
 
@@ -21,9 +21,7 @@ export function ShopSwitcher() {
       sx={{ fontWeight: 600, lineHeight: 1.6 }}>{currentBusiness.name}</Typography>
   </Box>;
 
-  if (businesses.length === 1) return identity;
-
-  return <Select value={currentBusiness.id} onChange={event => selectBusiness(event.target.value)}
+  return <Select value={currentBusiness.id} onChange={event => onSelect(event.target.value)}
     inputProps={{ 'aria-label': t('pages.shop') }} renderValue={() => identity}
     IconComponent={KeyboardArrowDownRounded}
     sx={{

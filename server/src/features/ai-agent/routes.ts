@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { AppError, defineFeatureRoutes } from '../../core';
 import { AI_REPLY_JOB } from '@nless/shared/features/inbox/types';
+import { readOwnerConsultAnswer, registerOwnerConsultAnswerConsumer } from '../business-settings/service';
+import { createOwnerConsultResumeHandler, OWNER_CONSULT_RESUME_JOB } from './ownerConsult';
 import { aiReplyJobHandler, getAiTurnMetrics, getTurnTrace, listTurns } from './service';
 import { listTurnsQuery } from './trace';
 
@@ -12,6 +14,7 @@ export default defineFeatureRoutes({
   featureId: 'F10',
   slug: 'ai-agent',
   register(api) {
+    registerOwnerConsultAnswerConsumer();
     api.get('/businesses/:businessId/ai/turns',
       { auth: 'business', permission: 'chat.read', summary: 'List AI turns' },
       async ({ business, query }) => {
@@ -39,5 +42,8 @@ export default defineFeatureRoutes({
         return getAiTurnMetrics(business!.id, { from, to });
       });
   },
-  jobs: { [AI_REPLY_JOB]: aiReplyJobHandler },
+  jobs: {
+    [AI_REPLY_JOB]: aiReplyJobHandler,
+    [OWNER_CONSULT_RESUME_JOB]: createOwnerConsultResumeHandler(readOwnerConsultAnswer),
+  },
 });

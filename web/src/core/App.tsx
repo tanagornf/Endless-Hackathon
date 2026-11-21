@@ -1,7 +1,7 @@
 import { Alert, Box, LinearProgress, ThemeProvider } from '@mui/material';
 import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { matchPath, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { PageRoute } from '@nless/shared/core/loader';
 import type { PermissionKey } from '@nless/shared/core/permissions';
@@ -27,10 +27,15 @@ function MessagePage({ label }: { label: string }) {
 const NotFound = () => <MessagePage label="pages.notFound" />;
 function Guard({ auth = 'business', permission, children }: { auth?: PageRoute['auth']; permission?: PermissionKey; children: ReactNode }) {
   const { status, user, currentBusiness, permissions } = useSession();
-  const location = useLocation();
+  const { pathname, search, hash } = useLocation();
   if (auth === 'none') return children;
   if (status === 'loading') return <LinearProgress />;
-  if (status !== 'ready') return <Navigate replace to={'/login?next=' + encodeURIComponent(location.pathname + location.search + location.hash)} />;
+  if (status !== 'ready') {
+    const destination = pathname + search + hash;
+    const keepDestination = destination !== '/' && !matchPath('/oauth/callback', pathname);
+    const query = keepDestination ? '?' + new URLSearchParams({ next: destination }) : '';
+    return <Navigate replace to={{ pathname: '/login', search: query }} />;
+  }
   if (auth === 'platform_admin' && !user?.isPlatformAdmin) return <MessagePage label="pages.forbidden" />;
   if (auth === 'business' && !currentBusiness) return <Navigate replace to="/no-business" />;
   if (permission && !permissions.includes(permission)) return <MessagePage label="pages.forbidden" />;
@@ -68,6 +73,8 @@ function SessionHome({ children }: { children: ReactNode }) {
 }
 export default function App() {
   const flags = useFeatures(true);
+  const { status } = useSession();
+  const waitingForFlags = import.meta.env.PROD && status === 'ready' && !flags.flags && !flags.error;
   const { t } = useTranslation('common');
   useRealtimeConnection();
   return <>
@@ -84,7 +91,7 @@ export default function App() {
         {routes.map(({ id, path, auth, permission, layout, Component }) => {
           const publicRoute = layout === 'public' && auth === 'none';
           const available = id === 'F02' || flags.visible(id, publicRoute);
-          const loading = id !== 'F02' && publicRoute && flags.publicLoading;
+          const loading = id !== 'F02' && (waitingForFlags || (publicRoute && flags.publicLoading));
           const content = <Guard auth={auth} permission={permission}>
             {loading ? <LinearProgress aria-label={t('pages.loading')} /> : available ? <Component /> : <NotFound />}
           </Guard>;

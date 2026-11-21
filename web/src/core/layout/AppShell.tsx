@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Avatar, Box, Drawer, IconButton, LinearProgress, Menu, MenuItem, Paper, Stack, Typography } from '@mui/material';
 import MenuOutlined from '@mui/icons-material/MenuOutlined';
@@ -36,14 +36,36 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation('common');
   const [drawer,setDrawer] = useState(false);
   const [anchor,setAnchor] = useState<HTMLElement | null>(null);
+  const [pendingShop, setPendingShop] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search, hash } = useLocation();
   const inbox = Boolean(matchPath('/chat', pathname));
+  const { selectBusiness } = session;
   const toast = useToast();
   const actions = useSlot('topbarActions');
   const current = entries.filter(e => pathname === e.path || pathname.startsWith(e.path + '/')).sort((a,b) => b.path.length - a.path.length)[0];
   const mobile = entries.filter(e => e.mobileTab).sort((a,b) => a.order - b.order).slice(0,4);
   const close = () => setDrawer(false);
+  useEffect(() => {
+    if (pendingShop && (!inbox || !new URLSearchParams(search).has('c'))) {
+      selectBusiness(pendingShop);
+      setPendingShop(null);
+    }
+  }, [inbox, pendingShop, search, selectBusiness]);
+  function changeShop(nextId: string) {
+    if (nextId === session.currentBusiness?.id) return;
+    if (inbox) {
+      const params = new URLSearchParams(search);
+      if (params.has('c')) {
+        params.delete('c');
+        // Clear the old shop's thread before mounting the new shop.
+        setPendingShop(nextId);
+        navigate({ pathname, search: params.toString(), hash }, { replace: true });
+        return;
+      }
+    }
+    selectBusiness(nextId);
+  }
   return <Box sx={{ display:'flex', minHeight:'100dvh' }}>
     <Box component="a" href="#workspace-main" sx={{position:'fixed',top:-80,left:8,zIndex:1500,p:1,bgcolor:'white','&:focus':{top:8}}}>{t('workspace.skip')}</Box>
     <Box component="aside" sx={{bgcolor:'white',borderRight:1,borderColor:'divider',display:{xs:'none',md:'block'},position:'sticky',top:0,height:'100dvh',flexShrink:0}}>
@@ -53,7 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <Box sx={{flex:1,minWidth:0,...(inbox && { display:'flex', flexDirection:'column', height:'100dvh', minHeight:480 })}}>
       <Paper square component="header" elevation={0} sx={{minHeight:56,flexShrink:0,px:{xs:.5,sm:2.5},gap:{xs:0,sm:1},display:'flex',alignItems:'center',borderBottom:1,borderColor:'divider'}}>
         <IconButton onClick={() => setDrawer(true)} aria-label={t('pages.menu')} sx={{display:{md:'none'}}}><MenuOutlined /></IconButton>
-        <ShopSwitcher />
+        <ShopSwitcher onSelect={changeShop} />
         <Stack direction="row" sx={{ml:'auto',alignItems:'center',flexShrink:0}}>
           <LanguageSwitch compact />{actions.map(entry => <SlotItem key={entry.id} entry={entry} />)}
           <IconButton aria-label={t('pages.account')} onClick={e => setAnchor(e.currentTarget)}>
