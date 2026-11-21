@@ -24,3 +24,13 @@
 - A synthetic staff tab initially showed a human handler. After the simulated server returned the chat to AI without a socket event, the original control issued only its initial GET. A focus event left the old release button visible.
 - The mounted control now reads the selected conversation on focus, on return to a visible tab, on the browser online event, and after 15 seconds while visible. It retains the last handler during a background read, disables pending actions, and discards pending responses and cached controls when the business, user, or conversation changes.
 - The regression, inbox host, and route registry web suites passed 7/7 on the rebased branch with MODEL_MODE=fake. Typecheck and path ownership passed. The API integration suite now checks that an explicit mismatched business yields 404 on all three team routes. Local verification used the web test project only.
+
+## AI handoff receipts
+
+F10 can persist an intent containing the business ID, conversation ID, turn ID, reason and expected conversation version. `applyAiHandoff(intent)` locks the scoped conversation. An open, unassigned AI conversation at that version moves to the human queue. The receipt records the committed version. The transition, receipt, internal note and handoff audit share one database transaction. `getAiHandoffReceipt(intent)` reads the receipt only while the exact unassigned human queue version is current.
+
+An identical retry returns the same receipt. A competing turn, manual staff claim, close, handback or later requeue invalidates an earlier intent. F10 owns its checkpoint, acknowledgement and delivery guard. The existing `requestHumanHandoff` entry point is preserved.
+
+The receipt also records when a staff notification is due. The F11 schedule retries interruptions using the same conversation/version key and retires a notification if the queue version changes before dispatch. Staff notification titles follow the shop language. The F31 adapter currently reports sandbox. Its production contract exposes an empty successful result for both deduplication and some persistence failures, so the adapter response alone cannot prove recipient delivery. Socket updates are best effort. The staff control reloads current state after a missed update.
+
+The feature migration applied on the A1 development and isolated A1 test databases. Local checks use synthetic data and the fake model. The production gate and the F10 restart-to-delivery verification are tracked separately.
