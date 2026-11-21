@@ -4,7 +4,7 @@
 
 | feature_id | slug | lane | status | target_mode | actual_mode | provider_gate | commit_sha | tests_evidence | checked_at_bangkok | blocker |
 |---|---|---|---|---|---|---|---|---|---|---|
-| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | 33c1d28 | F10, core loop and channels 84/84 with explicit handoff and queued handback tests. Real dev S2 generation 9/9. Typecheck and ownership passed. | 2026-11-21 13:10 +07:00 | Production smoke and remaining S3 intents pending. |
+| F10 | ai-agent | B2 | DOING | R | A | Dev S2 verified | d38f851 | F10, core loop and channels 86/86. Verified same-reply delivery retry and terminal trace, and recovered lost enqueue acknowledgement. Real dev S2 generation 9/9. | 2026-11-21 13:23 +07:00 | Production smoke and remaining S3 intents pending. |
 
 ## Log
 
@@ -20,6 +20,7 @@
 | 2026-11-21 12:55 | Fixed the trace fixture to correlate exact message IDs for two same-shop turns and finish both queued deliveries. | — | 6ec0792 | Trace and channels 5/5 and required PR CI passed. | `MODEL_MODE=fake`, B2 lane test DB. |
 | 2026-11-21 13:01 | Added the explicit request path, F11 handoff checkpoint, versioned acknowledgement and fallback after exhausted retries. | — | be677e7 | `npm test -- ai-agent loop.test.ts channels.test.ts` passed 84/84. Includes current-version queue send and suppression after a subsequent staff claim. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
 | 2026-11-21 13:10 | Verified the explicit handoff against the real F04 hours service and F35's queued delivery guard. | — | 33c1d28 | `npm test -- ai-agent loop.test.ts channels.test.ts` passed 84/84 on core c291657. A queued acknowledgement sent at the matching version and was suppressed after either staff claim or handback to AI. Typecheck and ownership passed. | `MODEL_MODE=fake`, B2 lane test DB. |
+| 2026-11-21 13:23 | Kept generation complete and linked the exact persisted delivery outcome on terminal enqueue failure. | B0 independently replayed both failure and lost acknowledgement with C1's candidate. | d38f851 | `npm test -- ai-agent loop.test.ts channels.test.ts` passed 86/86. Both new cases use one model call and one saved reply. The paired replay matched the terminal error in the F09 row and F10 owner trace, found zero delivery jobs after definitive failure, and one succeeded job after a lost acknowledgement. | `MODEL_MODE=fake`, separate B2 and B0 test DBs. |
 
 S1 serializes direct and queued turns with a short `ai.turn:<conversationId>` transaction lock and a fenced lease. The tests exercise a stale holder, a duplicate inbound, overlapping direct and queued turns, and four queued conversations with the default five-connection pool. The focused expired-lease test on the F35 base passed and verified exactly one AI save and one delivery enqueue call after a replacement holder finished.
 
@@ -30,6 +31,8 @@ The S2 tests cover G2, G3, G4, G5, G13, G14 and G16. They use scripted OpenAI re
 The trace list, metrics and `/ai-settings` remain in S5. The first S3 slice covers explicit Thai and English requests, the closed-shop acknowledgement, the fallback wait when F11 fails, and handoff after exhausted model retries. Broader intent classification and offers remain in S3. Production evidence is pending.
 
 F10 saves a version marker only after a successful F11 assignment and reuses the same saved acknowledgement on delivery retry. Tests cover AI-off before save, a manual takeover race, and suppression after a later staff claim or handback to AI. [Core delivery guard](https://github.com/tanagornf/Endless-Hackathon/pull/26)
+
+After three definite enqueue failures, the generated turn remains complete and keeps the saved reply ID. Its owner trace reports `DELIVERY_ENQUEUE_FAILED` from the scoped F09 delivery state. A committed job with a lost acknowledgement continues to dispatch the same reply. [Independent worker replay](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058509112)
 
 ## S2 OpenAI development acceptance
 
