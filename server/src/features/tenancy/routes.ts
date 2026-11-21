@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { registerInvitationRoutes } from './invitation-routes';
 import { defineFeatureRoutes } from '../../core';
+import { registerBusinessRoutes } from './business-routes';
+import { registerInvitationRoutes } from './invitation-routes';
 import { changeMember, listMembers } from './service';
 
 const permissionKeys = z.array(z.string().max(64)).max(40);
@@ -17,6 +18,7 @@ export default defineFeatureRoutes({
   slug: 'tenancy',
   register(api) {
     registerInvitationRoutes(api);
+    registerBusinessRoutes(api);
     api.get(membersPath, { ...memberAuth, summary: 'List business members' },
       async ({ business, user }) => listMembers(business!.id, user!.id));
     api.put(membersPath + '/:userId/permissions', {
