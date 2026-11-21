@@ -145,8 +145,9 @@ export async function generateDraft(
     const prior = mode === 'reply' ? await withinDeadline(priorSavedReply(conversation, inbound), signal) : null;
     const previousAnswer = history.findLast((message) => message.seq < inbound.seq && message.direction === 'outbound' &&
       (message.author === 'ai' || message.author === 'staff'));
-    const offerPending = prior?.offeredHandoff === true && previousAnswer?.id === prior.replyMessageId &&
-      previousAnswer.delivery.state !== 'failed';
+    const matchingPrior = previousAnswer && previousAnswer.id === prior?.replyMessageId && previousAnswer.delivery.state !== 'failed'
+      ? prior : null;
+    const offerPending = matchingPrior?.offeredHandoff === true;
     const offerReply = offerPending && unanswered.length === 1 ? replyToStaffOffer(unanswered[0]) : null;
     if (mode === 'reply' && (explicitlyRequestsStaff(unanswered.join('\n')) || offerReply === 'accepted') &&
         await withinDeadline(canRequestHandoff(conversation.businessId), signal)) {
@@ -159,6 +160,7 @@ export async function generateDraft(
     }
     context = await withinDeadline(buildReplyContext(conversation, history, inbound, settings, language, signal, {
       skipLookups: Boolean(casual) || !unanswered.length, offerPending,
+      previousProductSkus: matchingPrior?.productRefs.map(({ sku }) => sku),
     }), signal);
     draft.timings.contextMs = elapsed(started);
     draft.tools = context.tools;
@@ -260,8 +262,10 @@ export async function generateDraft(
       text = catalogText;
       draft.guardActions.push({ guard: 'price', action: 'fallback', detail: 'Rendered catalog prices by SKU' });
     }
-    if (!context.prices.length && !context.knowledge.length &&
-        context.tools.some(({ name, error, prefetch }) => name === 'get_price' && !prefetch && error === 'NOT_FOUND')) {
+    if (!context.prices.length && context.tools.some(({ name, error, prefetch }) =>
+      name === 'get_price' && error === 'NOT_FOUND' &&
+      (prefetch ? context.catalogRequest.skus.length > 0 : !context.knowledge.length),
+    )) {
       text = fallbacks.product_not_found[language];
     }
     const receipt = receiptText(context, text);

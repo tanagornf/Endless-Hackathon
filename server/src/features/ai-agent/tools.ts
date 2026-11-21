@@ -153,6 +153,7 @@ export async function lookupQuote(
     id: 'catalog:' + quote.itemId + ':v' + quote.version,
     quote, name: displayName(item, language), variant: variant?.name ?? null,
     names: [...new Set([item.name, item.nameEn, variant?.name, quote.name].filter((value): value is string => Boolean(value)))],
+    itemSku: item.sku, itemNames: [item.name, item.nameEn].filter((value): value is string => Boolean(value?.trim())),
   };
   return { evidence };
 }

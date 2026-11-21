@@ -125,11 +125,12 @@ export async function releaseClaim(turn: TurnLease): Promise<void> {
 
 export async function priorSavedReply(conversation: ConversationRecord, inbound: MessageRecord): Promise<{
   replyMessageId: string;
+  productRefs: AiTurnTopic['productRefs'];
   offeredHandoff: boolean;
   recentlySentNonTextNotice: boolean;
 } | null> {
   return db.maybeOne(String.raw`
-    SELECT reply_message_id AS "replyMessageId", handoff_offered AS "offeredHandoff",
+    SELECT reply_message_id AS "replyMessageId", product_refs AS "productRefs", handoff_offered AS "offeredHandoff",
       COALESCE(timings ? 'nonTextNotice' AND finished_at > $3::timestamptz - interval '10 minutes', false)
         AS "recentlySentNonTextNotice"
     FROM ai_turns

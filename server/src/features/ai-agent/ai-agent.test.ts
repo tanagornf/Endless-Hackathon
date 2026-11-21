@@ -987,7 +987,10 @@ describe('F10 catalog reference scope', { timeout: 20_000 }, () => {
   it('rejects a model tool lookup for the old SKU when the current request explicitly names another SKU', async () => {
     const spy = scriptedModel(
       { text: 'Demo Quest board game costs 1,490 baht.' },
-      { toolCalls: [call('old-sku', 'get_price', priceArguments('A-GAME-01', null))] },
+      { toolCalls: [
+        call('old-sku', 'get_price', priceArguments('A-GAME-01', null)),
+        call('old-total', 'calculate_total', { items: [priceArguments('A-GAME-01', null, 2)] }),
+      ] },
       { text: 'Demo Quest costs 1,490 baht.' },
       { text: fallbacks.product_not_found.en },
     );
@@ -996,11 +999,50 @@ describe('F10 catalog reference scope', { timeout: 20_000 }, () => {
     const unknown = await incoming('How much is ZZZ-SMOKE-UNKNOWN-914?', known);
     await execute(unknown);
 
-    const result = replyCalls(spy)[2].messages.find(({ role }) => role === 'tool');
-    expect(JSON.parse(result!.content as string)).toEqual({ ok: false, error: 'UNRELATED_PRODUCT' });
+    const rejected = replyCalls(spy)[2].messages.filter(({ role }) => role === 'tool');
+    expect(rejected.map(({ content }) => JSON.parse(content as string))).toEqual([
+      { ok: false, error: 'UNRELATED_PRODUCT' }, { ok: false, error: 'UNRELATED_PRODUCT' },
+    ]);
     const reply = (await replies(known.conversation.id)).at(-1)!;
     expect(reply.text).not.toMatch(/1[,.]?490|Demo Quest/iu);
     expect(reply.parts.every(({ type }) => type === 'text')).toBe(true);
     expect(await trace(unknown.message.id)).toMatchObject({ product_refs: [] });
+  });
+
+  it('re-fetches the current price through a negotiation and quantity-only follow-up', async () => {
+    const prices = vi.spyOn(catalog, 'getPrice');
+    const known = await incoming('How much is A-GAME-01?');
+    await execute(known);
+    const offer = await incoming('The page says it’s 990 today. Can I get it for 990?', known);
+    await execute(offer);
+    const quantity = await incoming('2 sets, please', known);
+    await execute(quantity);
+
+    const stored = await replies(known.conversation.id);
+    expect(stored[1].text).toContain('1,490 baht');
+    expect(stored[1].text).not.toContain('990');
+    expect(stored[2].text).toContain('2,980 baht');
+    expect(prices.mock.calls.map(([, request]) => request.quantity)).toEqual([1, 1, 2]);
+    expect(await trace(quantity.message.id)).toMatchObject({
+      product_refs: [expect.objectContaining({ sku: 'A-GAME-01' })], reply_language: 'en',
+    });
+  });
+
+  it('keeps totals for two explicitly requested products, using an SKU and a name', async () => {
+    scriptedModel(
+      { toolCalls: [call('current-total', 'calculate_total', {
+        items: [priceArguments('A-GAME-01', null, 1), priceArguments(null, 'Demo Cards set', 1)],
+      })] },
+      { text: 'The total is 1,589 baht.' },
+    );
+    const inbound = await incoming('How much in total for A-GAME-01 and Demo Cards set?');
+    await execute(inbound);
+    expect((await replies(inbound.conversation.id))[0].text).toContain('1,589 baht');
+    expect(await trace(inbound.message.id)).toMatchObject({
+      product_refs: expect.arrayContaining([
+        expect.objectContaining({ sku: 'A-GAME-01' }), expect.objectContaining({ sku: 'A-CARD-01' }),
+      ]),
+      tools: expect.arrayContaining([expect.objectContaining({ name: 'calculate_total', ok: true })]),
+    });
   });
 });
