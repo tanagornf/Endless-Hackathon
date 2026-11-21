@@ -146,6 +146,21 @@ describe('product facts in a real turn', () => {
     ]);
   });
 
+  it('keeps even exact internal catalog labels and SKUs private while using their shop evidence', async () => {
+    const internal = { ...product, nameEn: 'Private Spring Roadmap' };
+    mocks.product.mockResolvedValue(internal);
+    mocks.details.mockResolvedValue([{ ...details, nameEn: internal.nameEn, description: 'The case is made of aluminum.' }]);
+    mocks.chat.mockResolvedValueOnce({
+      json: { answer: 'The case is made of aluminum.', evidenceIds: ['catalog:' + product.id + ':v3'] }, finishReason: 'stop',
+    });
+    const local = await resolve(context('What is PHONE-DEMO-01 made of?'));
+    expect(local.parts).toEqual([{ type: 'text', text: 'The case is made of aluminum.' }]);
+    await resolve(context('Does Private Spring Roadmap support Qi2?'));
+    expect(mocks.findDraft).not.toHaveBeenCalled();
+    expect(mocks.searchWeb).not.toHaveBeenCalled();
+    expect(mocks.saveDraft).not.toHaveBeenCalled();
+  });
+
   it('keeps arbitrary personal names, unknown store SKUs and unidentified variants out of web search', async () => {
     mocks.product.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     const unknown = await resolve(context('Does SHOP-UNKNOWN-42 support Qi2?'));
@@ -188,6 +203,63 @@ describe('product facts in a real turn', () => {
     expect(reply.parts).toEqual([{ type: 'text', text: fallbacks.no_answer.en }]);
     expect(reply.offerStaff).toBe(true);
     expect(mocks.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['en', 'What is Qi2?', 'Qi2 uses magnets to align the charger.', 'The device is available. It is free.'],
+    ['th', 'มาตรฐาน Qi2 คืออะไรครับ', 'Qi2 ใช้แม่เหล็กจัดตำแหน่งอุปกรณ์ค่ะ', 'รุ่นนี้มีพร้อมส่งและให้ฟรีค่ะ'],
+  ] as const)('keeps supported %s facts and strips uncited commerce in the reply and draft', async (language, text, fact, claim) => {
+    mocks.searchWeb.mockResolvedValue({ answer: fact + '\n' + claim, citations: [provenance] });
+    const reply = await resolve(context(text, language));
+    expect(reply.parts[0]).toMatchObject({ text: expect.stringContaining(fact) });
+    expect(reply.parts[0]).not.toMatchObject({ text: expect.stringContaining(claim) });
+    expect(mocks.saveDraft).toHaveBeenCalledWith(expect.objectContaining({ answer: fact }));
+  });
+
+  it.each(['Free Qi2 guide', 'Qi2 devices in stock', 'Qi2 charger ฿99', 'คู่มือแจกฟรี'])(
+    'uses the verified source hostname for a commerce title: %s',
+    async (title) => {
+      mocks.searchWeb.mockResolvedValue({ answer: 'Qi2 uses magnets for alignment.', citations: [{ ...provenance, title }] });
+      const reply = await resolve(context('What is Qi2?'));
+      expect(reply.parts[1]).toEqual({ type: 'text', text: 'Source 1 · support.apple.com\n' + provenance.url });
+      expect(mocks.saveDraft).toHaveBeenCalledWith(expect.objectContaining({
+        citations: [{ url: provenance.url, title: 'support.apple.com' }],
+      }));
+    },
+  );
+
+  it('distinguishes a missing provider citation, an invalid URL and an unusable answer without logging any content', async () => {
+    mocks.searchWeb
+      .mockResolvedValueOnce({ answer: 'Qi2 is a charging standard.', citations: [] })
+      .mockResolvedValueOnce({ answer: 'Qi2 is a charging standard.', citations: [{ url: 'https://127.0.0.1', title: 'Not public' }] })
+      .mockResolvedValueOnce({ answer: 'It is free.', citations: [provenance] });
+    for (const error of ['NO_WEB_CITATIONS', 'NO_VALID_WEB_CITATIONS', 'NO_USABLE_WEB_ANSWER']) {
+      const ctx = context('What is Qi2?');
+      await resolve(ctx);
+      expect(ctx.tools.at(-1)).toEqual({ name: 'web_search', ok: false, error, ms: expect.any(Number) });
+    }
+    expect(mocks.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('keeps a complete sourced fact when inline provider references put the raw answer above 650 characters', async () => {
+    const fact = 'Qi2 uses magnets to align a charger and a device.';
+    const sourceMarkup = ' ([Wireless Power Consortium](https://example.org/source?reference=' + 'a'.repeat(650) + '))';
+    mocks.searchWeb.mockResolvedValue({ answer: fact + sourceMarkup, citations: [provenance] });
+    const reply = await resolve(context('What is Qi2?'));
+    expect(reply.parts).toEqual([
+      { type: 'text', text: 'Information from public sources\n' + fact },
+      { type: 'text', text: 'Source 1 · Device specifications\n' + provenance.url },
+    ]);
+    expect(mocks.saveDraft).toHaveBeenCalledWith(expect.objectContaining({ answer: fact }));
+  });
+
+  it('keeps only complete sentences when the cleaned provider answer exceeds the display limit', async () => {
+    const fact = 'Qi2 uses magnets to align a charger and a device.';
+    const second = 'A second sentence has ' + 'an unspecified description '.repeat(35) + 'at the end.';
+    mocks.searchWeb.mockResolvedValue({ answer: fact + ' ' + second, citations: [provenance] });
+    const reply = await resolve(context('What is Qi2?'));
+    expect(reply.parts[0]).toEqual({ type: 'text', text: 'Information from public sources\n' + fact });
+    expect(mocks.saveDraft).toHaveBeenCalledWith(expect.objectContaining({ answer: fact }));
   });
 
   it.each(['draft', 'deleted'])('does not read or recreate a %s suggestion', async (status) => {
