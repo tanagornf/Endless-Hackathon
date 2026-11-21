@@ -28,7 +28,7 @@ export function combineCaptions(parts: Caption[]) {
 
 export async function authorizeCall(sessionId: string, proof: string | undefined): Promise<CallScope> {
   if (!validProof(proof)) throw new AppError('NOT_FOUND');
-  return db.one<CallScope>('SELECT * FROM voice_sessions WHERE id = $1 AND proof_digest = $2', [sessionId, digest(proof!)]);
+  return db.one<CallScope>('SELECT * FROM voice_sessions WHERE id = $1 AND proof_digest = $2 AND provider_session_id IS NOT NULL', [sessionId, digest(proof!)]);
 }
 
 export async function getRecentVoiceHistory(businessId: string, customerId: string, ex: DbExecutor = db) {
@@ -72,7 +72,7 @@ export async function appendProviderCaption(call: CallScope, caption: Extract<Li
     call.business_id, call.customer_id]);
 }
 
-export async function markVoiceEnded(call: CallScope) {
+export async function markVoiceEnded(call: Pick<CallScope, 'id' | 'business_id'>) {
   await db.tx(async (tx) => {
     const updated = await tx.query(
       'UPDATE voice_sessions SET ended_at = least(now(), expires_at) WHERE id = $1 AND business_id = $2 AND ended_at IS NULL',

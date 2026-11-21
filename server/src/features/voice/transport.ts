@@ -20,7 +20,7 @@ async function finalize(call: CallScope, result: LiveVoiceCloseResult) {
       duration: result.confirmed ? result.duration : null,
     });
   } finally {
-    await markVoiceEnded(call);
+    await markVoiceEnded(call).catch(() => {});
   }
 }
 
@@ -35,7 +35,7 @@ export async function attachVoiceCall(call: CallScope, maxSeconds: number) {
     } else if (event.type === 'delegation') {
       if (!control) return;
       const latest = combineCaptions(captions.filter((entry) => entry.startMs <= event.offsetMs + 2_000))
-        .filter(({ role }) => role === 'customer').slice(-2).map(({ text }) => text).join(' ');
+        .findLast(({ role }) => role === 'customer')?.text ?? '';
       let commentary: string;
       try { commentary = await getVoiceFacts(call, latest); }
       catch { commentary = 'I could not verify those shop facts. Ask the customer to try again or return to LINE.'; }
@@ -43,10 +43,10 @@ export async function attachVoiceCall(call: CallScope, maxSeconds: number) {
     } else if (event.type === 'closed') {
       active.delete(call.id);
       await finalize(call, event);
-    } else if (event.type === 'error' && event.code === 'connection_lost') {
+    } else if (event.type === 'error' && event.code !== 'provider_error') {
       active.delete(call.id);
-      await markVoiceEnded(call);
-      await finalize(call, await closeProvider(call));
+      await markVoiceEnded(call).catch(() => {});
+      await finalize(call, await closeProvider(call, control));
     }
   }
   try {
@@ -60,15 +60,15 @@ export async function attachVoiceCall(call: CallScope, maxSeconds: number) {
 
 async function closeProvider(call: CallScope, local?: LiveVoiceControl): Promise<LiveVoiceCloseResult> {
   try {
-    const control = local ?? await model.attachLiveVoiceSession({ providerSessionId: call.provider_session_id, onEvent() {} });
-    return await control.close();
+    if (!local) return await model.closeLiveVoiceSession(call.provider_session_id);
+    return await local.close();
   } catch { return noProofOfClose; }
 }
 
 async function closeCall(call: CallScope) {
   if (call.ended_at) return;
   const local = active.get(call.id)?.control;
-  await markVoiceEnded(call);
+  await markVoiceEnded(call).catch(() => {});
   const result = await closeProvider(call, local);
   active.delete(call.id);
   await finalize(call, result);
@@ -87,7 +87,8 @@ export async function readVoiceCallStatus(sessionId: string, proof?: string) {
 
 export async function sweepVoiceCalls() {
   const { rows } = await db.query<CallScope>(
-    'SELECT * FROM voice_sessions WHERE ended_at IS NULL AND expires_at <= now() ORDER BY expires_at LIMIT 20');
+    'SELECT * FROM voice_sessions WHERE ended_at IS NULL AND expires_at <= now() AND provider_session_id IS NOT NULL ORDER BY expires_at LIMIT 20');
   for (const call of rows) await closeCall(call).catch(() => log.warn({ voiceSessionId: call.id }, 'Could not close expired voice call'));
+  await db.query('UPDATE voice_sessions SET ended_at = expires_at WHERE provider_session_id IS NULL AND ended_at IS NULL AND expires_at <= now()');
   await purgeExpiredVoiceInvites();
 }

@@ -31,9 +31,9 @@ CREATE TABLE voice_sessions (
   customer_id uuid NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   proof_digest text NOT NULL,
   save_transcript boolean NOT NULL,
-  model text NOT NULL,
-  provider_session_id text NOT NULL UNIQUE,
-  mode text NOT NULL CHECK (mode IN ('openai', 'fake')),
+  model text,
+  provider_session_id text UNIQUE,
+  mode text CHECK (mode IN ('openai', 'fake')),
   started_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL,
   ended_at timestamptz

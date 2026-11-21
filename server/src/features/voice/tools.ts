@@ -12,7 +12,8 @@ export async function getVoiceFacts(call: CallScope, utterance: string) {
   };
   const compact = text.replace(/\s*[-–—]\s*/g, '-');
   const sku = compact.match(skuPattern)?.[0];
-  if (sku && /(?:\b(?:price|cost|much|stock|available)\b|ราคา|บาท|สต็อก|มีของ)/i.test(text)) {
+  if (/(?:\b(?:price|cost|much|stock|available)\b|ราคา|บาท|สต็อก|มีของ)/i.test(text)) {
+    if (!sku) return 'Ask for the exact product SKU before giving a price or stock answer.';
     const facts = await executeAgentTool({ ...scope, name: 'get_price', args: { sku, name: null, variant_name: null, quantity: null } });
     return 'Verified catalog response. If unavailable, say you could not verify it. ' + JSON.stringify(facts).slice(0, 1350);
   }

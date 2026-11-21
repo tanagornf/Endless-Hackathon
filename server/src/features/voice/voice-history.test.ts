@@ -4,6 +4,7 @@ import { config, db, model, type LiveVoiceEvent } from '../../core';
 import { createTestAgent } from '../../core/test-utils';
 import { saveMessage } from '../inbox/service';
 import { createVoiceInvite, getRecentVoiceHistory, verifyLineVoiceChallenge } from './service';
+import { seedActiveVoiceConnection } from './voice-test-fixtures';
 
 const shopA = SEED.businesses.find(({ alias }) => alias === 'biz_demo_a')!.id;
 const shopB = SEED.businesses.find(({ alias }) => alias === 'biz_demo_b')!.id;
@@ -12,6 +13,7 @@ const offerSdp = 'v=0\r\ns=Fixture';
 type App = Awaited<ReturnType<typeof createTestAgent>>;
 
 async function verifyNewInvite(app: App, businessId: string, lineUser: string, eventId: string) {
+  await seedActiveVoiceConnection(businessId, bot);
   const { conversation } = await saveMessage({
     businessId, direction: 'inbound', author: 'customer', triggerAi: false,
     customer: { channel: 'line', externalId: lineUser, channelAccountId: bot },
