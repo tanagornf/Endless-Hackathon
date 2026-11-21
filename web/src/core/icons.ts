@@ -1,3 +1,7 @@
+import ChatOutlined from '@mui/icons-material/ChatOutlined';
+import PaidOutlined from '@mui/icons-material/PaidOutlined';
+import AccountTreeOutlined from '@mui/icons-material/AccountTreeOutlined';
+import LiveTvOutlined from '@mui/icons-material/LiveTvOutlined';
 import GroupOutlined from '@mui/icons-material/GroupOutlined';
 import StorefrontOutlined from '@mui/icons-material/StorefrontOutlined';
 import MenuBookOutlined from '@mui/icons-material/MenuBookOutlined';
@@ -30,5 +34,5 @@ import RocketLaunchOutlined from '@mui/icons-material/RocketLaunchOutlined';
 import WorkOutlineOutlined from '@mui/icons-material/WorkOutlineOutlined';
 import Extension from '@mui/icons-material/Extension';
 
-export const icons = { GroupOutlined, StorefrontOutlined, MenuBookOutlined, UploadFileOutlined, ManageSearchOutlined, Inventory2Outlined, ForumOutlined, SmartToyOutlined, TuneOutlined, BadgeOutlined, TextSnippetOutlined, ReceiptLongOutlined, PaymentsOutlined, EventAvailableOutlined, CalendarMonthOutlined, HubOutlined, FacebookOutlined, CommentOutlined, QrCode2Outlined, CampaignOutlined, PeopleAltOutlined, InsightsOutlined, DashboardOutlined, MicOutlined, FactCheckOutlined, ScheduleSendOutlined, ShoppingBagOutlined, NotificationsOutlined, RocketLaunchOutlined, WorkOutlineOutlined, Extension };
+export const icons = { ChatOutlined, PaidOutlined, AccountTreeOutlined, LiveTvOutlined, GroupOutlined, StorefrontOutlined, MenuBookOutlined, UploadFileOutlined, ManageSearchOutlined, Inventory2Outlined, ForumOutlined, SmartToyOutlined, TuneOutlined, BadgeOutlined, TextSnippetOutlined, ReceiptLongOutlined, PaymentsOutlined, EventAvailableOutlined, CalendarMonthOutlined, HubOutlined, FacebookOutlined, CommentOutlined, QrCode2Outlined, CampaignOutlined, PeopleAltOutlined, InsightsOutlined, DashboardOutlined, MicOutlined, FactCheckOutlined, ScheduleSendOutlined, ShoppingBagOutlined, NotificationsOutlined, RocketLaunchOutlined, WorkOutlineOutlined, Extension };
 export const menuIcon = (name: string) => icons[name as keyof typeof icons] ?? Extension;
