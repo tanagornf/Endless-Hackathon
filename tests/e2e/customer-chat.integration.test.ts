@@ -92,14 +92,17 @@ test('an unknown SKU stays on the local catalog path', async () => {
   const search = vi.spyOn(model, 'searchWeb');
   const { reply } = await ask('How much is A-UNKNOWN-73 and how many do you have in stock?');
   expect(search).not.toHaveBeenCalled();
+  expect(textOf(reply)).toContain("couldn't find that product");
   expect(textOf(reply)).not.toMatch(/1,?490/);
   expect(reply.parts.some(part => part.type === 'image')).toBe(false);
 }, 20000);
 
-test('a known SKU uses its catalog price instead of public web sources', async () => {
+test('known SKUs use catalog prices and stock without a web search', async () => {
   const search = vi.spyOn(model, 'searchWeb');
   const { reply } = await ask('How much is A-GAME-01?');
   expect(textOf(reply)).toMatch(/1,490\b/);
+  const soldOut = await ask('Is A-SOLD-01 in stock?');
+  expect(textOf(soldOut.reply)).toMatch(/sold out|out of stock/i);
   expect(search).not.toHaveBeenCalled();
 }, 20000);
 
