@@ -103,6 +103,45 @@ describe('F06 draft commit and error export', { timeout: 40_000 }, () => {
     await drain();
   });
 
+  it('rehearses a 20-row timing sheet and restores the seed price-equivalent and all synthetic drafts', async () => {
+    const catalogPath = '/api/v1/businesses/' + demoA.id + '/catalog/items';
+    const sku = 'F06-TIMING-BASE';
+    const draftPrefix = 'F06-TIMING-DRAFT';
+    const created = await owner.post(catalogPath).set(headers).send({
+      kind: 'product', sku, name: 'Timing baseline', priceMinor: 9900, stock: 9, active: true,
+    });
+    expect(created.status).toBe(201);
+    const baselinePath = catalogPath + '/' + created.body.data.id;
+    const makeSheet = (price: number, drafts: string[] = []) =>
+      ['SKU,Name,Price', sku + ',Timing baseline,' + price, ...drafts].join('\n');
+    const draftRows = Array.from({ length: 19 }, (_, index) => draftPrefix + '-' + index + ',Timing draft,' + (20 + index));
+    try {
+      const id = await stageCsv('e2e-f06-timing-batch.csv', makeSheet(109, draftRows), true);
+      const path = imports() + '/' + id;
+      expect((await owner.post(path + '/commit').set(headers).send({})).status).toBe(202);
+      await drain();
+      const done = (await owner.get(path)).body.data;
+      expect(done).toMatchObject({ state: 'done', counts: { written: 19, updated: 1, total: 20, error: 0 } });
+      expect(Date.parse(done.timings.readyAt)).toBeGreaterThanOrEqual(Date.parse(done.timings.uploadedAt));
+      expect(Date.parse(done.timings.committedAt)).toBeGreaterThanOrEqual(Date.parse(done.timings.commitStartedAt));
+      expect((await owner.get(baselinePath)).body.data).toMatchObject({ priceMinor: 10900, stock: 9, active: true });
+    } finally {
+      try {
+        const restore = await stageCsv('e2e-f06-timing-restore.csv', makeSheet(99), true);
+        expect((await owner.post(imports() + '/' + restore + '/commit').set(headers).send({})).status).toBe(202);
+        await drain();
+        expect((await owner.get(baselinePath)).body.data).toMatchObject({ priceMinor: 9900, stock: 9, active: true });
+      } finally {
+        const leftovers = await listItems(demoA.id, { q: draftPrefix, status: 'all', limit: 100 });
+        for (const row of leftovers.items) {
+          expect(row.active).toBe(false);
+          expect((await owner.delete(catalogPath + '/' + row.id).set(headers)).ok).toBe(true);
+        }
+        expect((await listItems(demoA.id, { q: draftPrefix, status: 'all', limit: 100 })).items).toHaveLength(0);
+      }
+    }
+  }, 45_000);
+
   it('stages a Thai text file with the same retained article flow', async () => {
     const response = await owner.post(imports() + '/file').set(headers).field('options', JSON.stringify({ mode: 'as_article' }))
       .attach('file', Buffer.from('# เวลาเปิดร้าน\nร้านเปิดทุกวันตั้งแต่ 10:00 ถึง 20:00 น.'), { filename: 'e2e-f06-th.txt', contentType: 'text/plain' });
