@@ -20,11 +20,14 @@ type Row = Omit<StoredOrder, 'createdAt'> & {
   createdAt: Date;
 };
 const view = (row: Row): StoredOrder => ({ ...row, createdAt: row.createdAt.toISOString() });
-export async function getOrder(businessId: string, orderId: string, ex: DbExecutor = db): Promise<StoredOrder> {
-  const row = await ex.maybeOne<Row>(`SELECT ${columns} FROM orders o WHERE o.business_id=$1 AND o.id=$2`, [businessId, orderId]);
+export async function getOrder(businessId: string, orderId: string, ex: DbExecutor = db, lock = false): Promise<StoredOrder> {
+  const row = await ex.maybeOne<Row>(`SELECT ${columns} FROM orders o WHERE o.business_id=$1 AND o.id=$2` + (lock ? ' FOR UPDATE OF o' : ''), [businessId, orderId]);
   if (!row)
     throw new AppError('NOT_FOUND', 'Order not found');
   return view(row);
+}
+export function lockOrderForPayment(businessId: string, orderId: string, tx: DbExecutor) {
+  return getOrder(businessId, orderId, tx, true);
 }
 export async function getOrderForPayment(businessId: string, orderId: string) {
   const order = await getOrder(businessId, orderId);

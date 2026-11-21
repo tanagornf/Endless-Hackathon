@@ -14,6 +14,7 @@ import type { ReplyContext } from './context';
 import { fallbacks } from './fallbacks';
 import { codeFallback, inspectReply, isPriceQuestion, mentionsProduct, receiptText, renderCatalogQuotes, shapeReply, stripUnsafeSentences } from './guards';
 import { canRequestHandoff } from './handoff';
+import { readCustomerImage } from './imageInput';
 import { explicitlyRequestsStaff, replyToStaffOffer } from './intents';
 import { runModelLoop } from './loop';
 import type { LoopState } from './loop';
@@ -165,12 +166,12 @@ export async function generateDraft(
       ? await withinDeadline(customerInboundsHeldByStaff(conversation, backlog.map(({ id }) => id)), signal)
       : null;
     const history = held?.size ? inboxHistory.filter(({ id }) => !held.has(id)) : inboxHistory;
-    const unanswered = unansweredCustomerMessages(history, inbound);
+    const typedMessages = unansweredCustomerMessages(history, inbound);
     const prior = mode === 'reply' ? await withinDeadline(priorSavedReply(conversation, inbound), signal) : null;
     const previousAnswer = history.findLast((message) => message.seq < inbound.seq && message.direction === 'outbound' &&
       (message.author === 'ai' || message.author === 'staff'));
     if (mode === 'reply' && previousAnswer?.author === 'ai' && previousAnswer.parts.some(({ type }) => type === 'order_review')) {
-      const typed = typedOrderDecision(unanswered.at(-1) ?? '', language);
+      const typed = typedOrderDecision(typedMessages.at(-1) ?? '', language);
       if (typed) {
         draft.parts = shapeReply(typed);
         return { state: 'completed', draft };
@@ -182,7 +183,7 @@ export async function generateDraft(
     const currentText = inbound.parts.flatMap((part) => part.type === 'text' ? [part.text] : []).join('\n');
     const decision = { label: 'ESCALATION', source: 'regex', confidence: 1 } as const;
     const offerReply = consent?.status === 'declined' ? 'declined'
-      : offerPending && unanswered.length === 1 ? replyToStaffOffer(unanswered[0]) : null;
+      : offerPending && typedMessages.length === 1 ? replyToStaffOffer(typedMessages[0]) : null;
     if (mode === 'reply' && (consent?.status === 'confirmed' || explicitlyRequestsStaff(currentText) || explicitVoiceRequest.test(currentText)) &&
         await withinDeadline(canRequestHandoff(conversation.businessId), signal)) {
       if (consent?.status === 'confirmed') {
@@ -191,13 +192,31 @@ export async function generateDraft(
       }
       return staffPrompt(draft, decision, explicitVoiceRequest.test(currentText) ? 'voice_unavailable' : 'customer_request');
     }
-    const casual = casualIntent(unanswered);
-    if (mode === 'reply' && !unanswered.length && prior?.recentlySentNonTextNotice) {
+    const image = await withinDeadline(readCustomerImage(conversation, inbound, history, turnId, signal), signal)
+      .catch(() => { signal.throwIfAborted(); return null; });
+    if (image) {
+      calls.push(image.response);
+      modelMs.push(image.response.latencyMs);
+    }
+    if (image?.read?.kind === 'payment_slip') {
+      draft.pendingSlipFileId = image.fileId;
+      draft.parts = shapeReply(fallbacks.slip_received[language]);
+      return { state: 'completed', draft };
+    }
+    const photo = image?.read?.kind === 'photo' ? image.read : null;
+    const imageQuestion = photo?.question?.trim() || null;
+    const imageContext = photo ? {
+      query: imageQuestion && maskCardNumbers(imageQuestion),
+      description: maskCardNumbers([photo.description, photo.visibleText].filter(Boolean).join(' ')).slice(0, 900),
+    } : undefined;
+    const unanswered = !imageQuestion ? typedMessages : [...typedMessages, imageQuestion];
+    const casual = imageContext ? null : casualIntent(unanswered);
+    if (mode === 'reply' && !unanswered.length && !image && prior?.recentlySentNonTextNotice) {
       return { state: 'skipped', draft, reason: 'non_text_repeat' };
     }
-    const factQuestion = casual ? null : productFactQuestion(unanswered);
+    const factQuestion = casual || imageContext ? null : productFactQuestion(unanswered);
     context = await withinDeadline(buildReplyContext(conversation, history, inbound, settings, language, signal, {
-      skipLookups: Boolean(casual) || !unanswered.length || Boolean(factQuestion), offerPending,
+      skipLookups: Boolean(casual) || !unanswered.length || Boolean(factQuestion), offerPending, imageContext,
       previousProductSkus: matchingPrior?.productRefs.map(({ sku }) => sku),
     }), signal);
     draft.timings.contextMs = elapsed(started);
@@ -365,26 +384,26 @@ export async function generateDraft(
       appendHandoffOffer(draft);
     }
     draft.timings.guardMs = elapsed(guardStart);
-    const photo = mode === 'reply' ? currentPhotoRequest(context) : null;
-    const directPhoto = photo && oneCatalogQuestion && !availability;
-    if (mode === 'reply' && (draft.productRefs.length || photo)) {
-      const photoRef = photo && { itemId: photo.quote.itemId, sku: photo.quote.sku, name: photo.name };
+    const requestedPhoto = mode === 'reply' ? currentPhotoRequest(context) : null;
+    const directPhoto = requestedPhoto && oneCatalogQuestion && !availability;
+    if (mode === 'reply' && (draft.productRefs.length || requestedPhoto)) {
+      const photoRef = requestedPhoto && { itemId: requestedPhoto.quote.itemId, sku: requestedPhoto.quote.sku, name: requestedPhoto.name };
       const mediaSignal = AbortSignal.any([signal, AbortSignal.timeout(1200)]);
       const images = await withinDeadline(getReplyProductImages(conversation.businessId, context, {
         productRefs: photoRef ? [photoRef] : draft.productRefs,
         parts: directPhoto ? [] : draft.parts,
       }, mediaSignal), mediaSignal)
         .catch(() => []);
-      if (directPhoto && photo && photoRef) {
+      if (directPhoto && requestedPhoto && photoRef) {
         const caption = language === 'th'
-          ? images.length ? 'นี่คือ ' + photo.name + ' ค่ะ' : 'ยังไม่พบรูปสินค้าของ ' + photo.name + ' ค่ะ'
-          : images.length ? 'This is ' + photo.name + '.' : 'I could not find a shop photo for ' + photo.name + '.';
+          ? images.length ? 'นี่คือ ' + requestedPhoto.name + ' ค่ะ' : 'ยังไม่พบรูปสินค้าของ ' + requestedPhoto.name + ' ค่ะ'
+          : images.length ? 'This is ' + requestedPhoto.name + '.' : 'I could not find a shop photo for ' + requestedPhoto.name + '.';
         draft.parts = shapeReply(caption);
-        draft.evidenceIds = [photo.id];
+        draft.evidenceIds = [requestedPhoto.id];
         draft.productRefs = [photoRef];
         draft.handoffOffered = false;
-      } else if (images.length && photo && photoRef && !draft.productRefs.some(({ itemId }) => itemId === photoRef.itemId)) {
-        draft.evidenceIds = [...new Set([...draft.evidenceIds, photo.id])];
+      } else if (images.length && requestedPhoto && photoRef && !draft.productRefs.some(({ itemId }) => itemId === photoRef.itemId)) {
+        draft.evidenceIds = [...new Set([...draft.evidenceIds, requestedPhoto.id])];
         draft.productRefs.push(photoRef);
       }
       draft.parts.push(...images);

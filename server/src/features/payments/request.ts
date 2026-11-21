@@ -6,6 +6,7 @@ import { getBusinessProfile, getBusinessSettings } from '../business-settings/se
 import { getCustomerLanguage } from '../inbox/service';
 import { getOrderForPayment } from '../orders/service';
 import { recipient, renderQr, type Recipient } from './settings';
+import { listSlipsForPayment } from './lineSlip';
 
 type Order = Awaited<ReturnType<typeof getOrderForPayment>>;
 type Row = Omit<PaymentRequestRow,'orderNumber'|'customerName'|'expiresAt'|'paidAt'|'createdAt'> & {
@@ -34,7 +35,17 @@ async function getRow(businessId:string,id:string) {
 }
 export async function getDetail(businessId:string,id:string) {
   const row=await getRow(businessId,id);
-  return detail(row,await getOrderForPayment(businessId,row.orderId));
+  const [order, slips, receipt] = await Promise.all([
+    getOrderForPayment(businessId, row.orderId), listSlipsForPayment(businessId, id), getReceipt(businessId, id),
+  ]);
+  return { ...detail(row, order), slips, receipt };
+}
+async function getReceipt(businessId: string, requestId: string) {
+  const receipt = await db.maybeOne<{ receiptNo: string; paidAt: Date; amountMinor: number; mode: 'real' | 'sandbox' }>(
+    'SELECT receipt_no AS "receiptNo", paid_at AS "paidAt", amount_minor::float8 AS "amountMinor", mode ' +
+    'FROM payment_receipts WHERE business_id = $1 AND payment_request_id = $2', [businessId, requestId],
+  );
+  return receipt ? { ...receipt, paidAt: receipt.paidAt.toISOString() } : null;
 }
 export const listQuery=z.object({cursor:z.uuid().optional(),limit:z.coerce.number().int().min(1).max(100).default(30),
   state:z.enum(['open','pending_verification','paid','expired','superseded','cancelled']).optional(),orderId:z.uuid().optional()});
@@ -90,12 +101,14 @@ export async function publicPayment(token:string):Promise<PublicPaymentView> {
   const row=await db.maybeOne<Row>(`SELECT ${fields} FROM payment_requests WHERE public_token_hash=$1`,[tokenHash(token)]);
   if(!row) throw new AppError('NOT_FOUND','Payment link not found');
   const {businessId}=row;
-  const [order,shop,language,file]=await Promise.all([getOrderForPayment(businessId,row.orderId),getBusinessProfile(businessId),
+  const [order,shop,language,file,receipt]=await Promise.all([getOrderForPayment(businessId,row.orderId),getBusinessProfile(businessId),
     row.conversationId?getCustomerLanguage(row.conversationId,{businessId}):getBusinessSettings(businessId).then(shop=>shop.language),
-    row.state==='open' && row.qrFileId?storage.read(row.qrFileId,{businessId}):null]);
+    row.state==='open' && row.qrFileId?storage.read(row.qrFileId,{businessId}):null,
+    row.state === 'paid' ? getReceipt(businessId, row.id) : null]);
   const payable=order.status==='awaiting_payment' && order.paymentState==='unpaid';
   const state=row.state==='open' && !payable ? (order.paymentState==='paid'?'paid':order.status==='cancelled'?'cancelled':'expired'):row.state;
   return {shopName:shop.name,orderNumber:order.orderNumber,amountMinor:row.amountMinor,state,
     expiresAt:row.expiresAt.toISOString(),qrImageBase64:file && payable?Buffer.from(file.bytes).toString('base64'):null,receiverMasked:row.receiverMasked,
-    receiverName:row.receiverName,mode:row.mode,attemptsLeft:Math.max(0,3-row.failedAttempts),receipt:null,language};
+    receiverName:row.receiverName,mode:row.mode,attemptsLeft:Math.max(0,3-row.failedAttempts),
+    receipt: receipt ? { receiptNo: receipt.receiptNo, paidAt: receipt.paidAt } : null, language};
 }

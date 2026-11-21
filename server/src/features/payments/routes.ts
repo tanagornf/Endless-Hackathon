@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { AppError, assertRateLimit, defineFeatureRoutes } from '../../core';
 import { registerOrderHook } from '../orders/service';
+import { decideLineSlip } from './lineSlip';
 import { onOrderConfirmed } from './message';
 import { createPaymentRequestForOrder, getDetail, listQuery, listRequests, publicPayment } from './request';
 import { getSettings, saveSettings, testQr, updateSettingsBody } from './settings';
@@ -22,6 +23,16 @@ export default defineFeatureRoutes({featureId:'F14',slug:'payments',register(api
     async ({business,query})=>listRequests(business!.id,query));
   api.get(base+'/:requestId',{auth:'business',permission:'orders.read',summary:'Read payment request'},
     async ({business,params})=>getDetail(business!.id,id(params.requestId)));
+  api.post(base+'/:requestId/slips/:slipId/review', {
+    auth: 'business', permission: 'orders.write', summary: 'Record staff review of a payment slip',
+    body: z.discriminatedUnion('decision', [
+      z.strictObject({ decision: z.literal('accepted'), bankConfirmed: z.literal(true) }),
+      z.strictObject({ decision: z.literal('rejected') }),
+    ]),
+  }, async ({ business, user, params, body }) => {
+    await decideLineSlip(business!.id, user!.id, id(params.requestId), id(params.slipId), body);
+    return getDetail(business!.id, id(params.requestId));
+  });
   api.post('/businesses/:businessId/orders/:orderId/payment-request',{auth:'business',permission:'orders.write',summary:'Issue payment request',body:z.strictObject({})},
     async ({business,user,params})=>createPaymentRequestForOrder(business!.id,id(params.orderId),{actorUserId:user!.id}));
   api.get('/public/payments/:token',{auth:'none',summary:'Read public payment request'},async ({req,res,params})=>{

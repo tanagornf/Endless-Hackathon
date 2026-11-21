@@ -111,3 +111,8 @@ The owner consultation bridge records one unresolved question and reads only the
 ## Published shop reply preferences
 
 F10 reads F04's active revision at the start of reply generation. The approved text guides clarification questions and wording for the current shop. Catalog evidence, language, policy and consent still follow their existing checks. The local PostgreSQL lifecycle test used authenticated owner publish and rollback with a controlled model. It covered an inert draft, Thai and English replies after publication, an independent second shop, restoring the previous version, restoring the default and the canonical 1,490 baht price after a fabricated quote. Independent Google verification on the initial change passed 69/69 across F04 shop instructions and F10 tests. Actual-provider and production behavior await acceptance.
+
+## LINE customer images
+
+- A customer image is read with nearby messages when it belongs to the current unanswered LINE exchange. A clear question uses the existing catalog and knowledge guards. A photo without a clear question receives a Thai or English clarification. Only the scoped payment flow handles likely bank slips.
+- Targeted PostgreSQL integration and existing payment/fallback suites passed 28/28 with fake model responses. The cases cover photo-plus-caption, catalog pricing, a blank intent, confirmed-order slip intake, replay, staff approval, and ambiguous order selection. The production web build and typecheck passed. Real OpenAI, LINE handset, and production evidence remain pending.
