@@ -38,6 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [anchor,setAnchor] = useState<HTMLElement | null>(null);
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const inbox = Boolean(matchPath('/chat', pathname));
   const toast = useToast();
   const actions = useSlot('topbarActions');
   const current = entries.filter(e => pathname === e.path || pathname.startsWith(e.path + '/')).sort((a,b) => b.path.length - a.path.length)[0];
@@ -49,8 +50,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Navigation entries={entries} close={close} desktop />
     </Box>
     <Drawer open={drawer} onClose={close} sx={{ display:{md:'none'} }}><Navigation entries={entries} close={close} /></Drawer>
-    <Box sx={{flex:1,minWidth:0}}>
-      <Paper square component="header" elevation={0} sx={{minHeight:56,px:{xs:.5,sm:2.5},gap:{xs:0,sm:1},display:'flex',alignItems:'center',borderBottom:1,borderColor:'divider'}}>
+    <Box sx={{flex:1,minWidth:0,...(inbox && { display:'flex', flexDirection:'column', height:'100dvh', minHeight:480 })}}>
+      <Paper square component="header" elevation={0} sx={{minHeight:56,flexShrink:0,px:{xs:.5,sm:2.5},gap:{xs:0,sm:1},display:'flex',alignItems:'center',borderBottom:1,borderColor:'divider'}}>
         <IconButton onClick={() => setDrawer(true)} aria-label={t('pages.menu')} sx={{display:{md:'none'}}}><MenuOutlined /></IconButton>
         <ShopSwitcher />
         <Stack direction="row" sx={{ml:'auto',alignItems:'center',flexShrink:0}}>
@@ -64,11 +65,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Menu>
         </Stack>
       </Paper>
-      <Box id="workspace-main" component="main" tabIndex={-1} sx={{maxWidth:matchPath('/dashboard', pathname) ? 'none' : 1280,mx:'auto',p:{xs:2,sm:3},pb:{xs:mobile.length ? 11 : 3,md:3}}}>
+      <Box id="workspace-main" component="main" tabIndex={-1} sx={{width:'100%',minWidth:0,p:{xs:2,sm:3},
+        pb:inbox ? {xs:1.5,sm:2,md:3} : {xs:mobile.length ? 11 : 3,md:3},
+        ...(inbox && { flex:1, minHeight:0, display:'flex', flexDirection:'column' })}}>
         {current && <Typography variant="overline" sx={{color:'primary.main',fontWeight:700,letterSpacing:'.07em',textTransform:'none'}}>{t('nav:' + current.group)}</Typography>}
-        <Suspense fallback={<LinearProgress aria-label={t('pages.loading')} />}><Box key={session.currentBusiness?.id ?? 'account'}>{children}</Box></Suspense>
+        <Suspense fallback={<LinearProgress aria-label={t('pages.loading')} />}><Box key={session.currentBusiness?.id ?? 'account'}
+          sx={inbox ? { flex:1, minHeight:0, display:'flex', flexDirection:'column' } : undefined}>{children}</Box></Suspense>
       </Box>
-      {!!mobile.length && <Box role="group" aria-label={t('workspace.shortcuts')} sx={{display:{xs:'flex',md:'none'},position:'fixed',bottom:0,insetInline:0,bgcolor:'white',borderTop:1,borderColor:'divider',pb:'env(safe-area-inset-bottom)',zIndex:10}}>
+      {!!mobile.length && <Box role="group" aria-label={t('workspace.shortcuts')} sx={{display:{xs:'flex',md:'none'},position:inbox ? 'static' : 'fixed',flexShrink:0,bottom:0,insetInline:0,bgcolor:'white',borderTop:1,borderColor:'divider',pb:'env(safe-area-inset-bottom)',zIndex:10}}>
         {mobile.map(item => {const Icon = menuIcon(item.icon);return <Box key={item.path} component={Link} to={item.path} aria-current={current?.path===item.path ? 'page' : undefined}
           sx={{flex:1,textAlign:'center',textDecoration:'none',py:.8,fontSize:'.74rem',color:current?.path===item.path ? 'primary.main' : 'text.secondary'}}>
           <Icon fontSize="small" sx={{display:'block',mx:'auto'}} />{t(item.labelKey)}</Box>;})}

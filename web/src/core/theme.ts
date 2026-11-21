@@ -59,8 +59,7 @@ const options: ThemeOptions = {
 
 export const theme = createTheme(options);
 
-// The inbox and its team controls share the md breakpoint. Allow room for
-// the navigation, conversation list, transcript and team panel before splitting.
+// Keep team controls inline until the transcript has room for a third column.
 export const inboxTheme = createTheme({
   ...options,
   breakpoints: { values: { ...theme.breakpoints.values, md: 1360, lg: 1440 } },

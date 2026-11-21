@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, IconButton, InputAdornment, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, TextField, Tooltip, Typography } from '@mui/material';
+import { Box, IconButton, InputAdornment, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, TextField, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import MenuOpenOutlined from '@mui/icons-material/MenuOpenOutlined';
 import SearchOutlined from '@mui/icons-material/SearchOutlined';
 import CloseOutlined from '@mui/icons-material/CloseOutlined';
@@ -14,13 +14,15 @@ const railPaths = ['/dashboard', '/chat', '/catalog', '/knowledge', '/demo-chat'
 export function Navigation({ entries, close, desktop = false }: { entries: MenuEntry[]; close: () => void; desktop?: boolean }) {
   const { t } = useTranslation('common');
   const [term, setTerm] = useState('');
-  const [compact, setCompact] = useState(() => {
-    if (!desktop) return false;
-    try { return localStorage.getItem('endless.navigation') !== 'expanded'; } catch { return true; }
+  const wide = useMediaQuery('(min-width: 1440px)');
+  const [preference, setPreference] = useState(() => {
+    try { return localStorage.getItem('endless.navigation'); } catch { return null; }
   });
+  const compact = desktop && (preference ? preference === 'compact' : !wide);
   function toggleWidth() {
-    setCompact(!compact);
-    try { localStorage.setItem('endless.navigation', compact ? 'expanded' : 'compact'); } catch { /* Optional preference. */ }
+    const next = compact ? 'expanded' : 'compact';
+    setPreference(next);
+    try { localStorage.setItem('endless.navigation', next); } catch { /* Optional preference. */ }
   }
   const search = term.toLocaleLowerCase().trim();
   const hits = entries.filter(item => [t(item.labelKey), t('nav:' + item.group), item.path, ...(item.searchTerms ?? [])]

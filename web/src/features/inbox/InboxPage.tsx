@@ -13,6 +13,8 @@ const filters = ['all', 'waiting', 'active', 'closed'] as const;
 const slotComponents = new WeakMap<SlotContribution['load'], LazyExoticComponent<ComponentType<Record<string, unknown>>>>();
 const THREAD_REFRESH_MS = 15_000;
 const LIST_REFRESH_MS = 30_000;
+const splitWidth = 720;
+const splitInbox = `@container inbox (min-width: ${splitWidth}px)`;
 const unprefixed = { businessScoped: false } as const;
 
 function SlotContent({ slots, props }: { slots: SlotContribution[]; props: Record<string, unknown> }) {
@@ -26,7 +28,13 @@ function SlotContent({ slots, props }: { slots: SlotContribution[]; props: Recor
   })}</Suspense>;
 }
 
-function InboxList({ selected, onSelect }: { selected: string | null; onSelect: (id: string) => void }) {
+type InboxSelection = {
+  selected: string | null;
+  onSelect: (id: string) => void;
+  onFirstRowChange: (id: string | null) => void;
+};
+
+function InboxList({ selected, onSelect, onFirstRowChange }: InboxSelection) {
   const { t } = useTranslation('inbox');
   const [filter, setFilter] = useState<(typeof filters)[number]>('all');
   const [assignee, setAssignee] = useState('');
@@ -52,7 +60,7 @@ function InboxList({ selected, onSelect }: { selected: string | null; onSelect: 
       <MenuItem value="me">{t('list.mine')}</MenuItem>
       <MenuItem value="unassigned">{t('list.unassigned')}</MenuItem>
     </TextField>
-    <InboxRows key={query} path={query} selected={selected} onSelect={onSelect} hasSearch={Boolean(search)} />
+    <InboxRows key={query} path={query} selected={selected} onSelect={onSelect} onFirstRowChange={onFirstRowChange} hasSearch={Boolean(search)} />
   </Stack>;
 }
 
@@ -70,8 +78,8 @@ function InboxFilters({ filter, change }: { filter: (typeof filters)[number]; ch
     aria-pressed={choice === filter} sx={{ minHeight: 44 }} onClick={() => change(choice)} />);
 }
 
-function InboxRows({ path, selected, onSelect, hasSearch }: {
-  path: string; selected: string | null; onSelect: (id: string) => void; hasSearch: boolean;
+function InboxRows({ path, selected, onSelect, onFirstRowChange, hasSearch }: InboxSelection & {
+  path: string; hasSearch: boolean;
 }) {
   const { t } = useTranslation('inbox');
   const first = useApiQuery<Page<InboxRow>>(path);
@@ -80,6 +88,12 @@ function InboxRows({ path, selected, onSelect, hasSearch }: {
   const [extra, setExtra] = useState<Page<InboxRow>>();
   const more = useApiQuery<Page<InboxRow>>(cursor ? path + '&cursor=' + encodeURIComponent(cursor) : null);
   const debounce = useRef<number | undefined>(undefined);
+  const firstId = first.error ? null : current?.items[0]?.conversationId ?? null;
+
+  useEffect(() => {
+    onFirstRowChange(firstId);
+    return () => onFirstRowChange(null);
+  }, [firstId, onFirstRowChange]);
 
   useEffect(() => {
     if (!first.data) return;
@@ -191,7 +205,7 @@ function StaffMessage({ message, onRetry }: { message: MessageRecord; onRetry?: 
   </Box>;
 }
 
-function InboxThread({ id, goBack }: { id: string; goBack: () => void }) {
+function InboxThread({ id, goBack, opened }: { id: string; goBack: () => void; opened: boolean }) {
   const { t } = useTranslation('inbox');
   const path = '/conversations/' + encodeURIComponent(id);
   const detail = useApiQuery<ConversationDetail>(path, unprefixed);
@@ -233,11 +247,11 @@ function InboxThread({ id, goBack }: { id: string; goBack: () => void }) {
     if (!priorSequence) setBefore(page.nextCursor);
     if (newest > priorSequence && priorSequence > 0 && !stickToBottom.current) setNewMessages(true);
     setMessages((previous) => mergeMessages(previous, page.items));
-    if (readSequence.current < newest) {
+    if (opened && readSequence.current < newest) {
       readSequence.current = newest;
       void read.run({}).catch(() => { readSequence.current = -1; });
     }
-  }, [history.data]);
+  }, [history.data, opened]);
   useEffect(() => {
     if (!older.data) return;
     const page = older.data;
@@ -320,7 +334,7 @@ function InboxThread({ id, goBack }: { id: string; goBack: () => void }) {
   const belongsToMe = conversation?.assigneeUserId === user?.id;
   const retryLoading = () => { detail.reload(); history.reload(); };
   return <Stack spacing={1.5} sx={{ height: '100%', minHeight: 0 }}>
-    <Button onClick={goBack} sx={{ display: { xs: 'inline-flex', md: 'none' }, minHeight: 44, alignSelf: 'flex-start' }}>
+    <Button onClick={goBack} sx={{ [splitInbox]: { display: 'none' }, minHeight: 44, alignSelf: 'flex-start' }}>
       {t('thread.back')}
     </Button>
     {detail.error || history.error ? <Alert severity="error" action={<Button onClick={retryLoading}>{t('retry')}</Button>}>
@@ -422,6 +436,17 @@ export default function InboxPage() {
   const [search, setSearch] = useSearchParams();
   const conversation = search.get('c');
   const { currentBusiness } = useSession();
+  const container = useRef<HTMLDivElement>(null);
+  const [wide, setWide] = useState(false);
+  const [firstId, setFirstId] = useState<string | null>(null);
+  const displayed = conversation ?? (wide ? firstId : null);
+
+  useEffect(() => {
+    if (!container.current || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => setWide(entry.contentRect.width >= splitWidth));
+    observer.observe(container.current);
+    return () => observer.disconnect();
+  }, []);
   function choose(id: string | null) {
     const next = new URLSearchParams(search);
     if (id) next.set('c', id);
@@ -429,17 +454,19 @@ export default function InboxPage() {
     setSearch(next);
   }
 
-  return <Stack spacing={1.5} sx={{ minWidth: 0 }}>
+  return <Stack ref={container} spacing={1.5} sx={{ container: 'inbox / inline-size', minWidth: 0, minHeight: 0, flex: 1 }}>
     <PageHeader title={t('page.title')} />
     <Box sx={{
-      display: 'grid', minWidth: 0, height: { xs: 'max(420px, calc(100dvh - 205px))', md: 'max(420px, calc(100dvh - 160px))' },
-      gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(250px, 360px) minmax(0, 1fr)' }, gap: 1.5,
+      display: 'grid', flex: 1, minHeight: 0, minWidth: 0, gap: 1.5,
+      gridTemplateRows: 'minmax(0, 1fr)', gridTemplateColumns: 'minmax(0, 1fr)',
+      [splitInbox]: { gridTemplateColumns: 'clamp(260px, 32%, 440px) minmax(0, 1fr)' },
     }}>
-      <Paper variant="outlined" sx={{ p: 1.5, minHeight: 0, minWidth: 0, display: { xs: conversation ? 'none' : 'block', md: 'block' } }}>
-        <InboxList key={currentBusiness?.id} selected={conversation} onSelect={choose} />
+      <Paper variant="outlined" sx={{ p: 1.5, minHeight: 0, minWidth: 0, overflowY: 'auto', display: conversation ? 'none' : 'block', [splitInbox]: { display: 'block' } }}>
+        <InboxList key={currentBusiness?.id} selected={displayed} onSelect={choose} onFirstRowChange={setFirstId} />
       </Paper>
-      <Paper variant="outlined" sx={{ p: 1.5, minHeight: 0, minWidth: 0, display: { xs: conversation ? 'block' : 'none', md: 'block' } }}>
-        {conversation ? <InboxThread key={currentBusiness?.id + ':' + conversation} id={conversation} goBack={() => choose(null)} /> :
+      <Paper variant="outlined" onFocusCapture={() => { if (!conversation && displayed) choose(displayed); }}
+        sx={{ p: 1.5, minHeight: 0, minWidth: 0, overflowY: 'auto', display: conversation ? 'block' : 'none', [splitInbox]: { display: 'block' } }}>
+        {displayed ? <InboxThread key={currentBusiness?.id + ':' + displayed} id={displayed} opened={Boolean(conversation)} goBack={() => choose(null)} /> :
           <EmptyState title={t('thread.select')} />}
       </Paper>
     </Box>
