@@ -12,6 +12,16 @@
   "yes": "Yes",
   "no": "No",
   "overview": "Overview",
+  "dashboardByDay": "Conversations by day",
+  "dashboardLatestDays": "Conversations in the latest 7 days of this period",
+  "dashboardByChannel": "Conversations by channel",
+  "dashboardNoCounts": "No conversations recorded for this period.",
+  "dashboardCountsUnavailable": "Conversation counts are unavailable.",
+  "dashboardFallback": {
+    "activity": "Review recent conversations and replies in the inbox.",
+    "channels": "Check the connection status of your shop’s LINE account."
+  },
+  "dashboardViewChannels": "View channels",
   "retry": "Try again",
   "back": "Back",
   "details": "Details",

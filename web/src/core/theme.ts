@@ -26,7 +26,27 @@ const options: ThemeOptions = {
       head: { color: '#476162', backgroundColor: '#F1F6F5', fontWeight: 600, fontSize: '.8rem' },
     } },
     MuiTableRow: { styleOverrides: { root: { '&:last-child td': { borderBottom: 0 } } } },
-    MuiChip: { defaultProps: { size: 'small' }, styleOverrides: { root: { fontWeight: 600 } } },
+    MuiChip: {
+      defaultProps: { size: 'small' },
+      styleOverrides: { root: {
+        fontWeight: 600,
+        '&[aria-pressed]': {
+          height: 28,
+          minHeight: 28,
+          minWidth: 44,
+          '@media (any-pointer: coarse)': {
+            // Reserve the full tap target even when the filters wrap.
+            position: 'relative',
+            overflow: 'visible',
+            marginBlock: 8,
+            '&::after': {
+              content: '""', position: 'absolute', insetInline: 0,
+              top: '50%', height: 44, transform: 'translateY(-50%)',
+            },
+          },
+        },
+      } },
+    },
     MuiTab: { styleOverrides: { root: { textTransform: 'none', minHeight: 44 } } },
     MuiTextField: { defaultProps: { size: 'small' } },
     MuiCssBaseline: { styleOverrides: {
