@@ -31,6 +31,28 @@ test('fake responses are deterministic and leave auditable usage without a provi
   expect(await db.one('SELECT mode,cost_reason FROM model_usage WHERE id=$1', [reply.usageId])).toMatchObject({ mode: 'fake', cost_reason: 'fake_mode' });
 }, 12000);
 
+test('fake shop correction records the server-owned scope, effort and requested tier with no provider claim', async () => {
+  const businessId = '00000000-0000-4000-8000-0000000a2000';
+  const trusted = { caseId: 'synthetic-correction', expectedVersion: 3, targetId: null };
+  const schema = { type: 'object', additionalProperties: false,
+    required: ['action', 'caseId', 'expectedVersion', 'targetId', 'textTh', 'textEn', 'reason'],
+    properties: { action: { type: 'string' }, caseId: { type: 'string' }, expectedVersion: { type: 'integer' },
+      targetId: { type: ['string', 'null'] }, textTh: { type: ['string', 'null'] }, textEn: { type: ['string', 'null'] },
+      reason: { type: 'string' } } };
+  const input = { usage: { featureId: 'F04' as const, purpose: 'caller-cannot-select-purpose', businessId },
+    redactedInput: JSON.stringify({ ...trusted, correction: 'Synthetic test' }), responseFormat: { name: 'shop_correction', schema } };
+  const result = await model.analyzeShopCorrection(input);
+  expect(result).toMatchObject({ mode: 'fake', requestId: null, usage: { costUsdMicros: 0, costReason: 'fake_mode' },
+    json: { action: 'no_change', ...trusted, textTh: null, textEn: null } });
+  const row = await db.one('SELECT business_id,feature_id,purpose,reasoning_effort,requested_service_tier,provider_service_tier FROM model_usage WHERE id=$1', [result.usageId]);
+  expect(row).toEqual({ business_id: businessId, feature_id: 'F04', purpose: 'learning.owner-correction',
+    reasoning_effort: 'high', requested_service_tier: 'ultrafast', provider_service_tier: null });
+  expect(result.text).not.toContain('Synthetic test');
+  await expect(model.analyzeShopCorrection({ ...input, redactedInput: '{"correction":"No trusted version"}' }))
+    .rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  await expect(model.analyzeShopCorrection({ ...input, signal: AbortSignal.abort() })).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+}, 12000);
+
 test('never retries a provider budget exhaustion', async () => {
   const error = { status: 429, code: 'project_spend_limit_exceeded' };
   expect(classifyOpenAIError(error)).toMatchObject({ code: 'PROVIDER_BUDGET_EXHAUSTED', retryable: false });
