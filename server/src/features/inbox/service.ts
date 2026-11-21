@@ -1,5 +1,6 @@
 import { AppError } from '../../core';
 import { db } from '../../core';
+import { deliverStaffMessage } from './staff';
 import { customerLanguage, persistMessage, readConversation, readHistory } from './setup';
 import type { ChatAttachment, ChatAttachmentRef, ConversationRecord, HistoryOptions, MessageRecord, SaveMessageInput, SaveMessageResult } from '@nless/shared/features/inbox/types';
 import type { MessagePart, Page } from '@nless/shared/core/types';
@@ -60,7 +61,7 @@ export async function sendStaffMessage(input: {
   /** false = do not take the conversation over automatically. Default true. */
   autoTakeover?: boolean;
 }): Promise<SendReceipt> {
-  throw new AppError("SERVICE_NOT_READY", "sendStaffMessage is not implemented");
+  return deliverStaffMessage(input);
 }
 
 /**

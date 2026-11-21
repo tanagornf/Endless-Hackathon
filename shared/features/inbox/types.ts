@@ -111,3 +111,37 @@ export interface ConversationDetail {
   aiPending: boolean;
   aiEnabled: boolean;
 }
+
+export type ConversationFilter = 'all' | 'waiting' | 'active' | 'closed';
+
+export interface ListConversationsInput {
+  filter: ConversationFilter;
+  assignee?: string;
+  search?: string;
+  cursor?: string;
+  limit: number;
+}
+
+export interface InboxRow {
+  conversationId: string;
+  customerId: string;
+  customerName: string;
+  channel: Channel;
+  status: 'open' | 'closed';
+  handler: 'ai' | 'human';
+  assigneeUserId: string | null;
+  assigneeName: string | null;
+  lastMessageAt: string | null;
+  lastMessagePreview: string;
+  unreadCount: number;
+  waitingSince: string | null;
+  isWaiting: boolean;
+  version: number;
+}
+
+export interface InboxCounts {
+  all: number;
+  waiting: number;
+  active: number;
+  closed: number;
+}
