@@ -10,6 +10,7 @@ vi.mock('../../core', async () => ({
   ...await import('../../core/layout/PageHeader'),
   ...await import('../../core/format'),
   useCan: () => fixtures.canManage,
+  useSession: () => ({ currentBusiness: { id: 'shop' } }),
   useRealtime: vi.fn(),
   useApiQuery: (path: string | null) => ({
     data: path === '/channels/line' ? fixtures.view : { items: [] },

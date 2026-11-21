@@ -5,7 +5,7 @@ import type { WebApiError } from '@nless/shared/core/loader';
 import type { ConnectLineInput, LineConnectionView, LineEventRow } from '@nless/shared/features/line/types';
 import {
   ConfirmDialog, DataTable, EmptyState, FormDialog, PageHeader, SectionCard, StatusChip, formatDateTime,
-  useApiMutation, useApiQuery, useCan, useRealtime, useToast,
+  useApiMutation, useApiQuery, useCan, useRealtime, useSession, useToast,
 } from '../../core';
 
 const connectionPath = '/channels/line';
@@ -41,6 +41,11 @@ function RecentEvents({ items, loading, failed, reload }: {
 }
 
 export default function LineChannelPage() {
+  const businessId = useSession().currentBusiness?.id;
+  return <LineChannelSettings key={businessId} />;
+}
+
+function LineChannelSettings() {
   const { t } = useTranslation('line');
   const toast = useToast();
   const canManage = useCan('business.channels');
@@ -144,7 +149,7 @@ export default function LineChannelPage() {
   ) : undefined;
 
   return (
-    <Box sx={{ width: '100%', minWidth: 0 }}>
+    <Box sx={{ width: '100%', minWidth: 0, '& .MuiButton-root': { minHeight: 44 } }}>
       <PageHeader title={t('page.title')} description={t('page.subtitle')} />
       <Stack spacing={2.5}>
         {!canManage && <Alert severity="info">{t('readOnly')}</Alert>}
