@@ -133,9 +133,10 @@ export async function connect(businessId: string, userId: string | null, body: C
       const current = await tx.maybeOne<LineConnection>("SELECT * FROM line_connections WHERE business_id = $1 AND status IN ('active', 'error')", [businessId]);
       if (source === 'env') {
         if (current) return null;
+        // Any explicit shop disconnect takes precedence over the stale environment OA.
         const explicitlyDisconnected = await tx.maybeOne(
-          "SELECT 1 FROM line_connections WHERE business_id = $1 AND channel_id = $2 AND status = 'inactive' AND status_reason = 'disconnected'",
-          [businessId, body.channelId],
+          "SELECT 1 FROM line_connections WHERE business_id = $1 AND status = 'inactive' AND status_reason = 'disconnected' LIMIT 1",
+          [businessId],
         );
         if (explicitlyDisconnected) return null;
       }
@@ -244,8 +245,7 @@ export async function bootstrapLineConnection(): Promise<void> {
       return;
     }
     const business = await db.maybeOne<{ id: string }>(
-      "SELECT b.id FROM seed_aliases s JOIN businesses b ON b.id = s.id WHERE s.alias = 'biz_demo_a' AND b.status = 'active' AND NOT EXISTS (SELECT 1 FROM line_connections lc WHERE lc.business_id = b.id AND (lc.status IN ('active', 'error') OR (lc.channel_id = $1 AND lc.status_reason = 'disconnected')))",
-      [LINE_CHANNEL_ID],
+      "SELECT b.id FROM seed_aliases s JOIN businesses b ON b.id = s.id WHERE s.alias = 'biz_demo_a' AND b.status = 'active' AND NOT EXISTS (SELECT 1 FROM line_connections lc WHERE lc.business_id = b.id AND (lc.status IN ('active', 'error') OR (lc.status = 'inactive' AND lc.status_reason = 'disconnected')))",
     );
     if (business) await connect(business.id, null, credentials.data, 'env');
   } catch {

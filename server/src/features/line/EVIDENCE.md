@@ -27,10 +27,14 @@ Native read receipts use the webhook's durable enqueue deduplication, the shop's
 
 | Check | Result |
 |---|---|
-| A team test account sent a message to NLess Demo, it appeared in Shop A inbox, and LINE received the answer | Pending a configured test OA and device observation |
+| A team test account sent a message to NLess Demo, it appeared in Shop A inbox, and LINE received the answer | C0 confirmed real incoming events, Console Verify, and an English handset reply. The five-second inbox interval was not measured in that record. [Production verification](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058720387) · [English handset and Console Verify](https://github.com/tanagornf/Endless-Hackathon/issues/1#issuecomment-7058802723) |
 | Reply older than 50 seconds delivered by Push | Pending provider evidence. The cutoff and retry behavior passed fake-provider tests |
 | Image and sticker persisted in the inbox | Pending device evidence. Local file and normalization tests passed |
 | Product and review cards displayed with working buttons | Pending device evidence. Formatting and database token integration passed |
 | Confirming a review created an order when F13 was available | Pending the real F13 and configured test OA |
 | Disconnect stopped delivery and reconnect restored it | Pending device evidence. The local sandbox or API checks passed |
 | Production Playwright connection and both page languages | Pending the public production deployment and test OA |
+
+The hosted disconnect regression reproduced a scheduled connection attempt after an owner had disconnected a different OA. Bootstrap now honors the shop's recorded disconnect before calling LINE and checks it again inside the connection transaction. An explicit owner reconnect can still replace it.
+
+For one remaining operator session, C0 first confirms the deployed revision and runs the bilingual LINE smoke. On the team handset, keep OA Chat enabled and check the native Read indicator, product Flex and a synthetic order confirmation. Verify inbound photo and sticker in the inbox. Use one staff reply after the 50-second window to check live Push. Check the missing-media text only when an approved synthetic fixture is available. Use a coordinated maintenance window for disconnect and reconnect. Record the Bangkok time, deployed SHA and test account alias only.
